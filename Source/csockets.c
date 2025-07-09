@@ -1963,6 +1963,68 @@ DLLEXPORT int createTaskSelect(WolframLibraryData libData, mint Argc, MArgument 
     return LIBRARY_NO_ERROR;
 }
 
+static int socketListSelect(SocketList socketList, struct fd_set *readfds)
+{
+    size_t length;
+    SOCKET interrupt;
+    SOCKET maxFd;
+    struct timeval timeout;
+    SOCKET socketId;
+    int result;
+
+    length = (size_t)socketList->length;
+    interrupt = socketList->interrupt;
+    maxFd = interrupt;
+
+    FD_ZERO(readfds);
+    FD_SET(interrupt, readfds);
+
+    size_t length = (size_t)socketList->length;
+    for (size_t i = 0; i < length; i++) {
+        socketId = socketList->sockets[i];
+        FD_SET(socketId, readfds);
+        if (socketId > maxFd) maxFd = socketId;
+    }
+
+    timeout.tv_sec = socketList->timeout / 1000000; // convert microseconds to seconds
+    timeout.tv_usec = socketList->timeout % 1000000; // get remaining microseconds
+
+    result = select(maxFd + 1, readfds, NULL, NULL, &timeout);
+    return result;
+}
+
+static int serverSelect(Server server, struct fd_set *readfds)
+{
+    size_t length;
+    SOCKET interrupt;
+    SOCKET maxFd;
+    struct timeval timeout;
+    SOCKET socketId;
+    int result;
+
+    length = (size_t)server->clientsLength;
+    interrupt = server->interrupt;
+    maxFd = interrupt;
+
+    FD_ZERO(readfds);
+    FD_SET(interrupt, readfds);
+    FD_SET(server->listenSocket, readfds);
+
+    maxFd = max(interrupt, server->listenSocket);
+
+    for (size_t i = 0; i < length; i++) {
+        socketId = server->clients[i];
+        FD_SET(socketId, readfds);
+        if (socketId > maxFd) maxFd = socketId;
+    }
+
+    timeout.tv_sec = server->timeout / 1000000; // convert microseconds to seconds
+    timeout.tv_usec = server->timeout % 1000000; // get remaining microseconds
+
+    result = select(maxFd + 1, readfds, NULL, NULL, &timeout);
+    return result;
+}
+
 static void taskSelectAcceptRecv(mint taskId, void* vtarg)
 {
     Server server = (Server)vtarg;
@@ -2023,7 +2085,7 @@ static void taskSelectRecvFrom(mint taskId, void *vtarg)
 
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
     {
-        /* code */
+        
     }
     
 }
