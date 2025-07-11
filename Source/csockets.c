@@ -590,8 +590,8 @@ DLLEXPORT void WolframLibrary_uninitialize(WolframLibraryData libData)
     return;
 }
 
-/*socketAddressCreate["host", "port", family, socktype, protocol] -> addressPtr*/
-DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+/*socketAddressInfoCreate["host", "port", family, socktype, protocol] -> addressPtr*/
+DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     char *host = MArgument_getUTF8String(Args[0]); // localhost by default
     char *port = MArgument_getUTF8String(Args[1]); // positive integer as string
@@ -601,7 +601,7 @@ DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgume
     int ai_protocol = (int)MArgument_getInteger(Args[4]); // 0 | IPPROTO_TCP == 6 | IPPROTO_UDP == 17 | IPPROTO_SCTP == 132 | IPPROTO_ICMP == 1 | ..
 
     #ifdef _DEBUG
-    printf("%s\n%ssocketAddressCreate[%s%s:%s, family = %d, socktype = %d, protocol = %d%s]%s -> ", 
+    printf("%s\n%socketAddressInfoCreate[%s%s:%s, family = %d, socktype = %d, protocol = %d%s]%s -> ", 
         getCurrentTime(), 
         BLUE, RESET, 
         host, port, ai_family, ai_socktype, ai_protocol, 
@@ -646,14 +646,14 @@ DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgume
     return LIBRARY_NO_ERROR;
 }
 
-/*socketAddressRemove[addressPtr] -> successStatus*/
-DLLEXPORT int socketAddressRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+/*socketAddressInfoRemove[addressPtr] -> successStatus*/
+DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[0]); // address pointer as integer
     struct addrinfo *address = (struct addrinfo*)addressPtr;
 
     #ifdef _DEBUG
-    printf("%s\n%ssocketAddressRemove[%s<%p>%s]%s -> ", 
+    printf("%s\n%socketAddressInfoRemove[%s<%p>%s]%s -> ", 
         getCurrentTime(), 
         BLUE, RESET, 
         (void*)addressPtr, 
