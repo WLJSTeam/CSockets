@@ -117,14 +117,14 @@ If[!FileExistsQ[$libFile],
 ]; 
 
 
-(*socketAddressCreate["host", "port", family, socktype, protocol] -> addressPtr*)
-socketAddressCreate = 
-LibraryFunctionLoad[$libFile, "socketAddressCreate", {String, String, Integer, Integer, Integer}, Integer];
+(*socketAddressInfoCreate["host", "port", family, socktype, protocol] -> addressPtr*)
+socketAddressInfoCreate = 
+LibraryFunctionLoad[$libFile, "socketAddressInfoCreate", {String, String, Integer, Integer, Integer}, Integer];
 
 
-(*socketAddressRemove[addressPtr] -> successStatus*)
-socketAddressRemove = 
-LibraryFunctionLoad[$libFile, "socketAddressRemove", {Integer}, Integer];
+(*socketAddressInfoRemove[addressPtr] -> successStatus*)
+socketAddressInfoRemove = 
+LibraryFunctionLoad[$libFile, "socketAddressInfoRemove", {Integer}, Integer];
 
 
 (*socketBufferCreate[bufferSize] -> bufferPtr*)
@@ -135,6 +135,16 @@ LibraryFunctionLoad[$libFile, "socketBufferCreate", {Integer}, Integer];
 (*socketBufferRemove[bufferPtr] -> successStatus*)
 socketBufferRemove = 
 LibraryFunctionLoad[$libFile, "socketBufferRemove", {Integer}, Integer];
+
+
+(*socketAddressCreate[] -> addressPtr*)
+socketAddressCreate = 
+LibraryFunctionLoad[$libFile, "socketAddressCreate", {Integer}, Integer];
+
+
+(*socketAddressRemove[addressPtr] -> successStatus*)
+socketAddressRemove = 
+LibraryFunctionLoad[$libFile, "socketAddressRemove", {Integer}, Integer];
 
 
 (*socketCreate[family, type, protocol] -> socketId*)

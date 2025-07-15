@@ -2001,7 +2001,6 @@ static int socketListSelect(SocketList socketList, struct fd_set *readfds)
     FD_ZERO(readfds);
     FD_SET(interrupt, readfds);
 
-    size_t length = (size_t)socketList->length;
     for (size_t i = 0; i < length; i++) {
         socketId = socketList->sockets[i];
         FD_SET(socketId, readfds);
@@ -2015,18 +2014,15 @@ static int socketListSelect(SocketList socketList, struct fd_set *readfds)
     return result;
 }
 
-static int serverSelect(Server server, struct fd_set *readfds)
+static int serverSelectReady(Server server, struct fd_set *readfds)
 {
-    size_t length;
-    SOCKET interrupt;
-    SOCKET maxFd;
     struct timeval timeout;
     SOCKET socketId;
     int result;
 
-    length = (size_t)server->clientsLength;
-    interrupt = server->interrupt;
-    maxFd = interrupt;
+    size_t length = (size_t)server->clientsLength;
+    SOCKET interrupt = server->interrupt;
+    SOCKET maxFd = interrupt;
 
     FD_ZERO(readfds);
     FD_SET(interrupt, readfds);
