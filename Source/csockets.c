@@ -683,6 +683,28 @@ DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MAr
     return LIBRARY_NO_ERROR;
 }
 
+DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    struct sockaddr_in *address = malloc(sizeof(struct sockaddr_in));
+    if (address == NULL) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    uintptr_t ptr = (uintptr_t)address;
+    MArgument_setInteger(Res, (mint)ptr);
+    return LIBRARY_NO_ERROR;
+}
+
+DLLEXPORT int socketAddressRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    uintptr_t ptr = (uintptr_t)MArgument_getInteger(Args[0]);
+    struct sockaddr_in *address = (struct sockaddr_in *)ptr;
+
+    free(address);
+    MArgument_setInteger(Res, 0);
+    return LIBRARY_NO_ERROR;
+}
+
 /*socketBufferCreate[bufferSize] -> bufferPtr*/
 DLLEXPORT int socketBufferCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
