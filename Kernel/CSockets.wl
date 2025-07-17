@@ -27,12 +27,17 @@ Begin["`Private`"];
 
 
 Options[CSocketOpen] = {
-    "Family" :> $socketConstants["AF_INET"]
+    "Family" :> $socketConstants["AF_INET"], 
+    "RecvBufferSize" :> Automatic, 
+    "SendBufferSize" :> Automatic
 };
 
 
 CSocketOpen[host_String: "localhost", port_Integer?Positive, protocol: "TCP" | "UDP": "TCP", OptionsPattern[]] := 
-Module[{socketId, family, type, protocolNum, address},
+Module[{socketId, family, type, protocolNum, addressInfo, 
+    recvBufferSize = OptionValue["RecvBufferSize"], 
+    sendBufferSize = OptionValue["SendBufferSize"]
+},
     family = OptionValue["Family"];
 
     If[protocol === "TCP", 
@@ -45,13 +50,23 @@ Module[{socketId, family, type, protocolNum, address},
         protocolNum = $socketConstants["IPPROTO_UDP"];
     ];
 
-    address = socketAddressCreate[host, ToString[port], family, type, protocolNum];
+    addressInfo = socketAddressInfoCreate[host, ToString[port], family, type, protocolNum];
 
     socketId = socketCreate[family, type, protocolNum];
 
-    socketBind[socketId, address];
+    If[IntegerQ[recvBufferSize] && recvBufferSize > 0, 
+        socketSetOpt[socketId, $socketConstants["SOL_SOCKET"], $socketConstants["SO_RCVBUF"], recvBufferSize]
+    ];
+
+    If[IntegerQ[sendBufferSize] && sendBufferSize > 0, 
+        socketSetOpt[socketId, $socketConstants["SOL_SOCKET"], $socketConstants["SO_SNDBUF"], sendBufferSize]
+    ];
+
+    socketBind[socketId, addressInfo];
 
     If[protocol === "TCP", socketListen[socketId, $socketConstants["SOMAXCONN"]]];
+
+    socketAddressInfoRemove[addressInfo];
 
     (*Return*)
     CSocketObject[socketId]

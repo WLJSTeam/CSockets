@@ -82,6 +82,63 @@ typedef struct Server_st *Server;
 
 #pragma endregion
 
+/*
+    RITUAL
+*/
+
+DLLEXPORT mint WolframLibrary_getVersion()
+{
+    #ifdef _DEBUG
+    printf("%s\n%sWolframLibrary_getVersion[]%s -> %s%d%s\n\n", 
+        getCurrentTime(),
+        BLUE, RESET, 
+        GREEN, WolframLibraryVersion, RESET
+    );
+    #endif
+
+    return WolframLibraryVersion;
+}
+
+DLLEXPORT int WolframLibrary_initialize(WolframLibraryData libData)
+{
+    #ifdef _WIN32
+    int iResult;
+    WSADATA wsaData;
+
+    iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
+    if (iResult != 0) return LIBRARY_FUNCTION_ERROR;
+    #endif
+
+    globalMutex = mutexCreate();
+
+    #ifdef _DEBUG
+    printf("%s\n%sWolframLibrary_initialize[]%s -> %sSuccess%s\n\n", 
+        getCurrentTime(),
+        BLUE, RESET, GREEN, RESET
+    );
+    #endif
+
+    return LIBRARY_NO_ERROR;
+}
+
+DLLEXPORT void WolframLibrary_uninitialize(WolframLibraryData libData)
+{
+    #ifdef _WIN32
+    WSACleanup();
+    #else
+    sleep(1);
+    #endif
+
+    #ifdef _DEBUG
+    printf("%s\n%sWolframLibrary_uninitialize[]%s -> %sSuccess%s\n\n",
+        getCurrentTime(),
+        BLUE, RESET, GREEN, RESET
+    );
+    #endif
+
+    return;
+}
+
 const char* getCurrentTime()
 {
     static char time_buffer[64];
@@ -109,6 +166,10 @@ const char* getCurrentTime()
     
     return time_buffer;
 }
+
+/*
+    MUTEX
+*/
 
 Mutex mutexCreate()
 {
@@ -147,6 +208,10 @@ void mutexUnlock(Mutex mutex)
     #endif
 }
 
+/*
+    STRUCTS
+*/
+
 struct SocketList_st
 {
     SOCKET interrupt;
@@ -155,6 +220,26 @@ struct SocketList_st
     mint timeout;
     WolframLibraryData libData;
 };
+
+struct Server_st
+{
+    SOCKET interrupt;
+    SOCKET listenSocket;
+    size_t clientsCapacity;
+    size_t bufferSize;
+    long timeout;
+    SOCKET *clients;
+    fd_set clientsReadSet;
+    size_t clientsReadSetLength;
+    size_t clientsLength;
+    BYTE *buffer;
+    WolframLibraryData libData;
+    mint taskId;
+};
+
+/*
+    CONSTRUCTORS
+*/
 
 /*socketListCreate[interrupt, length] -> socketListPtr*/
 DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
@@ -231,22 +316,6 @@ DLLEXPORT int socketListRemove(WolframLibraryData libData, mint Argc, MArgument 
     MArgument_setInteger(Res, 0); // success
     return LIBRARY_NO_ERROR; 
 }
-
-struct Server_st
-{
-    SOCKET interrupt;
-    SOCKET listenSocket;
-    size_t clientsCapacity;
-    size_t bufferSize;
-    long timeout;
-    SOCKET *clients;
-    fd_set clientsReadSet;
-    size_t clientsReadSetLength;
-    size_t clientsLength;
-    BYTE *buffer;
-    WolframLibraryData libData;
-    mint taskId;
-};
 
 /*serverCreate[interrupt, listenSocket, clientsCapacity, bufferSize] -> serverPtr*/
 DLLEXPORT int serverCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
@@ -343,6 +412,144 @@ DLLEXPORT int serverRemove(WolframLibraryData libData, mint Argc, MArgument *Arg
     MArgument_setInteger(Res, 0);
     return LIBRARY_NO_ERROR;
 }
+
+/*socketAddressInfoCreate["host", "port", family, socktype, protocol] -> addressPtr*/
+DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    char *host = MArgument_getUTF8String(Args[0]); // localhost by default
+    char *port = MArgument_getUTF8String(Args[1]); // positive integer as string
+
+    int ai_family = (int)MArgument_getInteger(Args[2]); // AF_UNSPEC == 0 | AF_INET == 2 | AF_INET6 == 23/10 | ..
+    int ai_socktype = (int)MArgument_getInteger(Args[3]); // SOCK_STREAM == 1 | SOCK_DGRAM == 2 | SOCK_RAW == 3 | ..
+    int ai_protocol = (int)MArgument_getInteger(Args[4]); // 0 | IPPROTO_TCP == 6 | IPPROTO_UDP == 17 | IPPROTO_SCTP == 132 | IPPROTO_ICMP == 1 | ..
+
+    #ifdef _DEBUG
+    printf("%s\n%socketAddressInfoCreate[%s%s:%s, family = %d, socktype = %d, protocol = %d%s]%s -> ", 
+        getCurrentTime(), 
+        BLUE, RESET, 
+        host, port, ai_family, ai_socktype, ai_protocol, 
+        BLUE, RESET
+    );
+    #endif
+
+    int result;
+    struct addrinfo *address = NULL;
+    struct addrinfo hints;
+
+    ZeroMemory(&hints, sizeof(hints));
+    hints.ai_family = ai_family;
+    hints.ai_socktype = ai_socktype;
+    hints.ai_protocol = ai_protocol;
+
+    result = getaddrinfo(host, port, &hints, &address);
+    if (result != 0){
+        #ifdef _DEBUG
+        printf("%sERROR%s\n\n", 
+            RED, RESET
+        );
+        #endif
+
+        libData->UTF8String_disown(host);
+        libData->UTF8String_disown(port);
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    libData->UTF8String_disown(host);
+    libData->UTF8String_disown(port);
+
+    uintptr_t addressPtr = (uintptr_t)address;
+
+    #ifdef _DEBUG
+    printf("%s<%p>%s\n\n", 
+        GREEN, (void*)addressPtr, RESET
+    );
+    #endif
+
+    MArgument_setInteger(Res, (mint)addressPtr);
+    return LIBRARY_NO_ERROR;
+}
+
+/*socketAddressInfoRemove[addressPtr] -> successStatus*/
+DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[0]); // address pointer as integer
+    struct addrinfo *address = (struct addrinfo*)addressPtr;
+
+    #ifdef _DEBUG
+    printf("%s\n%socketAddressInfoRemove[%s<%p>%s]%s -> ", 
+        getCurrentTime(), 
+        BLUE, RESET, 
+        (void*)addressPtr, 
+        BLUE, RESET
+    );
+    #endif
+
+    if (address == NULL) {
+        #ifdef _DEBUG
+        printf("%sERROR%s\n\n", 
+            RED, RESET
+        );
+        #endif
+
+        MArgument_setInteger(Res, 1); // failure
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    #ifdef _DEBUG
+    printf("%sSuccess%s\n\n", 
+        GREEN, RESET
+    );
+    #endif
+
+    freeaddrinfo(address);
+    MArgument_setInteger(Res, 0); // success
+    return LIBRARY_NO_ERROR;
+}
+
+DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    struct sockaddr_in *address = malloc(sizeof(struct sockaddr_in));
+    if (address == NULL) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    uintptr_t ptr = (uintptr_t)address;
+    MArgument_setInteger(Res, (mint)ptr);
+    return LIBRARY_NO_ERROR;
+}
+
+DLLEXPORT int socketAddressRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    uintptr_t ptr = (uintptr_t)MArgument_getInteger(Args[0]);
+    struct sockaddr_in *address = (struct sockaddr_in *)ptr;
+
+    free(address);
+    MArgument_setInteger(Res, 0);
+    return LIBRARY_NO_ERROR;
+}
+
+/*socketBufferCreate[bufferSize] -> bufferPtr*/
+DLLEXPORT int socketBufferCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    mint bufferSize = (mint)MArgument_getInteger(Args[0]);
+    BYTE *buffer = malloc(bufferSize * sizeof(BYTE));
+    uintptr_t bufferPtr = (uintptr_t)buffer;
+    MArgument_setInteger(Res, bufferPtr);
+    return LIBRARY_NO_ERROR;
+}
+
+/*socketBufferRemove[bufferPtr] -> successStatus*/
+DLLEXPORT int socketBufferRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    BYTE * buffer = (BYTE *)MArgument_getInteger(Args[0]);
+    free(buffer);
+    MArgument_setInteger(Res, 0);
+    return LIBRARY_NO_ERROR;
+}
+
+/*
+    ERROR MESSAGES
+*/
 
 void acceptErrorMessage(WolframLibraryData libData, int err)
 {
@@ -537,192 +744,9 @@ void sendErrorMessage(WolframLibraryData libData, int err)
         libData->Message("sendUnexpectedError");
 }
 
-DLLEXPORT mint WolframLibrary_getVersion()
-{
-    #ifdef _DEBUG
-    printf("%s\n%sWolframLibrary_getVersion[]%s -> %s%d%s\n\n", 
-        getCurrentTime(),
-        BLUE, RESET, 
-        GREEN, WolframLibraryVersion, RESET
-    );
-    #endif
-
-    return WolframLibraryVersion;
-}
-
-DLLEXPORT int WolframLibrary_initialize(WolframLibraryData libData)
-{
-    #ifdef _WIN32
-    int iResult;
-    WSADATA wsaData;
-
-    iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
-    if (iResult != 0) return LIBRARY_FUNCTION_ERROR;
-    #endif
-
-    globalMutex = mutexCreate();
-
-    #ifdef _DEBUG
-    printf("%s\n%sWolframLibrary_initialize[]%s -> %sSuccess%s\n\n", 
-        getCurrentTime(),
-        BLUE, RESET, GREEN, RESET
-    );
-    #endif
-
-    return LIBRARY_NO_ERROR;
-}
-
-DLLEXPORT void WolframLibrary_uninitialize(WolframLibraryData libData)
-{
-    #ifdef _WIN32
-    WSACleanup();
-    #else
-    sleep(1);
-    #endif
-
-    #ifdef _DEBUG
-    printf("%s\n%sWolframLibrary_uninitialize[]%s -> %sSuccess%s\n\n",
-        getCurrentTime(),
-        BLUE, RESET, GREEN, RESET
-    );
-    #endif
-
-    return;
-}
-
-/*socketAddressInfoCreate["host", "port", family, socktype, protocol] -> addressPtr*/
-DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    char *host = MArgument_getUTF8String(Args[0]); // localhost by default
-    char *port = MArgument_getUTF8String(Args[1]); // positive integer as string
-
-    int ai_family = (int)MArgument_getInteger(Args[2]); // AF_UNSPEC == 0 | AF_INET == 2 | AF_INET6 == 23/10 | ..
-    int ai_socktype = (int)MArgument_getInteger(Args[3]); // SOCK_STREAM == 1 | SOCK_DGRAM == 2 | SOCK_RAW == 3 | ..
-    int ai_protocol = (int)MArgument_getInteger(Args[4]); // 0 | IPPROTO_TCP == 6 | IPPROTO_UDP == 17 | IPPROTO_SCTP == 132 | IPPROTO_ICMP == 1 | ..
-
-    #ifdef _DEBUG
-    printf("%s\n%socketAddressInfoCreate[%s%s:%s, family = %d, socktype = %d, protocol = %d%s]%s -> ", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        host, port, ai_family, ai_socktype, ai_protocol, 
-        BLUE, RESET
-    );
-    #endif
-
-    int result;
-    struct addrinfo *address = NULL;
-    struct addrinfo hints;
-
-    ZeroMemory(&hints, sizeof(hints));
-    hints.ai_family = ai_family;
-    hints.ai_socktype = ai_socktype;
-    hints.ai_protocol = ai_protocol;
-
-    result = getaddrinfo(host, port, &hints, &address);
-    if (result != 0){
-        #ifdef _DEBUG
-        printf("%sERROR%s\n\n", 
-            RED, RESET
-        );
-        #endif
-
-        libData->UTF8String_disown(host);
-        libData->UTF8String_disown(port);
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    libData->UTF8String_disown(host);
-    libData->UTF8String_disown(port);
-
-    uintptr_t addressPtr = (uintptr_t)address;
-
-    #ifdef _DEBUG
-    printf("%s<%p>%s\n\n", 
-        GREEN, (void*)addressPtr, RESET
-    );
-    #endif
-
-    MArgument_setInteger(Res, (mint)addressPtr);
-    return LIBRARY_NO_ERROR;
-}
-
-/*socketAddressInfoRemove[addressPtr] -> successStatus*/
-DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[0]); // address pointer as integer
-    struct addrinfo *address = (struct addrinfo*)addressPtr;
-
-    #ifdef _DEBUG
-    printf("%s\n%socketAddressInfoRemove[%s<%p>%s]%s -> ", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        (void*)addressPtr, 
-        BLUE, RESET
-    );
-    #endif
-
-    if (address == NULL) {
-        #ifdef _DEBUG
-        printf("%sERROR%s\n\n", 
-            RED, RESET
-        );
-        #endif
-
-        MArgument_setInteger(Res, 1); // failure
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    #ifdef _DEBUG
-    printf("%sSuccess%s\n\n", 
-        GREEN, RESET
-    );
-    #endif
-
-    freeaddrinfo(address);
-    MArgument_setInteger(Res, 0); // success
-    return LIBRARY_NO_ERROR;
-}
-
-DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    struct sockaddr_in *address = malloc(sizeof(struct sockaddr_in));
-    if (address == NULL) {
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    uintptr_t ptr = (uintptr_t)address;
-    MArgument_setInteger(Res, (mint)ptr);
-    return LIBRARY_NO_ERROR;
-}
-
-DLLEXPORT int socketAddressRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    uintptr_t ptr = (uintptr_t)MArgument_getInteger(Args[0]);
-    struct sockaddr_in *address = (struct sockaddr_in *)ptr;
-
-    free(address);
-    MArgument_setInteger(Res, 0);
-    return LIBRARY_NO_ERROR;
-}
-
-/*socketBufferCreate[bufferSize] -> bufferPtr*/
-DLLEXPORT int socketBufferCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    mint bufferSize = (mint)MArgument_getInteger(Args[0]);
-    BYTE *buffer = malloc(bufferSize * sizeof(BYTE));
-    uintptr_t bufferPtr = (uintptr_t)buffer;
-    MArgument_setInteger(Res, bufferPtr);
-    return LIBRARY_NO_ERROR;
-}
-
-/*socketBufferRemove[bufferPtr] -> successStatus*/
-DLLEXPORT int socketBufferRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    BYTE * buffer = (BYTE *)MArgument_getInteger(Args[0]);
-    free(buffer);
-    MArgument_setInteger(Res, 0);
-    return LIBRARY_NO_ERROR;
-}
+/*
+    SOCKET FUNCTIONS
+*/
 
 /*socketCreate[family, socktype, protocol] -> socketId*/
 DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
@@ -1051,6 +1075,10 @@ DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Ar
     MArgument_setInteger(Res, 0);
     return LIBRARY_NO_ERROR;
 }
+
+/*
+    SELECT FUNCTIONS
+*/
 
 /*socketSelect[{sockets}, length, timeout] -> {readySockets}*/
 DLLEXPORT int socketSelect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
