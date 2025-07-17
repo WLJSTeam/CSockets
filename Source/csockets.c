@@ -139,6 +139,10 @@ DLLEXPORT void WolframLibrary_uninitialize(WolframLibraryData libData)
     return;
 }
 
+/*
+    TIME
+*/
+
 const char* getCurrentTime()
 {
     static char time_buffer[64];
@@ -413,7 +417,7 @@ DLLEXPORT int serverRemove(WolframLibraryData libData, mint Argc, MArgument *Arg
     return LIBRARY_NO_ERROR;
 }
 
-/*socketAddressInfoCreate["host", "port", family, socktype, protocol] -> addressPtr*/
+/*socketAddressInfoCreate["host", "port", family, socktype, protocol] -> addressInfoPtr*/
 DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     char *host = MArgument_getUTF8String(Args[0]); // localhost by default
@@ -506,6 +510,7 @@ DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MAr
     return LIBRARY_NO_ERROR;
 }
 
+/*socketAddressCreate[addressType] -> addressPtr*/
 DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     struct sockaddr_in *address = malloc(sizeof(struct sockaddr_in));
@@ -518,6 +523,7 @@ DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgume
     return LIBRARY_NO_ERROR;
 }
 
+/*socketAddressRemove[addressPtr] -> successStatus*/
 DLLEXPORT int socketAddressRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     uintptr_t ptr = (uintptr_t)MArgument_getInteger(Args[0]);
