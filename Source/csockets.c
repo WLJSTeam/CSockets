@@ -172,6 +172,37 @@ const char* getCurrentTime()
 }
 
 /*
+    BLOCKING
+*/
+
+const void setBlocking(SOCKET socket, bool blocking)
+{
+    #ifdef _WIN32
+    u_long mode = blocking ? 0 : 1; // 0 for blocking, 1 for non-blocking
+    ioctlsocket(socket, FIONBIO, &mode);
+    #else
+    int flags = fcntl(socket, F_GETFL, 0);
+    if (blocking) {
+        fcntl(socket, F_SETFL, flags & ~O_NONBLOCK);
+    } else {
+        fcntl(socket, F_SETFL, flags | O_NONBLOCK);
+    }
+    #endif
+}
+
+const bool blockingModeQ(SOCKET socketId)
+{
+    #ifdef _WIN32
+    u_long mode;
+    ioctlsocket(socketId, FIONBIO, &mode);
+    return (mode == 0);
+    #else
+    int flags = fcntl(socketId, F_GETFL, 0);
+    return !(flags & O_NONBLOCK);
+    #endif
+}
+
+/*
     MUTEX
 */
 
@@ -1050,12 +1081,13 @@ DLLEXPORT int socketListen(WolframLibraryData libData, mint Argc, MArgument *Arg
     return LIBRARY_NO_ERROR;
 }
 
-/*socketConnect[socketId, addressPtr] -> successStatus*/
+/*socketConnect[socketId, addressInfoPtr] -> successStatus*/
 DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
     struct addrinfo *address = (struct addrinfo*)addressPtr;
+    bool wait = (bool)MArgument_getInteger(Args[2]); // wait for connection
 
     #ifdef _DEBUG
     printf("%s\n%ssocketConnect[%s%I64d, %p%s]%s -> ", 
@@ -1066,6 +1098,12 @@ DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Ar
     );
     #endif
 
+    bool blockingMode = blockingModeQ(socketId);
+
+    if (wait && !blockingMode) {
+        setBlocking(socketId, true); // set blocking mode if needed
+    }
+
     int iResult = connect(socketId, address->ai_addr, (int)address->ai_addrlen);
     if (iResult == SOCKET_ERROR) {
         #ifdef _DEBUG
@@ -1074,11 +1112,88 @@ DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Ar
         return LIBRARY_FUNCTION_ERROR;
     }
 
+    if (wait && !blockingMode) {
+        setBlocking(socketId, false); // restore non-blocking mode if needed
+    }
+
     #ifdef _DEBUG
     printf("%sSuccess%s\n\n", GREEN, RESET);
     #endif
 
     MArgument_setInteger(Res, 0);
+    return LIBRARY_NO_ERROR;
+}
+
+/*socketsCheck[{sockets}, length] -> validSockets*/
+DLLEXPORT int socketCheck(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    MTensor socketList = MArgument_getMTensor(Args[0]); // list of sockets
+    size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
+
+    SOCKET *sockets = (SOCKET*)libData->MTensor_getIntegerData(socketList);
+    SOCKET sock;
+    mint validCount = 0;
+    int opt;
+    int err;
+    socklen_t len = sizeof(opt);
+
+    #ifdef _DEBUG
+    printf("%s[socketCheck->CALL]%s\n\tcheck(",
+        GREEN, RESET); 
+    #endif
+
+    for (size_t i = 0; i < length; i++) {
+        sock = sockets[i];
+
+        #ifdef _DEBUG
+        printf("%I64d ", sock); 
+        #endif
+
+        #ifdef _WIN32
+        int result = getsockopt(sock, SOL_SOCKET, SO_TYPE, (char*)&opt, &len);
+        #else
+        int result = fcntl(sock, F_GETFL);
+        #endif
+
+        err = GETSOCKETERRNO();
+
+        if (result >= 0 || 
+            #ifdef _WIN32
+            err != WSAENOTSOCK
+            #else
+            err != EBADF
+            #endif
+        ) {
+            sockets[validCount] = sock;
+            validCount++;
+        }
+    }
+
+    #ifdef _DEBUG
+    printf(")\n\n"); 
+    #endif
+
+    MTensor validSocketsList;
+    libData->MTensor_new(MType_Integer, 1, &validCount, &validSocketsList);
+    SOCKET *validSockets = (SOCKET*)libData->MTensor_getIntegerData(validSocketsList);
+
+    #ifdef _DEBUG
+    printf("%s[socketCheck->SUCCESS]%s\n\tcheck(",
+        GREEN, RESET); 
+    #endif
+
+    for (mint i = 0; i < validCount; i++) {
+        #ifdef _DEBUG
+        printf("%I64d ", sockets[i]); 
+        #endif
+        validSockets[i] = sockets[i];
+    }
+
+    #ifdef _DEBUG
+    printf(")\n\n"); 
+    #endif
+    
+    MArgument_setMTensor(Res, validSocketsList);
     return LIBRARY_NO_ERROR;
 }
 
@@ -1229,78 +1344,10 @@ DLLEXPORT int socketSelectTaskCreate(WolframLibraryData libData, mint Argc, MArg
     return LIBRARY_NO_ERROR;
 }
 
-/*socketCheck[{sockets}, length] -> validSockets*/
-DLLEXPORT int socketCheck(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    MTensor socketList = MArgument_getMTensor(Args[0]); // list of sockets
-    size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
 
-    SOCKET *sockets = (SOCKET*)libData->MTensor_getIntegerData(socketList);
-    SOCKET sock;
-    mint validCount = 0;
-    int opt;
-    int err;
-    socklen_t len = sizeof(opt);
+/*
 
-    #ifdef _DEBUG
-    printf("%s[socketCheck->CALL]%s\n\tcheck(",
-        GREEN, RESET); 
-    #endif
-
-    for (size_t i = 0; i < length; i++) {
-        sock = sockets[i];
-
-        #ifdef _DEBUG
-        printf("%I64d ", sock); 
-        #endif
-
-        #ifdef _WIN32
-        int result = getsockopt(sock, SOL_SOCKET, SO_TYPE, (char*)&opt, &len);
-        #else
-        int result = fcntl(sock, F_GETFL);
-        #endif
-
-        err = GETSOCKETERRNO();
-
-        if (result >= 0 || 
-            #ifdef _WIN32
-            err != WSAENOTSOCK
-            #else
-            err != EBADF
-            #endif
-        ) {
-            sockets[validCount] = sock;
-            validCount++;
-        }
-    }
-
-    #ifdef _DEBUG
-    printf(")\n\n"); 
-    #endif
-
-    MTensor validSocketsList;
-    libData->MTensor_new(MType_Integer, 1, &validCount, &validSocketsList);
-    SOCKET *validSockets = (SOCKET*)libData->MTensor_getIntegerData(validSocketsList);
-
-    #ifdef _DEBUG
-    printf("%s[socketCheck->SUCCESS]%s\n\tcheck(",
-        GREEN, RESET); 
-    #endif
-
-    for (mint i = 0; i < validCount; i++) {
-        #ifdef _DEBUG
-        printf("%I64d ", sockets[i]); 
-        #endif
-        validSockets[i] = sockets[i];
-    }
-
-    #ifdef _DEBUG
-    printf(")\n\n"); 
-    #endif
-    
-    MArgument_setMTensor(Res, validSocketsList);
-    return LIBRARY_NO_ERROR;
-}
+*/
 
 /*socketAccept[socketId] -> clientId*/
 DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
