@@ -83,6 +83,79 @@ typedef struct Server_st *Server;
 #pragma endregion
 
 /*
+    TIME
+*/
+
+const char* getCurrentTime()
+{
+    static char time_buffer[64];
+    time_t rawtime;
+    struct tm* timeinfo;
+    
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    
+    strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
+    
+    #ifdef _WIN32
+    SYSTEMTIME st;
+    GetSystemTime(&st);
+    snprintf(time_buffer + strlen(time_buffer), 
+             sizeof(time_buffer) - strlen(time_buffer), 
+             ".%03d", st.wMilliseconds);
+    #else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    snprintf(time_buffer + strlen(time_buffer), 
+             sizeof(time_buffer) - strlen(time_buffer), 
+             ".%06ld", tv.tv_usec);
+    #endif
+    
+    return time_buffer;
+}
+
+/*
+    MUTEX
+*/
+
+Mutex mutexCreate()
+{
+    #if defined(_WIN32) || defined(_WIN64)
+        return CreateMutex(NULL, FALSE, NULL);
+    #else
+        pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+        return mutex;
+    #endif
+}
+
+void mutexClose(Mutex mutex)
+{
+    #if defined(_WIN32) || defined(_WIN64)
+        CloseHandle(mutex);
+    #else
+        pthread_mutex_destroy(&mutex);
+    #endif
+}
+
+void mutexLock(Mutex mutex)
+{
+    #if defined(_WIN32) || defined(_WIN64)
+        WaitForSingleObject(mutex, INFINITE);
+    #else
+        pthread_mutex_lock(&mutex);
+    #endif
+}
+
+void mutexUnlock(Mutex mutex)
+{
+    #if defined(_WIN32) || defined(_WIN64)
+        ReleaseMutex(mutex);
+    #else
+        pthread_mutex_unlock(&mutex);
+    #endif
+}
+
+/*
     RITUAL
 */
 
@@ -136,39 +209,9 @@ DLLEXPORT void WolframLibrary_uninitialize(WolframLibraryData libData)
     );
     #endif
 
+    mutexClose(globalMutex);
+
     return;
-}
-
-/*
-    TIME
-*/
-
-const char* getCurrentTime()
-{
-    static char time_buffer[64];
-    time_t rawtime;
-    struct tm* timeinfo;
-    
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
-    
-    strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
-    
-    #ifdef _WIN32
-    SYSTEMTIME st;
-    GetSystemTime(&st);
-    snprintf(time_buffer + strlen(time_buffer), 
-             sizeof(time_buffer) - strlen(time_buffer), 
-             ".%03d", st.wMilliseconds);
-    #else
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    snprintf(time_buffer + strlen(time_buffer), 
-             sizeof(time_buffer) - strlen(time_buffer), 
-             ".%06ld", tv.tv_usec);
-    #endif
-    
-    return time_buffer;
 }
 
 /*
@@ -203,53 +246,12 @@ const bool blockingModeQ(SOCKET socketId)
 }
 
 /*
-    MUTEX
-*/
-
-Mutex mutexCreate()
-{
-    #if defined(_WIN32) || defined(_WIN64)
-        return CreateMutex(NULL, FALSE, NULL);
-    #else
-        pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-        return mutex;
-    #endif
-}
-
-void mutexClose(Mutex mutex)
-{
-    #if defined(_WIN32) || defined(_WIN64)
-        CloseHandle(mutex);
-    #else
-        pthread_mutex_destroy(&mutex);
-    #endif
-}
-
-void mutexLock(Mutex mutex)
-{
-    #if defined(_WIN32) || defined(_WIN64)
-        WaitForSingleObject(mutex, INFINITE);
-    #else
-        pthread_mutex_lock(&mutex);
-    #endif
-}
-
-void mutexUnlock(Mutex mutex)
-{
-    #if defined(_WIN32) || defined(_WIN64)
-        ReleaseMutex(mutex);
-    #else
-        pthread_mutex_unlock(&mutex);
-    #endif
-}
-
-/*
     STRUCTS
 */
 
 struct SocketList_st
 {
-    SOCKET interrupt;
+    SOCKET interrupt; // interrupts waiting from WL session
     SOCKET *sockets;
     size_t length;
     mint timeout;
@@ -872,6 +874,8 @@ DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args,
     uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
     struct addrinfo *address = (struct addrinfo*)addressPtr;
 
+    bool successState = 0;
+
     #ifdef _DEBUG
     printf("%s\n%ssocketBind[%s%I64d, <%p>%s]%s -> ", 
         getCurrentTime(), 
@@ -888,7 +892,6 @@ DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args,
         );
         #endif
 
-        MArgument_setInteger(Res, 1); // failure
         return LIBRARY_FUNCTION_ERROR;
     }
 
@@ -899,7 +902,6 @@ DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args,
         );
         #endif
 
-        MArgument_setInteger(Res, 2); // failure
         return LIBRARY_FUNCTION_ERROR;
     }
 
@@ -920,7 +922,7 @@ DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args,
     );
     #endif
 
-    MArgument_setInteger(Res, 0); // success
+    MArgument_setInteger(Res, successState); // success = 0
     return LIBRARY_NO_ERROR;
 }
 
@@ -1125,13 +1127,13 @@ DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Ar
 }
 
 /*socketsCheck[{sockets}, length] -> validSockets*/
-DLLEXPORT int socketCheck(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    MTensor socketList = MArgument_getMTensor(Args[0]); // list of sockets
+    MTensor socketsTensor = MArgument_getMTensor(Args[0]); // list of sockets
     size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
 
-    SOCKET *sockets = (SOCKET*)libData->MTensor_getIntegerData(socketList);
-    SOCKET sock;
+    SOCKET *sockets = (SOCKET*)libData->MTensor_getIntegerData(socketsTensor);
+    SOCKET sockedId;
     mint validCount = 0;
     int opt;
     int err;
@@ -1143,14 +1145,14 @@ DLLEXPORT int socketCheck(WolframLibraryData libData, mint Argc, MArgument *Args
     #endif
 
     for (size_t i = 0; i < length; i++) {
-        sock = sockets[i];
+        sockedId = sockets[i];
 
         #ifdef _DEBUG
-        printf("%I64d ", sock); 
+        printf("%I64d ", sockedId); 
         #endif
 
         #ifdef _WIN32
-        int result = getsockopt(sock, SOL_SOCKET, SO_TYPE, (char*)&opt, &len);
+        int result = getsockopt(sockedId, SOL_SOCKET, SO_TYPE, (char*)&opt, &len);
         #else
         int result = fcntl(sock, F_GETFL);
         #endif
@@ -1164,7 +1166,7 @@ DLLEXPORT int socketCheck(WolframLibraryData libData, mint Argc, MArgument *Args
             err != EBADF
             #endif
         ) {
-            sockets[validCount] = sock;
+            sockets[validCount] = sockedId;
             validCount++;
         }
     }
@@ -1196,158 +1198,6 @@ DLLEXPORT int socketCheck(WolframLibraryData libData, mint Argc, MArgument *Args
     MArgument_setMTensor(Res, validSocketsList);
     return LIBRARY_NO_ERROR;
 }
-
-/*
-    SELECT FUNCTIONS
-*/
-
-/*socketSelect[{sockets}, length, timeout] -> {readySockets}*/
-DLLEXPORT int socketSelect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    MTensor socketIdsList = MArgument_getMTensor(Args[0]); // list of sockets
-    size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
-    int timeout = (int)MArgument_getInteger(Args[2]); // timeout in microseconds
-
-    int err;
-    SOCKET *socketIds = (SOCKET*)libData->MTensor_getIntegerData(socketIdsList);
-    SOCKET socketId;
-    SOCKET maxFd = 0;
-    fd_set readfds;
-    FD_ZERO(&readfds);
-
-    #ifdef _DEBUG
-    printf("%s\n%ssocketSelect[%s", getCurrentTime(), BLUE, RESET); 
-    #endif
-
-    for (size_t i = 0; i < length; i++) {
-        socketId = socketIds[i];
-        if (socketId > maxFd) maxFd = socketId;
-        FD_SET(socketId, &readfds);
-
-        #ifdef _DEBUG
-        if (i == 0) printf("%I64d", socketId);
-        else printf(", %I64d", socketId);
-        #endif
-    }
-
-    #ifdef _DEBUG
-    printf("%s]%s -> ", BLUE, RESET);
-    #endif
-
-    struct timeval tv;
-    tv.tv_sec  = timeout / 1000000;
-    tv.tv_usec = timeout % 1000000;
-
-    int result = select((int)(maxFd + 1), &readfds, NULL, NULL, &tv);
-    if (result >= 0) {
-        mint len = (mint)result;
-        MTensor readySocketsTensor;
-        libData->MTensor_new(MType_Integer, 1, &len, &readySocketsTensor);
-        SOCKET *readySockets = (SOCKET*)libData->MTensor_getIntegerData(readySocketsTensor);
-        
-        #ifdef _DEBUG
-        printf("%s{", GREEN);
-        #endif
-
-        int j = 0;
-        for (size_t i = 0; i < length; i++) {
-            socketId = socketIds[i];
-            if (FD_ISSET(socketId, &readfds)) { 
-                readySockets[j] = socketId;
-                j++;
-
-                #ifdef _DEBUG
-                if (j == 1) printf("%I64d", socketId);
-                else printf(", %I64d ", socketId);
-                #endif
-            }
-        }
-
-        #ifdef _DEBUG
-        printf("}%s\n\n", RESET);
-        #endif
-
-        MArgument_setMTensor(Res, readySocketsTensor);
-        return LIBRARY_NO_ERROR;
-    } else {
-        err = GETSOCKETERRNO();
-        #ifdef _DEBUG
-        printf("%sERROR = %d%s", RED, err, RESET); 
-        #endif
-
-        selectErrorMessage(libData, err);
-        return LIBRARY_FUNCTION_ERROR;
-    }
-}
-
-static void socketSelectTask(mint taskId, void* vtarg)
-{
-    SocketList socketList = (SocketList)vtarg;
-
-    WolframLibraryData libData = socketList->libData;
-    struct fd_set readfds;
-    struct timeval timeout;
-    SOCKET maxFd = socketList->interrupt;
-    SOCKET socketId;
-    SOCKET interrupt = socketList->interrupt;
-    int result;
-    DataStore dataStore;
-    char buffer[1024];
-
-    #ifdef _DEBUG
-    printf("%s", getCurrentTime());
-    #endif
-
-    while (socketList->libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
-    {
-        FD_ZERO(&readfds);
-
-        FD_SET(interrupt, &readfds);
-
-        size_t length = (size_t)socketList->length;
-        for (size_t i = 0; i < length; i++){
-            socketId = socketList->sockets[i];
-            FD_SET(socketId, &readfds);
-
-            if (socketId > maxFd) maxFd = socketId;
-        }
-
-        timeout.tv_sec = 60;
-        timeout.tv_usec = 0;
-
-        result = select(maxFd + 1, &readfds, NULL, NULL, &timeout);
-        if (result > 0) {
-            if (FD_ISSET(interrupt, &readfds)) {
-                recv(interrupt, buffer, 1024, 0);
-            } else {
-                dataStore = libData->ioLibraryFunctions->createDataStore();
-
-                for (size_t i = 0; i < length; i++) {
-                    socketId = socketList->sockets[i];
-                    if (FD_ISSET(socketId, &readfds)) {
-                        libData->ioLibraryFunctions->DataStore_addInteger(dataStore, socketId);
-                    }
-                }
-
-                libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "SelectAsync", dataStore);
-            }
-        }
-    }
-}
-
-/*socketSelectTaskCreate[socketListPtr] -> taskId*/
-DLLEXPORT int socketSelectTaskCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    void *socketListPtr = (void *)MArgument_getInteger(Args[0]);
-    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketSelectTask, socketListPtr);
-    MArgument_setInteger(Res, taskId);
-    return LIBRARY_NO_ERROR;
-}
-
-
-/*
-
-*/
 
 /*socketAccept[socketId] -> clientId*/
 DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
@@ -1539,40 +1389,137 @@ DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument 
     return LIBRARY_FUNCTION_ERROR;
 }
 
-void serverDestroy(Server server)
+/*
+    ASYNC EVENTS
+*/
+
+/*push list of sockets that ready for read*/
+void pushSelect(WolframLibraryData libData, mint taskId, SOCKET *sockets, size_t socketsLength, fd_set *readset)
 {
+    SOCKET socketId;
+
     #ifdef _DEBUG
-    printf("%s\n%s[serverDestroy->CALL]%s\n\tserver pointer = %p\n\tlisten socket id = %I64d\n\tclients length = %zd\n\tbuffer size = %zd\n\ttimeout = %ld usec\n\n",
+    size_t j;
+
+    printf("%s\n%spushSelect[%s{%I64d", 
         getCurrentTime(), 
         BLUE, RESET, 
-        server, server->listenSocket, server->clientsLength, server->bufferSize, server->timeout
+        sockets[0]
     );
-    #endif
 
-    mutexLock(globalMutex);
-    CLOSESOCKET(server->listenSocket); 
-
-    size_t clientsLength = server->clientsLength;
-    for (size_t i = 0; i < clientsLength; i++){
-        if (ISVALIDSOCKET(server->clients[i])){
-            CLOSESOCKET(server->clients[i]);
-        }
+    for (size_t i = 1; i < socketsLength; i++){
+        socketId = sockets[i];
+        printf(", %I64d", 
+            socketId
+        );
     }
-    mutexUnlock(globalMutex);
-    
-    free(server->clients);
-    free(server->buffer);
-    free(server);
 
+    printf("} -> {");
+    #endif
+
+    DataStore data = libData->ioLibraryFunctions->createDataStore();
+    for (size_t i = 0; i < socketsLength; i++) {
+        socketId = sockets[i];
+        if (FD_ISSET(socketId, &readset)) {
+            libData->ioLibraryFunctions->DataStore_addInteger(data, socketId);
+            
+            #ifdef _DEBUG
+            j++;
+            if (j == 1) printf("%I64d", socketId);
+            printf(", %I64d", socketId);
+            #endif
+        }
+
+        #ifdef _DEBUG
+        printf("}\n\n");
+        #endif
+    }
+    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Select", data);
+}
+
+/*push listen socket and new accepted socket*/
+void pushAccept(WolframLibraryData libData, mint taskId, SOCKET listenSocket, SOCKET acceptedSocket)
+{
     #ifdef _DEBUG
-    printf("%s\n%s[serverDestroy->SUCCESS]%s\n\tserver pointer = %p\n\tlisten socket id = %I64d\n\tclients length = %zd\n\tbuffer size = %zd\n\ttimeout = %ld usec\n\n",
+    printf("%s\n%pushAccept[%s%I64d%s]%s -> %I64d\n\n", 
         getCurrentTime(), 
-        GREEN, RESET, 
-        server, server->listenSocket, server->clientsLength, server->bufferSize, server->timeout
+        BLUE, RESET, 
+        listenSocket, 
+        BLUE, RESET, 
+        acceptedSocket
     );
     #endif
 
-    server = NULL;
+    DataStore data = libData->ioLibraryFunctions->createDataStore();
+    libData->ioLibraryFunctions->DataStore_addInteger(data, listenSocket);
+    libData->ioLibraryFunctions->DataStore_addInteger(data, acceptedSocket);
+    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accept", data);
+}
+
+/*push listening tcp socket, source socket and received data*/
+void pushRecv(WolframLibraryData libData, mint taskId, SOCKET listenSocket, SOCKET socketId, BYTE *buffer, int bufferLength)
+{
+    #ifdef _DEBUG
+    printf("%s\n%spushRecv[%s%I64d, %I64d%s]%s -> %I64d bytes\n\n", 
+        getCurrentTime(), 
+        BLUE, RESET, 
+        listenSocket, socketId, 
+        BLUE, RESET, 
+        bufferLength
+    );
+    #endif
+
+    MNumericArray byteArray;
+    libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &bufferLength, &byteArray);
+    BYTE *byteArrayData = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
+    memcpy(byteArrayData, buffer, bufferLength);
+
+    DataStore data = libData->ioLibraryFunctions->createDataStore();
+    libData->ioLibraryFunctions->DataStore_addInteger(data, listenSocket);
+    libData->ioLibraryFunctions->DataStore_addInteger(data, socketId);
+    libData->ioLibraryFunctions->DataStore_addMNumericArray(data, byteArray);
+    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Recv", data);
+}
+
+/*push opened udp socket, from address and received data*/
+void pushRecvFrom(WolframLibraryData libData, mint taskId, SOCKET socketId, struct sockaddr *address, BYTE *buffer, int bufferLength)
+{
+    #ifdef _DEBUG
+    printf("%s\n%spushRecvFrom[%s%I64d, %p%s]%s -> %I64d", 
+        getCurrentTime(), 
+        BLUE, RESET, 
+        socketId, address, 
+        BLUE, RESET
+    );
+    #endif
+
+    MNumericArray byteArray;
+    libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &bufferLength, &byteArray);
+    BYTE *byteArrayData = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
+    memcpy(byteArrayData, buffer, bufferLength);
+
+    DataStore data = libData->ioLibraryFunctions->createDataStore();
+    libData->ioLibraryFunctions->DataStore_addInteger(data, socketId);
+    libData->ioLibraryFunctions->DataStore_addInteger(data, address);
+    libData->ioLibraryFunctions->DataStore_addMNumericArray(data, byteArray);
+    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "RecvFrom", data);
+}
+
+/*push closed socket*/
+void pushClose(WolframLibraryData libData, mint taskId, SOCKET socketId)
+{
+    #ifdef _DEBUG
+    printf("%s\n%spushClose[%s%I64d%s]%s\n\n", 
+        getCurrentTime(), 
+        BLUE, RESET, 
+        socketId, 
+        BLUE, RESET
+    );
+    #endif
+
+    DataStore data = libData->ioLibraryFunctions->createDataStore();
+    libData->ioLibraryFunctions->DataStore_addInteger(data, socketId);
+    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Close", data);
 }
 
 void serverSelect(Server server)
@@ -1644,135 +1591,6 @@ void serverSelect(Server server)
     }
 }
 
-/*push list of sockets that ready for read*/
-void pushSelect(WolframLibraryData libData, mint taskId, SOCKET *sockets, size_t socketsLength, fd_set *readset)
-{
-    SOCKET socketId;
-
-    #ifdef _DEBUG
-    size_t j;
-
-    printf("%s\n%sraiseEventSelect[%s{%I64d", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        sockets[0]
-    );
-
-    for (size_t i = 1; i < socketsLength; i++){
-        socketId = sockets[i];
-        printf(", %I64d", 
-            socketId
-        );
-    }
-
-    printf("} -> {");
-    #endif
-
-    DataStore data = libData->ioLibraryFunctions->createDataStore();
-    for (size_t i = 0; i < socketsLength; i++) {
-        socketId = sockets[i];
-        if (FD_ISSET(socketId, &readset)) {
-            libData->ioLibraryFunctions->DataStore_addInteger(data, socketId);
-            
-            #ifdef _DEBUG
-            j++;
-            if (j == 1) printf("%I64d", socketId);
-            printf(", %I64d", socketId);
-            #endif
-        }
-
-        #ifdef _DEBUG
-        printf("}\n\n");
-        #endif
-    }
-    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Select", data);
-}
-
-/*push listen socket and new accepted socket*/
-void pushAccept(WolframLibraryData libData, mint taskId, SOCKET listenSocket, SOCKET acceptedSocket)
-{
-    #ifdef _DEBUG
-    printf("%s\n%sraiseEventAccept[%s%I64d%s]%s -> %I64d\n\n", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        listenSocket, 
-        BLUE, RESET, 
-        acceptedSocket
-    );
-    #endif
-
-    DataStore data = libData->ioLibraryFunctions->createDataStore();
-    libData->ioLibraryFunctions->DataStore_addInteger(data, listenSocket);
-    libData->ioLibraryFunctions->DataStore_addInteger(data, acceptedSocket);
-    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accept", data);
-}
-
-/*push listening tcp socket, source socket and received data*/
-void pushRecv(WolframLibraryData libData, mint taskId, SOCKET listenSocket, SOCKET socketId, BYTE *buffer, int bufferLength)
-{
-    #ifdef _DEBUG
-    printf("%s\n%sraiseEventRecv[%s%I64d, %I64d%s]%s -> %I64d bytes\n\n", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        listenSocket, socketId, 
-        BLUE, RESET, 
-        bufferLength
-    );
-    #endif
-
-    MNumericArray byteArray;
-    libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &bufferLength, &byteArray);
-    BYTE *byteArrayData = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
-    memcpy(byteArrayData, buffer, bufferLength);
-
-    DataStore data = libData->ioLibraryFunctions->createDataStore();
-    libData->ioLibraryFunctions->DataStore_addInteger(data, listenSocket);
-    libData->ioLibraryFunctions->DataStore_addInteger(data, socketId);
-    libData->ioLibraryFunctions->DataStore_addMNumericArray(data, byteArray);
-    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Recv", data);
-}
-
-/*push opened udp socket, from address and received data*/
-void pushRecvFrom(WolframLibraryData libData, mint taskId, SOCKET socketId, struct addrinfo *address, BYTE *buffer, int bufferLength)
-{
-    #ifdef _DEBUG
-    printf("%s\n%sraiseEventRecvFrom[%s%I64d, %p%s]%s -> %I64d", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        socketId, address, 
-        BLUE, RESET
-    );
-    #endif
-
-    MNumericArray byteArray;
-    libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &bufferLength, &byteArray);
-    BYTE *byteArrayData = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
-    memcpy(byteArrayData, buffer, bufferLength);
-
-    DataStore data = libData->ioLibraryFunctions->createDataStore();
-    libData->ioLibraryFunctions->DataStore_addInteger(data, socketId);
-    libData->ioLibraryFunctions->DataStore_addInteger(data, address);
-    libData->ioLibraryFunctions->DataStore_addMNumericArray(data, byteArray);
-    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "RecvFrom", data);
-}
-
-/*push closed socket*/
-void pushClose(WolframLibraryData libData, mint taskId, SOCKET socketId)
-{
-    #ifdef _DEBUG
-    printf("%s\n%sraiseEventClose[%s%I64d%s]%s\n\n", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        socketId, 
-        BLUE, RESET
-    );
-    #endif
-
-    DataStore data = libData->ioLibraryFunctions->createDataStore();
-    libData->ioLibraryFunctions->DataStore_addInteger(data, socketId);
-    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Close", data);
-}
-
 void serverAccept(Server server)
 {
     SOCKET listenSocket = server->listenSocket;
@@ -1801,7 +1619,7 @@ void serverAccept(Server server)
 
             server->clients[server->clientsLength] = client;
             server->clientsLength++;
-            raiseEventAccept(server->libData, server->taskId, server->listenSocket, client);
+            pushAccept(server->libData, server->taskId, server->listenSocket, client);
         }
     } else {
         #ifdef _DEBUG
@@ -1841,7 +1659,7 @@ void serverRecv(Server server)
                 int err = GETSOCKETERRNO();
                 mint arrLen = (mint)result;
                 if (result > 0) {
-                    raiseEventRecv(server->libData, server->taskId, server->listenSocket, client, server->buffer, result);
+                    pushRecv(server->libData, server->taskId, server->listenSocket, client, server->buffer, result);
                 } else if (result == 0 || (result < 0 && (err == 10038 || err == 10053))) {
                     #ifdef _DEBUG
                     printf("%s\n%s[serverRecv->ERROR]%s\n\tclient = %I64d\n\terror = %d\n\n", 
@@ -1852,7 +1670,7 @@ void serverRecv(Server server)
                     #endif
 
                     server->clients[i] = INVALID_SOCKET;
-                    raiseEventClose(server->libData, server->taskId, client);
+                    pushClose(server->libData, server->taskId, client);
                 } else {
                     #ifdef _DEBUG
                     printf("%s\n%s[serverRecv->ERROR]%s\n\tclient = %I64d\n\tunexpected error = %d\n\n", 
@@ -1863,7 +1681,7 @@ void serverRecv(Server server)
                     #endif
 
                     server->clients[i] = INVALID_SOCKET;
-                    raiseEventClose(server->libData, server->taskId, client);
+                    pushClose(server->libData, server->taskId, client);
                 }
             }
 
@@ -1963,7 +1781,6 @@ static void serverListenerTask(mint taskId, void* vtarg)
         serverAccept(server);
         serverRecv(server);
     }
-    serverDestroy(server);
 
     #ifdef _DEBUG
     printf("%s\n%s[serverListenerTask->END]%s\n\tlisten socket id = %I64d\n\ttask id = %ld\n\n", 
@@ -2001,6 +1818,89 @@ DLLEXPORT int serverListen(WolframLibraryData libData, mint Argc, MArgument *Arg
 
     MArgument_setInteger(Res, taskId);
     return LIBRARY_NO_ERROR;
+}
+
+/*
+    SELECT FUNCTIONS
+*/
+
+/*socketsSelect[{sockets}, length, timeout] -> {readySockets}*/
+DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    MTensor socketIdsList = MArgument_getMTensor(Args[0]); // list of sockets
+    size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
+    int timeout = (int)MArgument_getInteger(Args[2]); // timeout in microseconds
+
+    int err;
+    SOCKET *socketIds = (SOCKET*)libData->MTensor_getIntegerData(socketIdsList);
+    SOCKET socketId;
+    SOCKET maxFd = 0;
+    fd_set readfds;
+    FD_ZERO(&readfds);
+
+    #ifdef _DEBUG
+    printf("%s\n%ssocketSelect[%s", getCurrentTime(), BLUE, RESET); 
+    #endif
+
+    for (size_t i = 0; i < length; i++) {
+        socketId = socketIds[i];
+        if (socketId > maxFd) maxFd = socketId;
+        FD_SET(socketId, &readfds);
+
+        #ifdef _DEBUG
+        if (i == 0) printf("%I64d", socketId);
+        else printf(", %I64d", socketId);
+        #endif
+    }
+
+    #ifdef _DEBUG
+    printf("%s]%s -> ", BLUE, RESET);
+    #endif
+
+    struct timeval tv;
+    tv.tv_sec  = timeout / 1000000;
+    tv.tv_usec = timeout % 1000000;
+
+    int result = select((int)(maxFd + 1), &readfds, NULL, NULL, &tv);
+    if (result >= 0) {
+        mint len = (mint)result;
+        MTensor readySocketsTensor;
+        libData->MTensor_new(MType_Integer, 1, &len, &readySocketsTensor);
+        SOCKET *readySockets = (SOCKET*)libData->MTensor_getIntegerData(readySocketsTensor);
+        
+        #ifdef _DEBUG
+        printf("%s{", GREEN);
+        #endif
+
+        int j = 0;
+        for (size_t i = 0; i < length; i++) {
+            socketId = socketIds[i];
+            if (FD_ISSET(socketId, &readfds)) { 
+                readySockets[j] = socketId;
+                j++;
+
+                #ifdef _DEBUG
+                if (j == 1) printf("%I64d", socketId);
+                else printf(", %I64d ", socketId);
+                #endif
+            }
+        }
+
+        #ifdef _DEBUG
+        printf("}%s\n\n", RESET);
+        #endif
+
+        MArgument_setMTensor(Res, readySocketsTensor);
+        return LIBRARY_NO_ERROR;
+    } else {
+        err = GETSOCKETERRNO();
+        #ifdef _DEBUG
+        printf("%sERROR = %d%s", RED, err, RESET); 
+        #endif
+
+        selectErrorMessage(libData, err);
+        return LIBRARY_FUNCTION_ERROR;
+    }
 }
 
 static void taskSelect(mint taskId, void* vtarg)
