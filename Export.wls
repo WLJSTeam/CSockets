@@ -37,9 +37,9 @@ export[libName_String] := Module[{
 
     $codeTemplate = StringTemplate["`name` = LibraryFunctionLoad[$lib, \"`name`\", `args`, `return`];"];
 
-    $metainfo = StringRiffle[Map[$codeTemplate @ <|"name" -> getName[#], "args" -> getArgs[#], "return" -> getArgs[#]|>&, $funcs], "\n\n"];
+    $metainfo = StringRiffle[Map[$codeTemplate @ <|"name" -> getName[#], "args" -> Query[All, 2] @ SortBy[Last] @ getArgs[#], "return" -> getReturn[#][[1, 1]]|>&, $funcs], "\n\n\n"];
 
-    Echo[$metainfo]
+    WriteString[$destination, $metainfo];
 ];
 
 
