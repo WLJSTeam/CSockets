@@ -32,12 +32,18 @@ export[libName_String] := Module[{
     getReturn[func_String] := StringCases[func, 
         Shortest["MArgument_set" ~~ returnType__ ~~ 
             "(Res," ~~ resName__ ~~ ");"
-        ] :> {returnType, resName}
+        ] :> {StringTrim[returnType], StringTrim[resName]}
     ];
 
-    $codeTemplate = StringTemplate["`name` = LibraryFunctionLoad[$lib, \"`name`\", `args`, `return`];"];
+    $codeTemplate = StringTemplate["`name`::usage = \"`name`[`argNames`] -> `returnName`\";\n`name` = LibraryFunctionLoad[$lib, \"`name`\", `args`, `return`];"];
 
-    $metainfo = StringRiffle[Map[$codeTemplate @ <|"name" -> getName[#], "args" -> Query[All, 2] @ SortBy[Last] @ getArgs[#], "return" -> getReturn[#][[1, 1]]|>&, $funcs], "\n\n\n"];
+    $metainfo = StringRiffle[Map[$codeTemplate @ <|
+        "name" -> getName[#], 
+        "args" -> Query[All, 2] @ SortBy[Last] @ getArgs[#], 
+        "argNames" -> StringRiffle[Query[All, 1] @ SortBy[Last] @ getArgs[#], ", "], 
+        "return" -> getReturn[#][[1, 1]], 
+        "returnName" -> getReturn[#][[1, 2]]
+    |>&, $funcs], "\n\n\n"];
 
     WriteString[$destination, $metainfo];
 ];
