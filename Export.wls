@@ -56,7 +56,7 @@ export[libName_String] := Module[{
 
     $metainfoCode = StringRiffle[Map[$codeTemplate @ <|
         "name" -> getName[#], 
-        "args" -> Function[n, If[getName[#] === "socketSend", Print[getArgs[#]]; n, n]][(Query[All, 2] @ SortBy[Last] @ getArgs[#]) /. $typeRulesArg], 
+        "args" -> Query[All, 2] @ SortBy[Last] @ getArgs[#] /. $typeRulesArg, 
         "argNames" -> StringRiffle[Query[All, 1] @ SortBy[Last] @ getArgs[#], ", "], 
         "return" -> getReturn[#][[1, 1]] /. $typeRulesRes, 
         "returnName" -> getReturn[#][[1, 2]]
