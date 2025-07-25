@@ -28,123 +28,93 @@ CSocketListener::usage =
 
 
 socketListCreate::usage = "socketListCreate[iResult, length] -> (mint)socketsPtr";
-socketListCreate = LibraryFunctionLoad[$lib, "socketListCreate", {Integer, Integer}, Integer];
 
 
-socketListSet::usage = "socketListSet[socketList, socketsTensor] -> 0";
-socketListSet = LibraryFunctionLoad[$lib, "socketListSet", {Integer, Integer}, Integer];
+socketListSet::usage = "socketListSet[socketList, socketsTensor, length] -> 0";
 
 
 socketListRemove::usage = "socketListRemove[socketList] -> 0";
-socketListRemove = LibraryFunctionLoad[$lib, "socketListRemove", {Integer}, Integer];
 
 
 serverCreate::usage = "serverCreate[interrupt, listenSocket, clientsCapacity, bufferSize, timeout] -> serverPtr";
-serverCreate = LibraryFunctionLoad[$lib, "serverCreate", {Integer, Integer, Integer, Integer, Integer}, Integer];
 
 
 serverRemove::usage = "serverRemove[server] -> 0";
-serverRemove = LibraryFunctionLoad[$lib, "serverRemove", {Integer}, Integer];
 
 
-socketAddressInfoCreate::usage = "socketAddressInfoCreate[host] -> (mint)addressPtr";
-socketAddressInfoCreate = LibraryFunctionLoad[$lib, "socketAddressInfoCreate", {UTF8String}, Integer];
+socketAddressInfoCreate::usage = "socketAddressInfoCreate[host, port] -> (mint)addressPtr";
 
 
 socketAddressInfoRemove::usage = "socketAddressInfoRemove[addressPtr] -> 1";
-socketAddressInfoRemove = LibraryFunctionLoad[$lib, "socketAddressInfoRemove", {Integer}, Integer];
 
 
 socketAddressCreate::usage = "socketAddressCreate[] -> (mint)ptr";
-socketAddressCreate = LibraryFunctionLoad[$lib, "socketAddressCreate", {}, Integer];
 
 
 socketAddressRemove::usage = "socketAddressRemove[ptr] -> 0";
-socketAddressRemove = LibraryFunctionLoad[$lib, "socketAddressRemove", {Integer}, Integer];
 
 
 socketBufferCreate::usage = "socketBufferCreate[bufferSize] -> bufferPtr";
-socketBufferCreate = LibraryFunctionLoad[$lib, "socketBufferCreate", {Integer}, Integer];
 
 
 socketBufferRemove::usage = "socketBufferRemove[buffer] -> 0";
-socketBufferRemove = LibraryFunctionLoad[$lib, "socketBufferRemove", {Integer}, Integer];
 
 
 socketCreate::usage = "socketCreate[family, socktype, protocol] -> createdSocket";
-socketCreate = LibraryFunctionLoad[$lib, "socketCreate", {Integer, Integer, Integer}, Integer];
 
 
-socketClose::usage = "socketClose[] -> result";
-socketClose = LibraryFunctionLoad[$lib, "socketClose", {}, Integer];
+socketClose::usage = "socketClose[socketId] -> result";
 
 
 socketBind::usage = "socketBind[socketId, addressPtr] -> successState";
-socketBind = LibraryFunctionLoad[$lib, "socketBind", {Integer, Integer}, Integer];
 
 
 socketSetOpt::usage = "socketSetOpt[socketId, level, optname, optval] -> 0";
-socketSetOpt = LibraryFunctionLoad[$lib, "socketSetOpt", {Integer, Integer, Integer, Integer}, Integer];
 
 
 socketGetOpt::usage = "socketGetOpt[socketId, level, optname] -> optval";
-socketGetOpt = LibraryFunctionLoad[$lib, "socketGetOpt", {Integer, Integer, Integer}, Integer];
 
 
 socketBlockingMode::usage = "socketBlockingMode[socketId, nonBlocking] -> 0";
-socketBlockingMode = LibraryFunctionLoad[$lib, "socketBlockingMode", {Integer, Integer}, Integer];
 
 
 socketListen::usage = "socketListen[socketId, backlog] -> 0";
-socketListen = LibraryFunctionLoad[$lib, "socketListen", {Integer, Integer}, Integer];
 
 
 socketConnect::usage = "socketConnect[socketId, addressPtr, address] -> 0";
-socketConnect = LibraryFunctionLoad[$lib, "socketConnect", {Integer, Integer, Integer}, Integer];
 
 
-socketsCheck::usage = "socketsCheck[socketsTensor] -> validSocketsList";
-socketsCheck = LibraryFunctionLoad[$lib, "socketsCheck", {Integer}, MTensor];
+socketsCheck::usage = "socketsCheck[socketsTensor, length] -> validSocketsList";
 
 
 socketAccept::usage = "socketAccept[socketId] -> client";
-socketAccept = LibraryFunctionLoad[$lib, "socketAccept", {Integer}, Integer];
 
 
 socketRecv::usage = "socketRecv[client, buffer, bufferSize] -> byteArray";
-socketRecv = LibraryFunctionLoad[$lib, "socketRecv", {Integer, Integer, Integer}, MNumericArray];
 
 
 socketRecvFrom::usage = "socketRecvFrom[client, buffer, bufferSize, addressPtr] -> byteArray";
-socketRecvFrom = LibraryFunctionLoad[$lib, "socketRecvFrom", {Integer, Integer, Integer, Integer}, MNumericArray];
 
 
-socketSend::usage = "socketSend[socketId] -> result";
-socketSend = LibraryFunctionLoad[$lib, "socketSend", {MNumericArray}, Integer];
+socketSend::usage = "socketSend[socketId, mArr, dataLength] -> result";
 
 
-socketSendString::usage = "socketSendString[socketId] -> result";
-socketSendString = LibraryFunctionLoad[$lib, "socketSendString", {UTF8String}, Integer];
+socketSendString::usage = "socketSendString[socketId, dataString, dataLength] -> result";
 
 
 serverListen::usage = "serverListen[server] -> taskId";
-serverListen = LibraryFunctionLoad[$lib, "serverListen", {Integer}, Integer];
 
 
-socketsSelect::usage = "socketsSelect[socketIdsList, timeout] -> readySocketsTensor";
-socketsSelect = LibraryFunctionLoad[$lib, "socketsSelect", {Integer, Integer}, MTensor];
+socketsSelect::usage = "socketsSelect[socketIdsList, length, timeout] -> readySocketsTensor";
 
 
 createTaskSelect::usage = "createTaskSelect[socketListPtr] -> taskId";
-createTaskSelect = LibraryFunctionLoad[$lib, "createTaskSelect", {Integer}, Integer];
 
 
 createTaskSelectAcceptRecv::usage = "createTaskSelectAcceptRecv[serverPtr] -> taskId";
-createTaskSelectAcceptRecv = LibraryFunctionLoad[$lib, "createTaskSelectAcceptRecv", {Integer}, Integer];
 
 
 createTaskSelectRecvFrom::usage = "createTaskSelectRecvFrom[socketListPtr] -> taskId";
-createTaskSelectRecvFrom = LibraryFunctionLoad[$lib, "createTaskSelectRecvFrom", {Integer}, Integer];
 
 
 Begin["`Private`"];
@@ -352,7 +322,7 @@ $socketOptNames = <|
     "SO_BROADCAST"        :> 16^^0020,     (* Permit datagram broadcasts           *)
     "SO_ERROR"            :> 16^^1007,     (* Get pending error status             *)
     "SOMAXCONN"           :> 16^^7FFFFFFF, (* Maximum backlog for listen()       *)
-    "SO_TYPE"             :> 3,            (* Get socket type (STREAM/DGRAM/…)     *)
+    "SO_TYPE"             :> 3,            (* Get socket type (STREAM/DGRAM/...)     *)
     "SO_ACCEPTCONN"       :> 16^^0002,     (* Non-zero if socket is in LISTEN      *)
 
     (* -------- IPPROTO_TCP level -------- *)
@@ -409,6 +379,96 @@ $socketOptLevelMap = <|
 
 
 (*Library Functions*)
+
+
+socketListCreate = LibraryFunctionLoad[$libFile, "socketListCreate", {Integer, Integer}, Integer];
+
+
+socketListSet = LibraryFunctionLoad[$libFile, "socketListSet", {Integer, {Integer, 1}, Integer}, Integer];
+
+
+socketListRemove = LibraryFunctionLoad[$libFile, "socketListRemove", {Integer}, Integer];
+
+
+serverCreate = LibraryFunctionLoad[$libFile, "serverCreate", {Integer, Integer, Integer, Integer, Integer}, Integer];
+
+
+serverRemove = LibraryFunctionLoad[$libFile, "serverRemove", {Integer}, Integer];
+
+
+socketAddressInfoCreate = LibraryFunctionLoad[$libFile, "socketAddressInfoCreate", {String, String}, Integer];
+
+
+socketAddressInfoRemove = LibraryFunctionLoad[$libFile, "socketAddressInfoRemove", {Integer}, Integer];
+
+
+socketAddressCreate = LibraryFunctionLoad[$libFile, "socketAddressCreate", {}, Integer];
+
+
+socketAddressRemove = LibraryFunctionLoad[$libFile, "socketAddressRemove", {Integer}, Integer];
+
+
+socketBufferCreate = LibraryFunctionLoad[$libFile, "socketBufferCreate", {Integer}, Integer];
+
+
+socketBufferRemove = LibraryFunctionLoad[$libFile, "socketBufferRemove", {Integer}, Integer];
+
+
+socketCreate = LibraryFunctionLoad[$libFile, "socketCreate", {Integer, Integer, Integer}, Integer];
+
+
+socketClose = LibraryFunctionLoad[$libFile, "socketClose", {Integer}, Integer];
+
+
+socketBind = LibraryFunctionLoad[$libFile, "socketBind", {Integer, Integer}, Integer];
+
+
+socketSetOpt = LibraryFunctionLoad[$libFile, "socketSetOpt", {Integer, Integer, Integer, Integer}, Integer];
+
+
+socketGetOpt = LibraryFunctionLoad[$libFile, "socketGetOpt", {Integer, Integer, Integer}, Integer];
+
+
+socketBlockingMode = LibraryFunctionLoad[$libFile, "socketBlockingMode", {Integer, Integer}, Integer];
+
+
+socketListen = LibraryFunctionLoad[$libFile, "socketListen", {Integer, Integer}, Integer];
+
+
+socketConnect = LibraryFunctionLoad[$libFile, "socketConnect", {Integer, Integer, Integer}, Integer];
+
+
+socketsCheck = LibraryFunctionLoad[$libFile, "socketsCheck", {{Integer, 1}, Integer}, {Integer, 1}];
+
+
+socketAccept = LibraryFunctionLoad[$libFile, "socketAccept", {Integer}, Integer];
+
+
+socketRecv = LibraryFunctionLoad[$libFile, "socketRecv", {Integer, Integer, Integer}, "ByteArray"];
+
+
+socketRecvFrom = LibraryFunctionLoad[$libFile, "socketRecvFrom", {Integer, Integer, Integer, Integer}, "ByteArray"];
+
+
+socketSend = LibraryFunctionLoad[$libFile, "socketSend", {Integer, {"ByteArray", "Shared"}, Integer}, Integer];
+
+
+socketSendString = LibraryFunctionLoad[$libFile, "socketSendString", {Integer, String, Integer}, Integer];
+
+
+serverListen = LibraryFunctionLoad[$libFile, "serverListen", {Integer}, Integer];
+
+
+socketsSelect = LibraryFunctionLoad[$libFile, "socketsSelect", {{Integer, 1}, Integer, Integer}, {Integer, 1}];
+
+
+createTaskSelect = LibraryFunctionLoad[$libFile, "createTaskSelect", {Integer}, Integer];
+
+
+createTaskSelectAcceptRecv = LibraryFunctionLoad[$libFile, "createTaskSelectAcceptRecv", {Integer}, Integer];
+
+
+createTaskSelectRecvFrom = LibraryFunctionLoad[$libFile, "createTaskSelectRecvFrom", {Integer}, Integer];
 
 
 End[];

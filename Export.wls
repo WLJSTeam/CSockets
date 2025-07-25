@@ -3,7 +3,7 @@
 export[libName_String] := Module[{
     $directory, $destination, $source, $sourceCode, $funcs, 
     getName, getArgs, getReturn, $codeTemplate, $usageTemplate, $metainfoCode, $metainfoUsage, 
-    $codeString
+    $codeString, $typeRulesRes, $typeRulesArg
 }, 
     $directory = DirectoryName[$InputFileName];
 
@@ -25,7 +25,7 @@ export[libName_String] := Module[{
 
     getArgs = StringCases[#, 
         Shortest[{" *", " "} ~~ (name: LetterCharacter..) ~~ 
-            " = " ~~ __ ~~ "MArgument_get" ~~ type__ ~~ 
+            " = " ~~ ___ ~~ "MArgument_get" ~~ type__ ~~ 
             "(Args[" ~~ num_ ~~ "])"
         ] :> {name, type, ToExpression[num] + 1}
     ]&;
@@ -40,11 +40,25 @@ export[libName_String] := Module[{
 
     $codeTemplate = StringTemplate["`name` = LibraryFunctionLoad[$libFile, \"`name`\", `args`, `return`];"]; 
 
+    $typeRulesArg = {
+        "Integer" -> "Integer",
+        "UTF8String" -> "String",
+        "MTensor" -> "{Integer, 1}",
+        "MNumericArray" -> "{\"ByteArray\", \"Shared\"}"
+    };
+
+    $typeRulesRes = {
+        "Integer" -> "Integer",
+        "UTF8String" -> "String",
+        "MTensor" -> "{Integer, 1}",
+        "MNumericArray" -> "\"ByteArray\""
+    };
+
     $metainfoCode = StringRiffle[Map[$codeTemplate @ <|
         "name" -> getName[#], 
-        "args" -> Query[All, 2] @ SortBy[Last] @ getArgs[#], 
+        "args" -> Function[n, If[getName[#] === "socketSend", Print[getArgs[#]]; n, n]][(Query[All, 2] @ SortBy[Last] @ getArgs[#]) /. $typeRulesArg], 
         "argNames" -> StringRiffle[Query[All, 1] @ SortBy[Last] @ getArgs[#], ", "], 
-        "return" -> getReturn[#][[1, 1]], 
+        "return" -> getReturn[#][[1, 1]] /. $typeRulesRes, 
         "returnName" -> getReturn[#][[1, 2]]
     |>&, $funcs], "\n\n\n"];
 
@@ -56,7 +70,7 @@ export[libName_String] := Module[{
         "returnName" -> getReturn[#][[1, 2]]
     |>&, $funcs], "\n\n\n"];
 
-    $codeString = Import[$destination, "String"];
+    $codeString = Import[$destination, "Text"];
 
     $codeString = StringReplace[$codeString, {
         "(*Library Functions*)" ~~ __ ~~ "Begin[\"`Private`\"]" -> "(*Library Functions*)\n\n\n" <> $metainfoUsage <> "\n\n\nBegin[\"`Private`\"]",
