@@ -24,6 +24,9 @@ CSocketListener::usage =
 "CSocketListener[assoc] returns a new listener object.";
 
 
+(*Library Functions*)
+
+
 socketListCreate::usage = "socketListCreate[iResult, length] -> (mint)socketsPtr";
 socketListCreate = LibraryFunctionLoad[$lib, "socketListCreate", {Integer, Integer}, Integer];
 
@@ -403,6 +406,9 @@ $socketOptLevelMap = <|
     (* -------- IPPROTO_IPV6 level -------- *)
     "IPV6_V6ONLY"          -> "IPPROTO_IPV6"
 |>;
+
+
+(*Library Functions*)
 
 
 End[];

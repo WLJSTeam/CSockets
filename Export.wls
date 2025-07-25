@@ -2,11 +2,12 @@
 
 export[libName_String] := Module[{
     $directory, $destination, $source, $sourceCode, $funcs, 
-    getName, getArgs, getReturn, $codeTemplate, $metainfo
+    getName, getArgs, getReturn, $codeTemplate, $usageTemplate, $metainfoCode, $metainfoUsage, 
+    $codeString
 }, 
     $directory = DirectoryName[$InputFileName];
 
-    $destination = FileNameJoin[{$directory, "Kernel", "LibraryFunctions.wl"}];
+    $destination = AbsoluteFileName[FileNameJoin[{$directory, "Kernel", libName <> ".wl"}]];
 
     $source = FileNameJoin[{$directory, "Source", libName <> ".c"}];
 
@@ -35,9 +36,11 @@ export[libName_String] := Module[{
         ] :> {StringTrim[returnType], StringTrim[resName]}
     ];
 
-    $codeTemplate = StringTemplate["`name`::usage = \"`name`[`argNames`] -> `returnName`\";\n`name` = LibraryFunctionLoad[$lib, \"`name`\", `args`, `return`];"];
+    $usageTemplate = StringTemplate["`name`::usage = \"`name`[`argNames`] -> `returnName`\";"];
 
-    $metainfo = StringRiffle[Map[$codeTemplate @ <|
+    $codeTemplate = StringTemplate["`name` = LibraryFunctionLoad[$libFile, \"`name`\", `args`, `return`];"]; 
+
+    $metainfoCode = StringRiffle[Map[$codeTemplate @ <|
         "name" -> getName[#], 
         "args" -> Query[All, 2] @ SortBy[Last] @ getArgs[#], 
         "argNames" -> StringRiffle[Query[All, 1] @ SortBy[Last] @ getArgs[#], ", "], 
@@ -45,7 +48,22 @@ export[libName_String] := Module[{
         "returnName" -> getReturn[#][[1, 2]]
     |>&, $funcs], "\n\n\n"];
 
-    WriteString[$destination, $metainfo];
+    $metainfoUsage = StringRiffle[Map[$usageTemplate @ <|
+        "name" -> getName[#], 
+        "args" -> Query[All, 2] @ SortBy[Last] @ getArgs[#], 
+        "argNames" -> StringRiffle[Query[All, 1] @ SortBy[Last] @ getArgs[#], ", "], 
+        "return" -> getReturn[#][[1, 1]], 
+        "returnName" -> getReturn[#][[1, 2]]
+    |>&, $funcs], "\n\n\n"];
+
+    $codeString = Import[$destination, "String"];
+
+    $codeString = StringReplace[$codeString, {
+        "(*Library Functions*)" ~~ __ ~~ "Begin[\"`Private`\"]" -> "(*Library Functions*)\n\n\n" <> $metainfoUsage <> "\n\n\nBegin[\"`Private`\"]",
+        "(*Library Functions*)" ~~ __ ~~ "End[]" -> "(*Library Functions*)\n\n\n" <> $metainfoCode <> "\n\n\nEnd[]"
+    }];
+
+    WriteString[$destination, $codeString];
 ];
 
 

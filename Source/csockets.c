@@ -69,7 +69,7 @@
 #include "WolframRawArrayLibrary.h"
 #include "WolframImageLibrary.h"
 
-// Platform-specific global:
+// Platform-specific global mutex:
 #if defined(_WIN32) || defined(_WIN64)
 static Mutex globalMutex = NULL;
 #else
