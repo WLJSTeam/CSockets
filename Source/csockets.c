@@ -278,7 +278,7 @@ struct Server_st
     CONSTRUCTORS
 */
 
-/*socketListCreate[interrupt, length] -> socketListPtr*/
+/*socketListCreate[interrupt, length] -> socketList*/
 DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     SOCKET interrupt = (SOCKET)MArgument_getInteger(Args[0]);
@@ -301,8 +301,7 @@ DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument 
     );
     #endif
 
-    uint64_t socketsPtr = (uint64_t)(uintptr_t)socketList;
-    MArgument_setInteger(Res, (mint)socketsPtr);
+    MArgument_setInteger(Res, (mint)(uint64_t)(uintptr_t)socketList);
 
     return LIBRARY_NO_ERROR; 
 }

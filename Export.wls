@@ -33,7 +33,7 @@ export[libName_String] := Module[{
     getReturn[func_String] := StringCases[func, 
         Shortest["MArgument_set" ~~ returnType__ ~~ 
             "(Res," ~~ resName__ ~~ ");"
-        ] :> {StringTrim[returnType], StringTrim[resName]}
+        ] :> {StringTrim[returnType], StringTrim[StringTrim[resName], Shortest["(" ~~ __ ~~ ")"]...]}
     ];
 
     $usageTemplate = StringTemplate["`name`::usage = \"`name`[`argNames`] -> `returnName`\";"];

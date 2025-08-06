@@ -27,7 +27,7 @@ CSocketListener::usage =
 (*Library Functions*)
 
 
-socketListCreate::usage = "socketListCreate[iResult, length] -> (mint)socketsPtr";
+socketListCreate::usage = "socketListCreate[iResult, length] -> socketList";
 
 
 socketListSet::usage = "socketListSet[socketList, socketsTensor, length] -> 0";
@@ -42,13 +42,13 @@ serverCreate::usage = "serverCreate[interrupt, listenSocket, clientsCapacity, bu
 serverRemove::usage = "serverRemove[server] -> 0";
 
 
-socketAddressInfoCreate::usage = "socketAddressInfoCreate[host, port] -> (mint)addressPtr";
+socketAddressInfoCreate::usage = "socketAddressInfoCreate[host, port] -> addressPtr";
 
 
 socketAddressInfoRemove::usage = "socketAddressInfoRemove[addressPtr] -> 1";
 
 
-socketAddressCreate::usage = "socketAddressCreate[] -> (mint)ptr";
+socketAddressCreate::usage = "socketAddressCreate[] -> ptr";
 
 
 socketAddressRemove::usage = "socketAddressRemove[ptr] -> 0";
