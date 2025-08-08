@@ -24,10 +24,10 @@ export[libName_String] := Module[{
     ]&; 
 
     getArgs = StringCases[#, 
-        Shortest[{" *", " "} ~~ (name: LetterCharacter..) ~~ 
-            " = " ~~ ___ ~~ "MArgument_get" ~~ type__ ~~ 
+        p: Shortest[Except["\n"].. ~~ {" *", " "} ~~ (name: LetterCharacter..) ~~ 
+            " = " ~~ Except["\n"].. ~~ "MArgument_get" ~~ type__ ~~ 
             "(Args[" ~~ num_ ~~ "])"
-        ] :> {name, type, ToExpression[num] + 1}
+        ] :> {Once[Echo[p]]; name, type, ToExpression[num] + 1}
     ]&;
 
     getReturn[func_String] := StringCases[func, 
