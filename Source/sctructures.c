@@ -1,9 +1,5 @@
 #include "header.h"
 
-/*
-    CONSTRUCTORS
-*/
-
 /*socketListCreate[interrupt, length] -> socketList*/
 DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
