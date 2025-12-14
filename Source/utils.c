@@ -1,20 +1,16 @@
 #include "header.h"
 
-/*
-    TIME
-*/
-
 const char* getCurrentTime()
 {
     static char time_buffer[64];
     time_t rawtime;
     struct tm* timeinfo;
-    
+
     time(&rawtime);
     timeinfo = localtime(&rawtime);
-    
+
     strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
-    
+
     #ifdef _WIN32
     SYSTEMTIME st;
     GetSystemTime(&st);
@@ -28,13 +24,9 @@ const char* getCurrentTime()
              sizeof(time_buffer) - strlen(time_buffer), 
              ".%06ld", tv.tv_usec);
     #endif
-    
+
     return time_buffer;
 }
-
-/*
-    MUTEX
-*/
 
 Mutex mutexCreate()
 {
@@ -72,10 +64,6 @@ void mutexUnlock(Mutex mutex)
         pthread_mutex_unlock(&mutex);
     #endif
 }
-
-/*
-    Blocking
-*/
 
 const void setBlocking(SOCKET socket, bool blocking)
 {

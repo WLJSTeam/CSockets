@@ -70,13 +70,6 @@
 #include "WolframRawArrayLibrary.h"
 #include "WolframImageLibrary.h"
 
-// Platform-specific global mutex:
-#if defined(_WIN32) || defined(_WIN64)
-static Mutex globalMutex = NULL;
-#else
-static Mutex globalMutex = PTHREAD_MUTEX_INITIALIZER;
-#endif
-
 #pragma endregion
 
 #pragma region utils.c
@@ -163,6 +156,13 @@ DLLEXPORT mint WolframLibrary_getVersion()
     return WolframLibraryVersion;
 }
 
+static Mutex globalMutext;
+
+Mutex getGlobalMutext()
+{
+    return &globalMutext;
+}
+
 DLLEXPORT int WolframLibrary_initialize(WolframLibraryData libData)
 {
     #ifdef _WIN32
@@ -172,8 +172,14 @@ DLLEXPORT int WolframLibrary_initialize(WolframLibraryData libData)
     iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
     if (iResult != 0) return LIBRARY_FUNCTION_ERROR;
     #endif
-
-    globalMutex = mutexCreate();
+    
+    #if defined(_WIN32) || defined(_WIN64)
+    static Mutex globalMutex = NULL;
+    #else
+    static Mutex globalMutex = PTHREAD_MUTEX_INITIALIZER;
+    #endif
+    
+    globalMutext = mutexCreate();
 
     #ifdef _DEBUG
     printf("%s\n%sWolframLibrary_initialize[]%s -> %sSuccess%s\n\n", 

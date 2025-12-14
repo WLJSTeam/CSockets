@@ -29,7 +29,7 @@ DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument 
 
     MArgument_setInteger(Res, (mint)(uint64_t)(uintptr_t)socketList);
 
-    return LIBRARY_NO_ERROR; 
+    return LIBRARY_NO_ERROR;
 }
 
 /*socketsSet[socketListPtr, {sockets}, length] -> successStatus*/
