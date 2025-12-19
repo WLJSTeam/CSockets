@@ -2,10 +2,11 @@
 
 #undef UNICODE
 
+#define _DEBUG 1
 #define FD_SETSIZE 4096
 #define SECOND 1000000
 #define MININTERVAL 1000
-#define _DEBUG 1
+
 #define RESET "\033[0m"
 #define RED "\033[91m"
 #define GREEN "\033[92m"
@@ -52,7 +53,6 @@
     #define BOOL int
     typedef pthread_mutex_t Mutex;
     #define SLEEP usleep
-    #define ms 1000
 #endif
 
 #include <stdio.h>
@@ -70,13 +70,6 @@
 #include "WolframRawArrayLibrary.h"
 #include "WolframImageLibrary.h"
 
-// Platform-specific global mutex:
-#if defined(_WIN32) || defined(_WIN64)
-static Mutex globalMutex = NULL;
-#else
-static Mutex globalMutex = PTHREAD_MUTEX_INITIALIZER;
-#endif
-
 typedef struct SocketList_st *SocketList;
 
 typedef struct Server_st *Server;
@@ -84,10 +77,6 @@ typedef struct Server_st *Server;
 #pragma endregion
 
 #pragma region time
-
-/*
-    TIME
-*/
 
 const char* getCurrentTime()
 {
@@ -121,9 +110,11 @@ const char* getCurrentTime()
 
 #pragma region mutex
 
-/*
-    MUTEX
-*/
+#if defined(_WIN32) || defined(_WIN64)
+static Mutex globalMutex = NULL;
+#else
+static Mutex globalMutex;
+#endif
 
 Mutex mutexCreate()
 {
@@ -164,11 +155,7 @@ void mutexUnlock(Mutex mutex)
 
 #pragma endregion
 
-#pragma region library link initialization
-
-/*
-    RITUAL
-*/
+#pragma region library link ritual
 
 DLLEXPORT mint WolframLibrary_getVersion()
 {
@@ -231,10 +218,6 @@ DLLEXPORT void WolframLibrary_uninitialize(WolframLibraryData libData)
 
 #pragma region blocking
 
-/*
-    BLOCKING
-*/
-
 const void setBlocking(SOCKET socket, bool blocking)
 {
     #ifdef _WIN32
@@ -264,210 +247,7 @@ const bool blockingModeQ(SOCKET socketId)
 
 #pragma endregion
 
-#pragma region structs
-
-/*
-    STRUCTS
-*/
-
-struct SocketList_st
-{
-    SOCKET *sockets;
-    size_t length;
-};
-
-struct Server_st
-{
-    SOCKET interrupt;
-    SOCKET listenSocket;
-    size_t clientsCapacity;
-    size_t bufferSize;
-    long timeout;
-    SOCKET *clients;
-    fd_set clientsReadSet;
-    size_t clientsReadSetLength;
-    size_t clientsLength;
-    BYTE *buffer;
-    WolframLibraryData libData;
-    mint taskId;
-};
-
-#pragma endregion
-
-#pragma region constructors
-
-/*
-    CONSTRUCTORS
-*/
-
-/*socketListCreate[interrupt, length] -> socketList*/
-DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    SOCKET length = (size_t)MArgument_getInteger(Args[1]);
-    SocketList socketList = malloc(sizeof(struct SocketList_st));
-
-    socketList->length = length; 
-    socketList->sockets = malloc(length * sizeof(SOCKET));
-
-    #ifdef _DEBUG
-    printf("%s\n%ssocketListCreate[%ssize = %I64d%s]%s -> %s<%p>%s\n\n", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        (int64_t)length,
-        BLUE, RESET, 
-        GREEN, (void *)socketList, RESET
-    );
-    #endif
-
-    MArgument_setInteger(Res, (mint)(uint64_t)(uintptr_t)socketList);
-
-    return LIBRARY_NO_ERROR; 
-}
-
-#pragma endregion
-
-/*socketsSet[socketListPtr, {sockets}, length] -> successStatus*/
-DLLEXPORT int socketListSet(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
-    MTensor socketsTensor = MArgument_getMTensor(Args[1]); // list of sockets
-    size_t length = (size_t)MArgument_getInteger(Args[2]); // length of the list
-    SOCKET *sockets = (SOCKET*)libData->MTensor_getIntegerData(socketsTensor);
-
-    if (length > socketList->length){
-        socketList->sockets = realloc(socketList->sockets, length * sizeof(SOCKET));
-    }
-
-    memcpy(socketList->sockets, sockets, length * sizeof(SOCKET));
-    socketList->length = length;
-
-    #ifdef _DEBUG
-    printf("%s\n%ssocketListSet[]%s -> %sSuccess%s\n\n", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        GREEN, RESET
-    );
-    #endif
-
-    MArgument_setInteger(Res, 0); // success
-    return LIBRARY_NO_ERROR;
-}
-
-/*socketsRemove[socketListPtr] -> successState*/
-DLLEXPORT int socketListRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
-
-    CLOSESOCKET(socketList->interrupt);
-
-    for (size_t i = 0; i < socketList->length; i++) {
-        if (ISVALIDSOCKET(socketList->sockets[i])) {
-            CLOSESOCKET(socketList->sockets[i]);
-        }
-    }
-
-    free(socketList->sockets);
-    free(socketList);
-
-    MArgument_setInteger(Res, 0); // success
-    return LIBRARY_NO_ERROR; 
-}
-
-/*serverCreate[interrupt, listenSocket, clientsCapacity, bufferSize] -> serverPtr*/
-DLLEXPORT int serverCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    SOCKET interrupt =       (SOCKET)MArgument_getInteger(Args[0]); // positive integer
-    SOCKET listenSocket =    (SOCKET)MArgument_getInteger(Args[1]); // positive integer
-    size_t clientsCapacity = (size_t)MArgument_getInteger(Args[2]); // 1024 by default
-    size_t bufferSize =      (size_t)MArgument_getInteger(Args[3]); // 64 kB by default
-    long timeout =           (long)MArgument_getInteger(Args[4]);   // 1 s by default
-
-    #ifdef _DEBUG
-    printf("%s\n%sserverCreate[]%s -> ", 
-        getCurrentTime(),
-        BLUE, RESET
-    );
-    #endif
-
-    void *ptr = malloc(sizeof(struct Server_st));
-    if (!ptr) {
-        #ifdef _DEBUG
-        printf("%smalloc ERROR%s\n\n", 
-            RED, RESET
-        );
-        #endif
-
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    Server server = (Server)ptr;
-
-    server->interrupt = interrupt;
-    server->listenSocket = listenSocket;
-    server->clientsCapacity = clientsCapacity;
-    server->clientsLength = 0;
-    server->clientsReadSetLength = 0;
-    server->bufferSize = bufferSize;
-    server->timeout = timeout;
-    server->libData = libData;
-
-    server->clients = malloc(clientsCapacity * sizeof(SOCKET));
-    if (!server->clients){
-        #ifdef _DEBUG
-        printf("%smalloc for clients ERROR%s\n\n", 
-            RED, RESET
-        );
-        #endif
-
-        free(ptr);
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    server->buffer = (char*)malloc(bufferSize * sizeof(char));
-    if (!server->buffer){
-        #ifdef _DEBUG
-        printf("%smalloc for buffer ERROR%s\n\n", 
-            RED, RESET
-        );
-        #endif
-
-        free(server->clients);
-        free(ptr);
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    #ifdef _DEBUG
-    printf("%s<%p>%s\n\n",
-        GREEN, ptr, RESET
-    );
-    #endif
-
-    uint64_t serverPtr = (uint64_t)(uintptr_t)ptr;
-    MArgument_setInteger(Res, serverPtr);
-    return LIBRARY_NO_ERROR;
-}
-
-/*serverRemove[serverPtr] -> successState*/
-DLLEXPORT int serverRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    Server server = (Server)MArgument_getInteger(Args[0]); 
-
-    CLOSESOCKET(server->interrupt);
-    CLOSESOCKET(server->listenSocket);
-
-    for (size_t i = 0; i < server->clientsLength; i++) {
-        if (ISVALIDSOCKET(server->clients[i])) {
-            CLOSESOCKET(server->clients[i]);
-        }
-    }
-
-    free(server->clients);
-    free(server->buffer);
-    free(server);
-
-    MArgument_setInteger(Res, 0);
-    return LIBRARY_NO_ERROR;
-}
+#pragma region ADRRESS
 
 /*socketAddressInfoCreate["host", "port", family, socktype, protocol] -> addressInfoPtr*/
 DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
@@ -586,6 +366,10 @@ DLLEXPORT int socketAddressRemove(WolframLibraryData libData, mint Argc, MArgume
     return LIBRARY_NO_ERROR;
 }
 
+#pragma endregion
+
+#pragma region BUFFER
+
 /*socketBufferCreate[bufferSize] -> bufferPtr*/
 DLLEXPORT int socketBufferCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
@@ -605,9 +389,9 @@ DLLEXPORT int socketBufferRemove(WolframLibraryData libData, mint Argc, MArgumen
     return LIBRARY_NO_ERROR;
 }
 
-/*
-    ERROR MESSAGES
-*/
+#pragma endregion
+
+#pragma region errors
 
 void acceptErrorMessage(WolframLibraryData libData, int err)
 {
@@ -802,9 +586,9 @@ void sendErrorMessage(WolframLibraryData libData, int err)
         libData->Message("sendUnexpectedError");
 }
 
-/*
-    SOCKET FUNCTIONS
-*/
+#pragma endregion
+
+#pragma region SOCKET FUNCTIONS
 
 /*socketCreate[family, socktype, protocol] -> socketId*/
 DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
@@ -1045,7 +829,7 @@ DLLEXPORT int socketBlockingMode(WolframLibraryData libData, mint Argc, MArgumen
     int flags = fcntl(socketId, F_GETFL, 0);
     flags |= O_NONBLOCK;
     flags |= O_ASYNC;
-    iResult = fcntl(socketId, F_SETFL, flags, &nonBlocking);
+    int iResult = fcntl(socketId, F_SETFL, flags, &nonBlocking);
     #endif
     if (iResult != NO_ERROR) {
         #ifdef _DEBUG
@@ -1142,79 +926,6 @@ DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Ar
     #endif
 
     MArgument_setInteger(Res, 0);
-    return LIBRARY_NO_ERROR;
-}
-
-/*socketsCheck[{sockets}, length] -> validSockets*/
-DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    MTensor socketsTensor = MArgument_getMTensor(Args[0]); // list of sockets
-    size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
-
-    SOCKET *sockets = (SOCKET*)libData->MTensor_getIntegerData(socketsTensor);
-    SOCKET sockedId;
-    mint validCount = 0;
-    int opt;
-    int err;
-    socklen_t len = sizeof(opt);
-
-    #ifdef _DEBUG
-    printf("%s[socketCheck->CALL]%s\n\tcheck(",
-        GREEN, RESET); 
-    #endif
-
-    for (size_t i = 0; i < length; i++) {
-        sockedId = sockets[i];
-
-        #ifdef _DEBUG
-        printf("%I64d ", sockedId); 
-        #endif
-
-        #ifdef _WIN32
-        int result = getsockopt(sockedId, SOL_SOCKET, SO_TYPE, (char*)&opt, &len);
-        #else
-        int result = fcntl(sock, F_GETFL);
-        #endif
-
-        err = GETSOCKETERRNO();
-
-        if (result >= 0 || 
-            #ifdef _WIN32
-            err != WSAENOTSOCK
-            #else
-            err != EBADF
-            #endif
-        ) {
-            sockets[validCount] = sockedId;
-            validCount++;
-        }
-    }
-
-    #ifdef _DEBUG
-    printf(")\n\n"); 
-    #endif
-
-    MTensor validSocketsList;
-    libData->MTensor_new(MType_Integer, 1, &validCount, &validSocketsList);
-    SOCKET *validSockets = (SOCKET*)libData->MTensor_getIntegerData(validSocketsList);
-
-    #ifdef _DEBUG
-    printf("%s[socketCheck->SUCCESS]%s\n\tcheck(",
-        GREEN, RESET); 
-    #endif
-
-    for (mint i = 0; i < validCount; i++) {
-        #ifdef _DEBUG
-        printf("%I64d ", sockets[i]); 
-        #endif
-        validSockets[i] = sockets[i];
-    }
-
-    #ifdef _DEBUG
-    printf(")\n\n"); 
-    #endif
-    
-    MArgument_setMTensor(Res, validSocketsList);
     return LIBRARY_NO_ERROR;
 }
 
@@ -1409,9 +1120,9 @@ DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument 
     return LIBRARY_FUNCTION_ERROR;
 }
 
-/*
-    ASYNC EVENTS
-*/
+#pragma endregion
+
+#pragma region ASYNC EVENTS
 
 /*push list of sockets that ready for read*/
 void pushSelect(WolframLibraryData libData, mint taskId, SOCKET *sockets, size_t socketsLength, fd_set *readset)
@@ -1545,308 +1256,82 @@ void pushClose(WolframLibraryData libData, mint taskId, SOCKET socketId)
     libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Close", data);
 }
 
-void serverSelect(Server server)
-{
-    fd_set *clientsReadSet = &server->clientsReadSet;
-    #ifdef _WIN32
-    struct timeval tv_val = {server->timeout / 1000000, (server->timeout % 1000000)};
-    struct timeval *tv = &tv_val;
-    #else
-    struct timeval tv_val = {server->timeout / 1000000, (server->timeout % 1000000)};
-    struct timeval *tv = &tv_val;
-    #endif
-    int maxFd = server->listenSocket;
+#pragma endregion
 
-    FD_ZERO(clientsReadSet);
-    FD_SET(maxFd, clientsReadSet);
-    SOCKET client;
+#pragma region SELECT
+
+/*socketsCheck[{sockets}, length] -> validSockets*/
+DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    MTensor socketsTensor = MArgument_getMTensor(Args[0]); // list of sockets
+    size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
+
+    SOCKET *sockets = (SOCKET*)libData->MTensor_getIntegerData(socketsTensor);
+    SOCKET socketId;
+    mint validCount = 0;
+    int opt;
+    int err;
+    socklen_t len = sizeof(opt);
 
     #ifdef _DEBUG
-    printf("%s\n%s[serverSelect->CALL]%s\n\tselect(len = %zd, timeout = %ld) sockets = (%I64d",
-        getCurrentTime(), 
-        BLUE, RESET, 
-        server->clientsLength + 1, server->timeout, (int64_t)server->listenSocket
-    );
+    printf("%s[socketCheck->CALL]%s\n\tcheck(",
+        GREEN, RESET); 
     #endif
 
-    size_t count = server->clientsLength;
-    for (size_t i = 0; i < count; i++)
-    {
-        client = server->clients[i];
-        if (client != INVALID_SOCKET) {
-            FD_SET(client, clientsReadSet);
-            if (client > maxFd) maxFd = client;
+    for (size_t i = 0; i < length; i++) {
+        socketId = sockets[i];
 
-            #ifdef _DEBUG
-            printf(", %I64d", client);
+        #ifdef _DEBUG
+        printf("%I64d ", socketId); 
+        #endif
+
+        #ifdef _WIN32
+        int result = getsockopt(sockedId, SOL_SOCKET, SO_TYPE, (char*)&opt, &len);
+        #else
+        int result = fcntl(socketId, F_GETFL);
+        #endif
+
+        err = GETSOCKETERRNO();
+
+        if (result >= 0 || 
+            #ifdef _WIN32
+            err != WSAENOTSOCK
+            #else
+            err != EBADF
             #endif
+        ) {
+            sockets[validCount] = socketId;
+            validCount++;
         }
     }
 
     #ifdef _DEBUG
-    printf(")\n\n");
+    printf(")\n\n"); 
     #endif
 
-    server->clientsReadSetLength = select(maxFd + 1, clientsReadSet, NULL, NULL, tv);
-    if (server->clientsReadSetLength < 0) {
-        int err = GETSOCKETERRNO();
-        #ifdef _DEBUG
-        printf("%s\n%s[serverSelect->ERROR]%s\n\tselect() returns error = %d\n\n", 
-            getCurrentTime(), 
-            RED, RESET, 
-            err
-        ); 
-        #endif
-    } else if (server->clientsReadSetLength > 0) {
-        #ifdef _DEBUG
-        printf("%s\n%s[serverSelect->SUCCESS]%s\n\tselect() returns %zd sockets\n\n", 
-            getCurrentTime(),
-            GREEN, RESET, 
-            server->clientsReadSetLength
-        );
-        #endif
-    } else {
-        #ifdef _DEBUG
-        printf("%s\n%s[serverSelect->SKIP]%s\n\tselect() returns 0 sockets\n\n", 
-            getCurrentTime(),
-            YELLOW, RESET
-        );
-        #endif
-    }
-}
-
-void serverAccept(Server server)
-{
-    SOCKET listenSocket = server->listenSocket;
+    MTensor validSocketsList;
+    libData->MTensor_new(MType_Integer, 1, &validCount, &validSocketsList);
+    SOCKET *validSockets = (SOCKET*)libData->MTensor_getIntegerData(validSocketsList);
 
     #ifdef _DEBUG
-    printf("%s\n%s[serverAccept->CALL]%s\n\taccept(listenSocket = %I64d)\n\n", 
-        getCurrentTime(),
-        BLUE, RESET, 
-        listenSocket
-    );
+    printf("%s[socketCheck->SUCCESS]%s\n\tcheck(",
+        GREEN, RESET); 
     #endif
 
-    if (FD_ISSET(server->listenSocket, &server->clientsReadSet)) {
-        server->clientsReadSetLength--;
-        mutexLock(globalMutex);
-        SOCKET client = accept(server->listenSocket, NULL, NULL);
-        mutexUnlock(globalMutex);
-        if (client != INVALID_SOCKET) {
-            #ifdef _DEBUG
-            printf("%s\n%s[serverAccept->SUCCESS]%s\n\taccept(listenSocket = %I64d) new client id = %I64d\n\n", 
-                getCurrentTime(),
-                GREEN, RESET, 
-                listenSocket, client
-            );
-            #endif
-
-            server->clients[server->clientsLength] = client;
-            server->clientsLength++;
-            pushAccept(server->libData, server->taskId, server->listenSocket, client);
-        }
-    } else {
+    for (mint i = 0; i < validCount; i++) {
         #ifdef _DEBUG
-        printf("%s\n%s[serverAccept->SKIP]%s\n\taccept(listenSocket = %I64d) no new clients\n\n", 
-            getCurrentTime(),
-            YELLOW, RESET, 
-            listenSocket
-        );
+        printf("%I64d ", sockets[i]); 
         #endif
+        validSockets[i] = sockets[i];
     }
-}
 
-void serverRecv(Server server)
-{
     #ifdef _DEBUG
-    printf("%s\n%s[serverRecv->CALL]%s\n\tlisten socket id = %I64d\n\tclients length = %zd\n\n", 
-        getCurrentTime(),
-        BLUE, RESET, 
-        server->listenSocket, server->clientsLength
-    );
-    #endif
-    int result;
-    if (server->clientsReadSetLength > 0) {
-        size_t count = server->clientsLength;
-        fd_set *readfds = &server->clientsReadSet;
-        SOCKET client;
-        int readyCount = server->clientsReadSetLength;
-        int j = 0;
-
-        for (size_t i = 0; i < count; i++) {
-            client = server->clients[i];
-            if (client != INVALID_SOCKET && FD_ISSET(client, readfds)) {
-                j++;
-                mutexLock(globalMutex);
-                result = recv(client, server->buffer, server->bufferSize, 0);
-                mutexUnlock(globalMutex);
-                int err = GETSOCKETERRNO();
-                mint arrLen = (mint)result;
-                if (result > 0) {
-                    pushRecv(server->libData, server->taskId, server->listenSocket, client, server->buffer, result);
-                } else if (result == 0 || (result < 0 && (err == 10038 || err == 10053))) {
-                    #ifdef _DEBUG
-                    printf("%s\n%s[serverRecv->ERROR]%s\n\tclient = %I64d\n\terror = %d\n\n", 
-                        getCurrentTime(),
-                        RED, RESET, 
-                        client, err
-                    );
-                    #endif
-
-                    server->clients[i] = INVALID_SOCKET;
-                    pushClose(server->libData, server->taskId, client);
-                } else {
-                    #ifdef _DEBUG
-                    printf("%s\n%s[serverRecv->ERROR]%s\n\tclient = %I64d\n\tunexpected error = %d\n\n", 
-                        getCurrentTime(),
-                        RED, RESET, 
-                        client, err
-                    );
-                    #endif
-
-                    server->clients[i] = INVALID_SOCKET;
-                    pushClose(server->libData, server->taskId, client);
-                }
-            }
-
-            if (j > readyCount) break;
-        }
-
-        #ifdef _DEBUG
-        printf("%s\n%s[serverRecv->SUCCESS]%s\n\tlisten socket id = %I64d\n\tclients length = %zd\n\treceived data len = %d\n\n", 
-            getCurrentTime(),
-            GREEN, RESET, 
-            server->listenSocket, server->clientsLength, result
-        );
-        #endif
-    } else {
-        #ifdef _DEBUG
-        printf("%s\n%s[serverRecv->SKIP]%s\n\tlisten socket id = %I64d\n\tclients length = %zd\n\n", 
-            getCurrentTime(),
-            YELLOW, RESET, 
-            server->listenSocket, server->clientsLength
-        );
-        #endif
-    }
-}
-
-void serverCheck(Server server)
-{
-    #ifdef _DEBUG
-    printf("%s\n%s[serverCheck->CALL]%s\n\tlisten socket id = %I64d\n\tclients length = %zd\n\n", 
-        getCurrentTime(),
-        BLUE, RESET, 
-        server->listenSocket, server->clientsLength
-    );
+    printf(")\n\n"); 
     #endif
     
-    if (server->clientsReadSetLength <= 0) {
-        SOCKET *sockets = server->clients;
-        size_t count = server->clientsLength;
-        SOCKET sock;
-        mint validCount = 0;
-        
-        int opt;
-        int err;
-        socklen_t len = sizeof(opt);
-
-        for (size_t i = 0; i < count; i++) {
-            sock = sockets[i];
-
-            if (sock > 0) {
-                #ifdef _WIN32
-                int result = getsockopt(sock, SOL_SOCKET, SO_TYPE, (char*)&opt, &len);
-                #else
-                int result = fcntl(sock, F_GETFL);
-                #endif
-
-                err = GETSOCKETERRNO();
-                if (result >= 0 || 
-                    #ifdef _WIN32
-                    err != WSAENOTSOCK
-                    #else
-                    err != EBADF
-                    #endif
-                ) {
-                    sockets[validCount] = sock;
-                    validCount++;
-                }
-            }
-        }
-
-        server->clientsLength = validCount;
-    } else {
-        #ifdef _DEBUG
-        printf("%s\n%s[serverCheck->SKIP]%s\n\tlisten socket id = %I64d\n\tclients length = %zd\n\n", 
-            getCurrentTime(),
-            YELLOW, RESET, 
-            server->listenSocket, server->clientsLength
-        );
-        #endif
-    }
-}
-
-static void serverListenerTask(mint taskId, void* vtarg)
-{
-    Server server = (Server)vtarg;
-    
-    #ifdef _DEBUG
-    printf("%s\n%s[serverListenerTask->CALL]%s\n\tlisten socket id = %I64d\n\ttask id = %I64d\n\n", 
-        getCurrentTime(),
-        BLUE, RESET, 
-        (int64_t)server->listenSocket, (int64_t)taskId
-    );
-    #endif
-    
-    while (server->libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
-    {
-        serverSelect(server);
-        serverCheck(server);
-        serverAccept(server);
-        serverRecv(server);
-    }
-
-    #ifdef _DEBUG
-    printf("%s\n%s[serverListenerTask->END]%s\n\tlisten socket id = %I64d\n\ttask id = %I64d\n\n", 
-        getCurrentTime(),
-        YELLOW, RESET, 
-        (int64_t)server->listenSocket, (int64_t)taskId
-    );
-    #endif
-}
-
-/*serverListen[serverPtr] -> taskId*/
-DLLEXPORT int serverListen(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    Server server = (Server)MArgument_getInteger(Args[0]);
-    mint taskId;
-
-    #ifdef _DEBUG
-    printf("%s\n%s[serverListen->CALL]%s\n\tlisten socket id = %I64d\n\n", 
-        getCurrentTime(),
-        BLUE, RESET, 
-        server->listenSocket
-    );
-    #endif
-
-    taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(serverListenerTask, server);
-    server->taskId = taskId;
-
-    #ifdef _DEBUG
-    printf("%s\n%s[serverListen->SUCCESS]%s\n\tlisten task id = %I64d\n\n", 
-        getCurrentTime(),
-        GREEN, RESET, 
-        taskId
-    );
-    #endif
-
-    MArgument_setInteger(Res, taskId);
+    MArgument_setMTensor(Res, validSocketsList);
     return LIBRARY_NO_ERROR;
 }
-
-/*
-    SELECT FUNCTIONS
-*/
 
 /*socketsSelect[{sockets}, length, timeout] -> {readySockets}*/
 DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
@@ -1927,207 +1412,4 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
     }
 }
 
-static void taskSelect(mint taskId, void* vtarg)
-{
-    SocketList socketList = (SocketList)vtarg;
-    WolframLibraryData libData = socketList->libData;
-    SOCKET *sockets = socketList->sockets;
-
-    size_t length;
-    SOCKET interrupt;
-    SOCKET maxFd;
-    struct timeval timeout;
-    SOCKET socketId;
-    int result;
-    struct fd_set readfds;
-
-    while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
-    {
-        length = (size_t)socketList->length;
-        interrupt = socketList->interrupt;
-        maxFd = interrupt;
-
-        FD_ZERO(&readfds);
-        FD_SET(interrupt, &readfds);
-
-        size_t length = (size_t)socketList->length;
-        for (size_t i = 0; i < length; i++) {
-            socketId = socketList->sockets[i];
-            FD_SET(socketId, &readfds);
-            if (socketId > maxFd) maxFd = socketId;
-        }
-
-        timeout.tv_sec = socketList->timeout / 1000000; // convert microseconds to seconds
-        timeout.tv_usec = socketList->timeout % 1000000; // get remaining microseconds
-
-        result = select(maxFd + 1, &readfds, NULL, NULL, &timeout);
-        if (result > 0) {
-            if (FD_ISSET(interrupt, &readfds)) {
-                recv(interrupt, NULL, 0, 0);
-            } else {
-                pushSelect(libData, taskId, sockets, length, &readfds);
-            }
-        }
-    }
-}
-
-/*createTaskSelect[socketList]*/
-DLLEXPORT int createTaskSelect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    void *socketListPtr = (void *)MArgument_getInteger(Args[0]);
-
-    #ifdef _DEBUG
-    printf("%s\n%screateTaskSelect[%s%p%s]%s -> ", getCurrentTime(), BLUE, RESET, socketListPtr, BLUE, RESET);
-    #endif
-
-    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(taskSelect, socketListPtr);
-    
-    #ifdef _DEBUG
-    printf("%s%I64d%s\n\n", GREEN, taskId, RESET);
-    #endif
-
-    MArgument_setInteger(Res, taskId);
-    return LIBRARY_NO_ERROR;
-}
-
-static int socketListSelect(SocketList socketList, struct fd_set *readfds)
-{
-    size_t length;
-    SOCKET interrupt;
-    SOCKET maxFd;
-    struct timeval timeout;
-    SOCKET socketId;
-    int result;
-
-    length = (size_t)socketList->length;
-    interrupt = socketList->interrupt;
-    maxFd = interrupt;
-
-    FD_ZERO(readfds);
-    FD_SET(interrupt, readfds);
-
-    for (size_t i = 0; i < length; i++) {
-        socketId = socketList->sockets[i];
-        FD_SET(socketId, readfds);
-        if (socketId > maxFd) maxFd = socketId;
-    }
-
-    timeout.tv_sec = socketList->timeout / 1000000; // convert microseconds to seconds
-    timeout.tv_usec = socketList->timeout % 1000000; // get remaining microseconds
-
-    result = select(maxFd + 1, readfds, NULL, NULL, &timeout);
-    return result;
-}
-
-static int serverSelectReady(Server server, struct fd_set *readfds)
-{
-    struct timeval timeout;
-    SOCKET socketId;
-    int result;
-
-    size_t length = (size_t)server->clientsLength;
-    SOCKET interrupt = server->interrupt;
-    SOCKET maxFd = interrupt;
-
-    FD_ZERO(readfds);
-    FD_SET(interrupt, readfds);
-    FD_SET(server->listenSocket, readfds);
-
-    maxFd = max(interrupt, server->listenSocket);
-
-    for (size_t i = 0; i < length; i++) {
-        socketId = server->clients[i];
-        FD_SET(socketId, readfds);
-        if (socketId > maxFd) maxFd = socketId;
-    }
-
-    timeout.tv_sec = server->timeout / 1000000; // convert microseconds to seconds
-    timeout.tv_usec = server->timeout % 1000000; // get remaining microseconds
-
-    result = select(maxFd + 1, readfds, NULL, NULL, &timeout);
-    return result;
-}
-
-static void taskSelectAcceptRecv(mint taskId, void* vtarg)
-{
-    Server server = (Server)vtarg;
-    WolframLibraryData libData = server->libData;
-    SOCKET *clients = server->clients;
-
-    size_t length;
-    SOCKET maxFd;
-    struct timeval timeout;
-    SOCKET socketId;
-    int result;
-    struct fd_set readfds;
-
-    while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
-    {
-        timeout.tv_sec = server->timeout / 1000000; // convert microseconds to seconds
-        timeout.tv_usec = server->timeout % 1000000; // get remaining microseconds
-
-        FD_ZERO(&readfds);
-        FD_SET(server->interrupt, &readfds);
-        FD_SET(server->listenSocket, &readfds);
-
-        maxFd = max(server->interrupt, server->listenSocket);
-
-        size_t length = (size_t)server->clientsLength;
-        for (size_t i = 0; i < length; i++) {
-            socketId = clients[i];
-            FD_SET(socketId, &readfds);
-            if (socketId > maxFd) maxFd = socketId;
-        }
-    }
-    
-}
-
-/*createTaskSelectAcceptRecv[server]*/
-DLLEXPORT int createTaskSelectAcceptRecv(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    void *serverPtr = (void *)MArgument_getInteger(Args[0]);
-
-    #ifdef _DEBUG
-    printf("%s\n%screateTaskSelectAcceptRecv[%s%p%s]%s -> ", getCurrentTime(), BLUE, RESET, serverPtr, BLUE, RESET);
-    #endif
-
-    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(taskSelectAcceptRecv, serverPtr);
-    
-    #ifdef _DEBUG
-    printf("%s%I64d%s\n\n", GREEN, taskId, RESET);
-    #endif
-
-    MArgument_setInteger(Res, taskId);
-    return LIBRARY_NO_ERROR;
-}
-
-static void taskSelectRecvFrom(mint taskId, void *vtarg)
-{
-    SocketList socketList = (SocketList)vtarg;
-    WolframLibraryData libData = socketList->libData;
-
-    while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
-    {
-        
-    }
-    
-}
-
-/*createTaskSelectAcceptRecv[{udpSockets}] -> taskId*/
-DLLEXPORT int createTaskSelectRecvFrom(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    void *socketListPtr = (void *)MArgument_getInteger(Args[0]);
-
-    #ifdef _DEBUG
-    printf("%s\n%screateTaskSelectRecvFrom[%s%p%s]%s -> ", getCurrentTime(), BLUE, RESET, socketListPtr, BLUE, RESET);
-    #endif
-
-    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(taskSelectRecvFrom, socketListPtr);
-    
-    #ifdef _DEBUG
-    printf("%s%I64d%s\n\n", GREEN, taskId, RESET);
-    #endif
-
-    MArgument_setInteger(Res, taskId);
-    return LIBRARY_NO_ERROR;
-}
+#pragma endregion
