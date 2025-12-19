@@ -1,4 +1,300 @@
-#include "header.h"
+#pragma region header
+
+#undef UNICODE
+
+#define FD_SETSIZE 4096
+#define SECOND 1000000
+#define MININTERVAL 1000
+#define _DEBUG 1
+#define RESET "\033[0m"
+#define RED "\033[91m"
+#define GREEN "\033[92m"
+#define BLUE "\033[94m"
+#define YELLOW "\033[93m"
+
+#ifdef _WIN32
+    #define WIN32_LEAN_AND_MEAN
+    #include <windows.h>
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #define ISVALIDSOCKET(s) ((s) != INVALID_SOCKET)
+    #define CLOSESOCKET(s) closesocket(s)
+    #define GETSOCKETERRNO() (WSAGetLastError())
+    #pragma comment (lib, "Ws2_32.lib")
+    typedef HANDLE Mutex;
+    #define SLEEP Sleep
+    #define ms 1
+#else
+    #include <sys/types.h>
+    #include <sys/socket.h>
+    #include <netinet/in.h>
+    #include <arpa/inet.h>
+    #include <netdb.h>
+    #include <unistd.h>
+    #include <errno.h>
+    #include <fcntl.h>
+    #include <wchar.h>
+    #include <netinet/tcp.h>
+    #include <sys/select.h>
+    #include <time.h>
+    #include <sys/time.h>
+    #include <pthread.h>
+    #define INVALID_SOCKET -1
+    #define NO_ERROR 0
+    #define SOCKET_ERROR -1
+    #define ZeroMemory(Destination,Length) memset((Destination),0,(Length))
+    inline void nopp() {}
+    #define SOCKET int
+    #define ISVALIDSOCKET(s) ((s) >= 0)
+    #define CLOSESOCKET(s) close(s)
+    #define GETSOCKETERRNO() (errno)
+    #define BYTE uint8_t
+    #define BOOL int
+    typedef pthread_mutex_t Mutex;
+    #define SLEEP usleep
+    #define ms 1000
+#endif
+
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <time.h>
+
+#include "WolframLibrary.h"
+#include "WolframIOLibraryFunctions.h"
+#include "WolframNumericArrayLibrary.h"
+#include "WolframCompileLibrary.h"
+#include "WolframRawArrayLibrary.h"
+#include "WolframImageLibrary.h"
+
+// Platform-specific global mutex:
+#if defined(_WIN32) || defined(_WIN64)
+static Mutex globalMutex = NULL;
+#else
+static Mutex globalMutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
+
+typedef struct SocketList_st *SocketList;
+
+typedef struct Server_st *Server;
+
+#pragma endregion
+
+#pragma region time
+
+/*
+    TIME
+*/
+
+const char* getCurrentTime()
+{
+    static char time_buffer[64];
+    time_t rawtime;
+    struct tm* timeinfo;
+    
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    
+    strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
+    
+    #ifdef _WIN32
+    SYSTEMTIME st;
+    GetSystemTime(&st);
+    snprintf(time_buffer + strlen(time_buffer), 
+             sizeof(time_buffer) - strlen(time_buffer), 
+             ".%03d", st.wMilliseconds);
+    #else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    snprintf(time_buffer + strlen(time_buffer), 
+             sizeof(time_buffer) - strlen(time_buffer), 
+             ".%06ld", tv.tv_usec);
+    #endif
+    
+    return time_buffer;
+}
+
+#pragma endregion
+
+#pragma region mutex
+
+/*
+    MUTEX
+*/
+
+Mutex mutexCreate()
+{
+    #if defined(_WIN32) || defined(_WIN64)
+        return CreateMutex(NULL, FALSE, NULL);
+    #else
+        pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+        return mutex;
+    #endif
+}
+
+void mutexClose(Mutex mutex)
+{
+    #if defined(_WIN32) || defined(_WIN64)
+        CloseHandle(mutex);
+    #else
+        pthread_mutex_destroy(&mutex);
+    #endif
+}
+
+void mutexLock(Mutex mutex)
+{
+    #if defined(_WIN32) || defined(_WIN64)
+        WaitForSingleObject(mutex, INFINITE);
+    #else
+        pthread_mutex_lock(&mutex);
+    #endif
+}
+
+void mutexUnlock(Mutex mutex)
+{
+    #if defined(_WIN32) || defined(_WIN64)
+        ReleaseMutex(mutex);
+    #else
+        pthread_mutex_unlock(&mutex);
+    #endif
+}
+
+#pragma endregion
+
+#pragma region library link initialization
+
+/*
+    RITUAL
+*/
+
+DLLEXPORT mint WolframLibrary_getVersion()
+{
+    #ifdef _DEBUG
+    printf("%s\n%sWolframLibrary_getVersion[]%s -> %s%d%s\n\n", 
+        getCurrentTime(),
+        BLUE, RESET, 
+        GREEN, WolframLibraryVersion, RESET
+    );
+    #endif
+
+    return WolframLibraryVersion;
+}
+
+DLLEXPORT int WolframLibrary_initialize(WolframLibraryData libData)
+{
+    #ifdef _WIN32
+    int iResult;
+    WSADATA wsaData;
+
+    iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
+    if (iResult != 0) return LIBRARY_FUNCTION_ERROR;
+    #endif
+
+    globalMutex = mutexCreate();
+
+    #ifdef _DEBUG
+    printf("%s\n%sWolframLibrary_initialize[]%s -> %sSuccess%s\n\n", 
+        getCurrentTime(),
+        BLUE, RESET, GREEN, RESET
+    );
+    #endif
+
+    return LIBRARY_NO_ERROR;
+}
+
+DLLEXPORT void WolframLibrary_uninitialize(WolframLibraryData libData)
+{
+
+    mutexUnlock(globalMutex);
+    mutexClose(globalMutex);
+
+    #ifdef _WIN32
+    WSACleanup();
+    #else
+    sleep(1);
+    #endif
+
+    #ifdef _DEBUG
+    printf("%s\n%sWolframLibrary_uninitialize[]%s -> %sSuccess%s\n\n",
+        getCurrentTime(),
+        BLUE, RESET, GREEN, RESET
+    );
+    #endif
+
+    return;
+}
+
+#pragma endregion
+
+#pragma region blocking
+
+/*
+    BLOCKING
+*/
+
+const void setBlocking(SOCKET socket, bool blocking)
+{
+    #ifdef _WIN32
+    u_long mode = blocking ? 0 : 1; // 0 for blocking, 1 for non-blocking
+    ioctlsocket(socket, FIONBIO, &mode);
+    #else
+    int flags = fcntl(socket, F_GETFL, 0);
+    if (blocking) {
+        fcntl(socket, F_SETFL, flags & ~O_NONBLOCK);
+    } else {
+        fcntl(socket, F_SETFL, flags | O_NONBLOCK);
+    }
+    #endif
+}
+
+const bool blockingModeQ(SOCKET socketId)
+{
+    #ifdef _WIN32
+    u_long mode;
+    ioctlsocket(socketId, FIONBIO, &mode);
+    return (mode == 0);
+    #else
+    int flags = fcntl(socketId, F_GETFL, 0);
+    return !(flags & O_NONBLOCK);
+    #endif
+}
+
+#pragma endregion
+
+#pragma region structs
+
+/*
+    STRUCTS
+*/
+
+struct SocketList_st
+{
+    SOCKET *sockets;
+    size_t length;
+};
+
+struct Server_st
+{
+    SOCKET interrupt;
+    SOCKET listenSocket;
+    size_t clientsCapacity;
+    size_t bufferSize;
+    long timeout;
+    SOCKET *clients;
+    fd_set clientsReadSet;
+    size_t clientsReadSetLength;
+    size_t clientsLength;
+    BYTE *buffer;
+    WolframLibraryData libData;
+    mint taskId;
+};
+
+#pragma endregion
+
+#pragma region constructors
 
 /*
     CONSTRUCTORS
@@ -7,21 +303,17 @@
 /*socketListCreate[interrupt, length] -> socketList*/
 DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    SOCKET interrupt = (SOCKET)MArgument_getInteger(Args[0]);
     SOCKET length = (size_t)MArgument_getInteger(Args[1]);
-
     SocketList socketList = malloc(sizeof(struct SocketList_st));
 
-    socketList->interrupt = interrupt;
     socketList->length = length; 
     socketList->sockets = malloc(length * sizeof(SOCKET));
-    socketList->libData = libData;
 
     #ifdef _DEBUG
-    printf("%s\n%ssocketListCreate[%s%I64d, size = %I64d%s]%s -> %s<%p>%s\n\n", 
+    printf("%s\n%ssocketListCreate[%ssize = %I64d%s]%s -> %s<%p>%s\n\n", 
         getCurrentTime(), 
         BLUE, RESET, 
-        (int64_t)interrupt, (int64_t)length,
+        (int64_t)length,
         BLUE, RESET, 
         GREEN, (void *)socketList, RESET
     );
@@ -29,8 +321,10 @@ DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument 
 
     MArgument_setInteger(Res, (mint)(uint64_t)(uintptr_t)socketList);
 
-    return LIBRARY_NO_ERROR;
+    return LIBRARY_NO_ERROR; 
 }
+
+#pragma endregion
 
 /*socketsSet[socketListPtr, {sockets}, length] -> successStatus*/
 DLLEXPORT int socketListSet(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
