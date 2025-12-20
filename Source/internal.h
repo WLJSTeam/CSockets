@@ -21,6 +21,7 @@
     #define GETSOCKETERRNO() (WSAGetLastError())
     #pragma comment (lib, "Ws2_32.lib")
     typedef HANDLE Mutex;
+    #define MUTEX_INITIALIZER NULL
     #define SLEEP Sleep
     #define ms 1
 #else
@@ -50,6 +51,7 @@
     #define BYTE uint8_t
     #define BOOL int
     typedef pthread_mutex_t Mutex;
+    #define MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
     #define SLEEP usleep
 #endif
 
@@ -72,40 +74,40 @@ typedef struct SocketList_st *SocketList;
 
 typedef struct Server_st *Server;
 
-const char* getCurrentTime();
+extern char* getCurrentTime();
 
-Mutex getGlobalMutex();
+extern Mutex getGlobalMutex();
 
-void initGlobalMutex();
+extern void initGlobalMutex();
 
-void closeGlobalMutex();
+extern void closeGlobalMutex();
 
-Mutex mutexCreate();
+extern Mutex mutexCreate();
 
-void mutexClose(Mutex mutex);
+extern void mutexClose(Mutex mutex);
 
-void mutexLock(Mutex mutex);
+extern void mutexLock(Mutex mutex);
 
-void mutexUnlock(Mutex mutex);
+extern void mutexUnlock(Mutex mutex);
 
-const void setBlocking(SOCKET socket, bool blocking);
+extern const void setBlocking(SOCKET socket, bool blocking);
 
-const bool blockingModeQ(SOCKET socketId);
+extern const bool blockingModeQ(SOCKET socketId);
 
-void acceptErrorMessage(WolframLibraryData libData, int err);
+extern void acceptErrorMessage(WolframLibraryData libData, int err);
 
-void recvErrorMessage(WolframLibraryData libData, int err);
+extern void recvErrorMessage(WolframLibraryData libData, int err);
 
-void selectErrorMessage(WolframLibraryData libData, int err);
+extern void selectErrorMessage(WolframLibraryData libData, int err);
 
-void sendErrorMessage(WolframLibraryData libData, int err);
+extern void sendErrorMessage(WolframLibraryData libData, int err);
 
-void pushSelect(WolframLibraryData libData, mint taskId, SOCKET *sockets, size_t socketsLength, fd_set *readset);
+extern void pushSelect(WolframLibraryData libData, mint taskId, SOCKET *sockets, size_t socketsLength, fd_set *readset);
 
-void pushAccept(WolframLibraryData libData, mint taskId, SOCKET listenSocket, SOCKET acceptedSocket);
+extern void pushAccept(WolframLibraryData libData, mint taskId, SOCKET listenSocket, SOCKET acceptedSocket);
 
-void pushRecv(WolframLibraryData libData, mint taskId, SOCKET listenSocket, SOCKET socketId, BYTE *buffer, int bufferLength);
+extern void pushRecv(WolframLibraryData libData, mint taskId, SOCKET listenSocket, SOCKET socketId, BYTE *buffer, int bufferLength);
 
-void pushRecvFrom(WolframLibraryData libData, mint taskId, SOCKET socketId, struct sockaddr *address, BYTE *buffer, int bufferLength);
+extern void pushRecvFrom(WolframLibraryData libData, mint taskId, SOCKET socketId, struct sockaddr *address, BYTE *buffer, int bufferLength);
 
-void pushClose(WolframLibraryData libData, mint taskId, SOCKET socketId);
+extern void pushClose(WolframLibraryData libData, mint taskId, SOCKET socketId);

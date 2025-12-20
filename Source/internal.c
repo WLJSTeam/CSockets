@@ -1,86 +1,6 @@
 #include "internal.h"
 
-#pragma region header
-
-#undef UNICODE
-
-#define _DEBUG 1
-#define FD_SETSIZE 4096
-#define SECOND 1000000
-#define MININTERVAL 1000
-
-#define RESET "\033[0m"
-#define RED "\033[91m"
-#define GREEN "\033[92m"
-#define BLUE "\033[94m"
-#define YELLOW "\033[93m"
-
-#ifdef _WIN32
-    #define WIN32_LEAN_AND_MEAN
-    #include <windows.h>
-    #include <winsock2.h>
-    #include <ws2tcpip.h>
-    #define ISVALIDSOCKET(s) ((s) != INVALID_SOCKET)
-    #define CLOSESOCKET(s) closesocket(s)
-    #define GETSOCKETERRNO() (WSAGetLastError())
-    #pragma comment (lib, "Ws2_32.lib")
-    typedef HANDLE Mutex;
-    #define SLEEP Sleep
-    #define ms 1
-#else
-    #include <sys/types.h>
-    #include <sys/socket.h>
-    #include <netinet/in.h>
-    #include <arpa/inet.h>
-    #include <netdb.h>
-    #include <unistd.h>
-    #include <errno.h>
-    #include <fcntl.h>
-    #include <wchar.h>
-    #include <netinet/tcp.h>
-    #include <sys/select.h>
-    #include <time.h>
-    #include <sys/time.h>
-    #include <pthread.h>
-    #define INVALID_SOCKET -1
-    #define NO_ERROR 0
-    #define SOCKET_ERROR -1
-    #define ZeroMemory(Destination,Length) memset((Destination),0,(Length))
-    inline void nopp() {}
-    #define SOCKET int
-    #define ISVALIDSOCKET(s) ((s) >= 0)
-    #define CLOSESOCKET(s) close(s)
-    #define GETSOCKETERRNO() (errno)
-    #define BYTE uint8_t
-    #define BOOL int
-    typedef pthread_mutex_t Mutex;
-    #define SLEEP usleep
-#endif
-
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <time.h>
-
-#include "WolframLibrary.h"
-#include "WolframIOLibraryFunctions.h"
-#include "WolframNumericArrayLibrary.h"
-#include "WolframCompileLibrary.h"
-#include "WolframRawArrayLibrary.h"
-#include "WolframImageLibrary.h"
-
-typedef struct SocketList_st *SocketList;
-
-typedef struct Server_st *Server;
-
-#pragma endregion
-
-#pragma region time
-
-const char* getCurrentTime()
+char* getCurrentTime()
 {
     static char time_buffer[64];
     time_t rawtime;
@@ -108,11 +28,7 @@ const char* getCurrentTime()
     return time_buffer;
 }
 
-#pragma endregion
-
-#pragma region mutex
-
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32)
 static Mutex globalMutex = NULL;
 #else
 static Mutex globalMutex;
@@ -135,7 +51,7 @@ static void closeGlobalMutex()
 
 Mutex mutexCreate()
 {
-    #if defined(_WIN32) || defined(_WIN64)
+    #if defined(_WIN32)
         return CreateMutex(NULL, FALSE, NULL);
     #else
         pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -189,10 +105,6 @@ void cleanupWSA()
     sleep(1);
     #endif
 }
-
-#pragma endregion
-
-#pragma region blocking
 
 const void setBlocking(SOCKET socket, bool blocking)
 {
