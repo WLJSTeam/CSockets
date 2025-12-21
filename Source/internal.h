@@ -21,6 +21,7 @@
     #define GETSOCKETERRNO() (WSAGetLastError())
     #pragma comment (lib, "Ws2_32.lib")
     typedef HANDLE Mutex;
+    extern Mutex globalMutex = NULL;
     #define MUTEX_INITIALIZER NULL
     #define SLEEP Sleep
     #define ms 1
@@ -51,6 +52,7 @@
     #define BYTE uint8_t
     #define BOOL int
     typedef pthread_mutex_t Mutex;
+    extern Mutex globalMutex;
     #define MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
     #define SLEEP usleep
 #endif
@@ -76,21 +78,19 @@ typedef struct Server_st *Server;
 
 extern char* getCurrentTime();
 
-extern Mutex getGlobalMutex();
-
 extern void initGlobalMutex();
 
 extern void closeGlobalMutex();
 
-extern Mutex mutexCreate();
+extern void lockGlobalMutex();
 
-extern void mutexClose(Mutex mutex);
+extern void unlockGlobalMutex();
 
-extern void mutexLock(Mutex mutex);
+extern void initWSA();
 
-extern void mutexUnlock(Mutex mutex);
+extern void cleanupWSA();
 
-extern const void setBlocking(SOCKET socket, bool blocking);
+extern const int setBlockingMode(SOCKET socketId, bool blockingMode);
 
 extern const bool blockingModeQ(SOCKET socketId);
 

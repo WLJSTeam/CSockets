@@ -1,88 +1,24 @@
 #include "internal.h"
 
-static Mutex globalMutex;
-
 DLLEXPORT mint WolframLibrary_getVersion()
 {
-    #ifdef _DEBUG
-    printf("%s\n%sWolframLibrary_getVersion[]%s -> %s%d%s\n\n", 
-        getCurrentTime(),
-        BLUE, RESET, 
-        GREEN, WolframLibraryVersion, RESET
-    );
-    #endif
-
     return WolframLibraryVersion;
 }
 
 DLLEXPORT int WolframLibrary_initialize(WolframLibraryData libData)
 {
     initWSA();
-
-    globalMutex = mutexCreate();
-
-    #ifdef _DEBUG
-    printf("%s\n%sWolframLibrary_initialize[]%s -> %sSuccess%s\n\n", 
-        getCurrentTime(),
-        BLUE, RESET, GREEN, RESET
-    );
-    #endif
-
+    initGlobalMutex();
     return LIBRARY_NO_ERROR;
 }
 
 DLLEXPORT void WolframLibrary_uninitialize(WolframLibraryData libData)
 {
-
-    mutexUnlock(globalMutex);
-    mutexClose(globalMutex);
-
-    #ifdef _WIN32
-    WSACleanup();
-    #else
-    sleep(1);
-    #endif
-
-    #ifdef _DEBUG
-    printf("%s\n%sWolframLibrary_uninitialize[]%s -> %sSuccess%s\n\n",
-        getCurrentTime(),
-        BLUE, RESET, GREEN, RESET
-    );
-    #endif
-
+    unlockGlobalMutex();
+    closeGlobalMutex();
+    cleanupWSA();
     return;
 }
-
-const void setBlocking(SOCKET socket, bool blocking)
-{
-    #ifdef _WIN32
-    u_long mode = blocking ? 0 : 1; // 0 for blocking, 1 for non-blocking
-    ioctlsocket(socket, FIONBIO, &mode);
-    #else
-    int flags = fcntl(socket, F_GETFL, 0);
-    if (blocking) {
-        fcntl(socket, F_SETFL, flags & ~O_NONBLOCK);
-    } else {
-        fcntl(socket, F_SETFL, flags | O_NONBLOCK);
-    }
-    #endif
-}
-
-const bool blockingModeQ(SOCKET socketId)
-{
-    #ifdef _WIN32
-    u_long mode;
-    ioctlsocket(socketId, FIONBIO, &mode);
-    return (mode == 0);
-    #else
-    int flags = fcntl(socketId, F_GETFL, 0);
-    return !(flags & O_NONBLOCK);
-    #endif
-}
-
-#pragma endregion
-
-#pragma region ADRRESS
 
 /*socketAddressInfoCreate["host", "port", family, socktype, protocol] -> addressInfoPtr*/
 DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
@@ -93,15 +29,6 @@ DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MAr
     int ai_family = (int)MArgument_getInteger(Args[2]); // AF_UNSPEC == 0 | AF_INET == 2 | AF_INET6 == 23/10 | ..
     int ai_socktype = (int)MArgument_getInteger(Args[3]); // SOCK_STREAM == 1 | SOCK_DGRAM == 2 | SOCK_RAW == 3 | ..
     int ai_protocol = (int)MArgument_getInteger(Args[4]); // 0 | IPPROTO_TCP == 6 | IPPROTO_UDP == 17 | IPPROTO_SCTP == 132 | IPPROTO_ICMP == 1 | ..
-
-    #ifdef _DEBUG
-    printf("%s\n%socketAddressInfoCreate[%s%s:%s, family = %d, socktype = %d, protocol = %d%s]%s -> ", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        host, port, ai_family, ai_socktype, ai_protocol, 
-        BLUE, RESET
-    );
-    #endif
 
     int result;
     struct addrinfo *address = NULL;
@@ -114,12 +41,6 @@ DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MAr
 
     result = getaddrinfo(host, port, &hints, &address);
     if (result != 0){
-        #ifdef _DEBUG
-        printf("%sERROR%s\n\n", 
-            RED, RESET
-        );
-        #endif
-
         libData->UTF8String_disown(host);
         libData->UTF8String_disown(port);
         return LIBRARY_FUNCTION_ERROR;
@@ -129,13 +50,6 @@ DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MAr
     libData->UTF8String_disown(port);
 
     uintptr_t addressPtr = (uintptr_t)address;
-
-    #ifdef _DEBUG
-    printf("%s<%p>%s\n\n", 
-        GREEN, (void*)addressPtr, RESET
-    );
-    #endif
-
     MArgument_setInteger(Res, (mint)addressPtr);
     return LIBRARY_NO_ERROR;
 }
@@ -146,31 +60,10 @@ DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MAr
     uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[0]); // address pointer as integer
     struct addrinfo *address = (struct addrinfo*)addressPtr;
 
-    #ifdef _DEBUG
-    printf("%s\n%socketAddressInfoRemove[%s<%p>%s]%s -> ", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        (void*)addressPtr, 
-        BLUE, RESET
-    );
-    #endif
-
     if (address == NULL) {
-        #ifdef _DEBUG
-        printf("%sERROR%s\n\n", 
-            RED, RESET
-        );
-        #endif
-
         MArgument_setInteger(Res, 1); // failure
         return LIBRARY_FUNCTION_ERROR;
     }
-
-    #ifdef _DEBUG
-    printf("%sSuccess%s\n\n", 
-        GREEN, RESET
-    );
-    #endif
 
     freeaddrinfo(address);
     MArgument_setInteger(Res, 0); // success
@@ -224,207 +117,6 @@ DLLEXPORT int socketBufferRemove(WolframLibraryData libData, mint Argc, MArgumen
     return LIBRARY_NO_ERROR;
 }
 
-#pragma endregion
-
-#pragma region errors
-
-void acceptErrorMessage(WolframLibraryData libData, int err)
-{
-    #ifdef _WIN32
-    if (err == WSAEINTR)
-    #else
-    if (err == EINTR)
-    #endif
-        libData->Message("acceptRetry");
-
-    #ifdef _WIN32
-    else if (err == WSAEWOULDBLOCK)
-    #else
-    else if (err == EAGAIN || err == EWOULDBLOCK)
-    #endif
-        libData->Message("acceptDelayRetry");
-
-    #ifdef _WIN32
-    else if (err == WSAEMFILE || err == WSAENOBUFS || err == WSAENETDOWN || err == WSAEINVAL)
-    #else
-    else if (err == EMFILE || err == ENFILE || err == ENOBUFS || err == ENOMEM || err == EOPNOTSUPP)
-    #endif
-        libData->Message("acceptCloseSocket");
-
-    #ifdef _WIN32
-    else if (err == WSAENOTSOCK || err == WSAEINVAL || err == WSAEFAULT)
-    #else
-    else if (err == EBADF || err == EINVAL || err == EFAULT)
-    #endif
-        libData->Message("acceptFixParams");
-
-    #ifdef _WIN32
-    else if (err == WSAEINVALIDPROVIDER || err == WSAEPROVIDERFAILEDINIT || err == WSASYSCALLFAILURE)
-        libData->Message("acceptReinitWinsock");
-    #endif
-
-    #ifndef _WIN32
-    else if (err == ENOBUFS || err == ENOMEM || err == ENETDOWN
-            || err == ENETUNREACH || err == ENETRESET
-            || err == EAFNOSUPPORT || err == EPROTONOSUPPORT
-            || err == ESOCKTNOSUPPORT)
-        libData->Message("acceptRestartProcess");
-    #endif
-
-    else
-        libData->Message("acceptUnexpectedError");
-}
-
-void recvErrorMessage(WolframLibraryData libData, int err)
-{
-    if (err == 0) {
-        libData->Message("recvGracefulClose");
-        return;
-    }
-
-    #ifdef _WIN32
-    if (err == WSAEINTR)
-    #else
-    if (err == EINTR)
-    #endif
-        libData->Message("recvRetry");
-
-    #ifdef _WIN32
-    else if (err == WSAEWOULDBLOCK)
-    #else
-    else if (err == EAGAIN || err == EWOULDBLOCK)
-    #endif
-        libData->Message("recvDelayRetry");
-
-    #ifdef _WIN32
-    else if (err == WSAECONNRESET || err == WSAECONNABORTED || err == WSAESHUTDOWN || err == WSAENOTCONN)
-    #else
-    else if (err == ECONNRESET || err == ECONNABORTED || err == ESHUTDOWN || err == ENOTCONN)
-    #endif
-        libData->Message("recvCloseSocket");
-
-    #ifdef _WIN32
-    else if (err == WSAENOTSOCK || err == WSAEINVAL || err == WSAEFAULT)
-    #else
-    else if (err == EBADF || err == EINVAL || err == EFAULT)
-    #endif
-        libData->Message("recvFixParams");
-
-    #ifdef _WIN32
-    else if (err == WSAEINVALIDPROVIDER || err == WSAEPROVIDERFAILEDINIT || err == WSASYSCALLFAILURE)
-        libData->Message("recvReinitWinsock");
-    #endif
-
-    #ifndef _WIN32
-    else if (err == ENOBUFS || err == ENOMEM || err == ENETDOWN
-            || err == ENETUNREACH || err == ENETRESET
-            || err == EAFNOSUPPORT || err == EPROTONOSUPPORT
-            || err == ESOCKTNOSUPPORT)
-        libData->Message("recvRestartProcess");
-    #endif
-
-    else
-        libData->Message("recvUnexpectedError");
-}
-
-void selectErrorMessage(WolframLibraryData libData, int err)
-{
-    #ifdef _WIN32
-    if (err == WSAEINTR)
-    #else
-    if (err == EINTR)
-    #endif
-        libData->Message("selectRetry");
-
-    #ifdef _WIN32
-    else if (err == WSAENOTSOCK || err == WSAEFAULT || err == WSAEINVAL || err == WSAENOBUFS)
-    #else
-    else if (err == EBADF || err == EFAULT || err == EINVAL || err == ENOMEM)
-    #endif
-        libData->Message("selectClose");
-
-    #ifdef _WIN32
-    else if (err == WSAENOTSOCK || err == WSAEINVAL || err == WSAEFAULT)
-    #else
-    else if (err == EBADF || err == EINVAL || err == EFAULT)
-    #endif
-        libData->Message("selectFixParams");
-
-    #ifdef _WIN32
-    else if (err == WSAEINVALIDPROVIDER || err == WSAEPROVIDERFAILEDINIT || err == WSASYSCALLFAILURE)
-        libData->Message("selectReinitWinsock");
-    #endif
-
-    #ifndef _WIN32
-    else if (err == ENOBUFS || err == ENOMEM || err == ENETDOWN
-            || err == ENETUNREACH || err == ENETRESET
-            || err == EAFNOSUPPORT || err == EPROTONOSUPPORT
-            || err == ESOCKTNOSUPPORT)
-        libData->Message("selectRestartProcess");
-    #endif
-
-    else
-        libData->Message("selectUnexpectedError");
-}
-
-void sendErrorMessage(WolframLibraryData libData, int err)
-{
-    #ifdef _WIN32
-    if (err == WSAEINTR)
-    #else
-    if (err == EINTR)
-    #endif
-        libData->Message("sendRetry");
-
-    #ifdef _WIN32
-    else if (err == WSAEWOULDBLOCK)
-    #else
-    else if (err == EAGAIN || err == EWOULDBLOCK)
-    #endif
-        libData->Message("sendDelayRetry");
-
-    #ifdef _WIN32
-    else if (err == WSAENOTCONN || err == WSAESHUTDOWN || err == WSAECONNRESET)
-    #else
-    else if (err == ENOTCONN || err == EPIPE || err == ECONNRESET || err == ESHUTDOWN)
-    #endif
-        libData->Message("sendCloseSocket");
-
-    #ifdef _WIN32
-    else if (err == WSAEMSGSIZE)
-    #else
-    else if (err == EMSGSIZE)
-    #endif
-        libData->Message("sendMsgSize");
-
-    #ifdef _WIN32
-    else if (err == WSAENOTSOCK || err == WSAEINVAL || err == WSAEFAULT)
-    #else
-    else if (err == EBADF || err == EINVAL || err == EFAULT)
-    #endif
-        libData->Message("sendFixParams");
-
-    #ifdef _WIN32
-    else if (err == WSAEINVALIDPROVIDER || err == WSAEPROVIDERFAILEDINIT || err == WSASYSCALLFAILURE)
-        libData->Message("sendReinitWinsock");
-    #endif
-
-    #ifndef _WIN32
-    else if (err == ENOBUFS || err == ENOMEM || err == ENETDOWN
-            || err == ENETUNREACH || err == ENETRESET
-            || err == EAFNOSUPPORT || err == EPROTONOSUPPORT
-            || err == ESOCKTNOSUPPORT)
-        libData->Message("sendRestartProcess");
-    #endif
-
-    else
-        libData->Message("sendUnexpectedError");
-}
-
-#pragma endregion
-
-#pragma region SOCKET FUNCTIONS
-
 /*socketCreate[family, socktype, protocol] -> socketId*/
 DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
@@ -432,32 +124,11 @@ DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Arg
     int socktype = (int)MArgument_getInteger(Args[1]); // sock type
     int protocol = (int)MArgument_getInteger(Args[2]); // protocol
 
-    #ifdef _DEBUG
-    printf("%s\n%ssocketCreate[%s%d, %d, %d%s]%s -> ", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        family, socktype, protocol, 
-        BLUE, RESET
-    );
-    #endif
-
     SOCKET createdSocket = socket(family, socktype, protocol);
-    if (createdSocket == INVALID_SOCKET){
-        #ifdef _DEBUG
-        printf("%s%sERROR = %d%s\n\n", 
-            getCurrentTime(), 
-            RED, GETSOCKETERRNO(), RESET
-        );
-        #endif
-
+    if (createdSocket == INVALID_SOCKET)
+    {
         return LIBRARY_FUNCTION_ERROR;
     }
-
-    #ifdef _DEBUG
-    printf("%ssocketId = %I64d%s\n\n", 
-        GREEN, createdSocket, RESET
-    );
-    #endif
 
     MArgument_setInteger(Res, createdSocket); // return socket id
     return LIBRARY_NO_ERROR;
@@ -468,38 +139,19 @@ DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args
 {
     SOCKET socketId = MArgument_getInteger(Args[0]); // positive integer
 
-    #ifdef _DEBUG
-    printf("%s\n%ssocketClose[%s%I64d%s]%s -> ", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        socketId, 
-        BLUE, RESET
-    );
-    #endif
-
     mint result = true;
 
-    if (socketId > 0) {
+    if (socketId > 0)
+    {
         mutexLock(globalMutex);
         result = CLOSESOCKET(socketId);
         mutexUnlock(globalMutex);
     }
 
-    if (result == SOCKET_ERROR) {
-        #ifdef _DEBUG
-        printf("%sERROR = %d%s\n\n", 
-            RED, GETSOCKETERRNO(), RESET
-        );
-        #endif
-
+    if (result == SOCKET_ERROR)
+    {
         return LIBRARY_FUNCTION_ERROR;
     }
-
-    #ifdef _DEBUG
-    printf("%sSuccess%s\n\n", 
-        GREEN, RESET
-    );
-    #endif
 
     MArgument_setInteger(Res, result);
     return LIBRARY_NO_ERROR;
@@ -514,51 +166,21 @@ DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args,
 
     bool successState = 0;
 
-    #ifdef _DEBUG
-    printf("%s\n%ssocketBind[%s%I64d, <%p>%s]%s -> ", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        (int64_t)socketId, (void*)address, 
-        BLUE, RESET
-    );
-    #endif
-
-    if (address == NULL) {
-        #ifdef _DEBUG
-        printf("%sERROR invalid address%s\n\n", 
-            RED, RESET
-        );
-        #endif
-
+    if (address == NULL)
+    {
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    if (socketId == INVALID_SOCKET) {
-        #ifdef _DEBUG
-        printf("%sERROR invalid socket%s\n\n", 
-            RED, RESET
-        );
-        #endif
-
+    if (socketId == INVALID_SOCKET)
+    {
         return LIBRARY_FUNCTION_ERROR;
     }
 
     int iResult = bind(socketId, address->ai_addr, (int)address->ai_addrlen);
-    if (iResult == SOCKET_ERROR) {
-        #ifdef _DEBUG
-        printf("%sERROR = %d\n\n", 
-            RED, GETSOCKETERRNO(), RESET
-        );
-        #endif
-        
+    if (iResult == SOCKET_ERROR)
+    {
         return LIBRARY_FUNCTION_ERROR;
     }
-
-    #ifdef _DEBUG
-    printf("%sSuccess%s\n\n", 
-        GREEN, RESET
-    );
-    #endif
 
     MArgument_setInteger(Res, successState); // success = 0
     return LIBRARY_NO_ERROR;
@@ -572,31 +194,11 @@ DLLEXPORT int socketSetOpt(WolframLibraryData libData, mint Argc, MArgument *Arg
     int optname = (int)MArgument_getInteger(Args[2]);
     int optval = (int)MArgument_getInteger(Args[3]);
 
-    #ifdef _DEBUG
-    printf("%s\n%ssocketSetOpt[%s%I64d, %d, %d, %d%s]%s -> ", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        (int64_t)socketId, level, optname, optval, 
-        BLUE, RESET
-    );
-    #endif
-
     int iResult = setsockopt(socketId, level, optname, (const char*)&optval, sizeof(optval));
-    if (iResult == SOCKET_ERROR) {
-        #ifdef _DEBUG
-        printf("%sERROR = %d%s\n\n", 
-            RED, GETSOCKETERRNO(), RESET
-        );
-        #endif
-
+    if (iResult == SOCKET_ERROR)
+    {
         return LIBRARY_FUNCTION_ERROR;
     }
-
-    #ifdef _DEBUG
-    printf("%sSuccess%s\n\n", 
-        GREEN, RESET
-    );
-    #endif
 
     MArgument_setInteger(Res, 0); // success
     return LIBRARY_NO_ERROR;
@@ -612,75 +214,27 @@ DLLEXPORT int socketGetOpt(WolframLibraryData libData, mint Argc, MArgument *Arg
     int optval = 0;
     socklen_t optlen = sizeof(optval);
 
-    #ifdef _DEBUG
-    printf("%s\n%ssocketGetOpt[%s%I64d, %d, %d%s]%s -> ",
-        getCurrentTime(),
-        BLUE, RESET,
-        (int64_t)socketId, level, optname,
-        BLUE, RESET
-    );
-    #endif
-
     int iResult = getsockopt(socketId, level, optname, (char*)&optval, &optlen);
-    if (iResult == SOCKET_ERROR) {
-        #ifdef _DEBUG
-        printf("%sERROR = %d%s\n\n",
-            RED, GETSOCKETERRNO(), RESET
-        );
-        #endif
-
+    if (iResult == SOCKET_ERROR)
+    {
         return LIBRARY_FUNCTION_ERROR;
     }
-
-    #ifdef _DEBUG
-    printf("%sSuccess%s: %d\n\n",
-        GREEN, RESET, optval
-    );
-    #endif
 
     MArgument_setInteger(Res, optval); // return retrieved value
     return LIBRARY_NO_ERROR;
 }
 
-/*socketBlockingMode[socketId, mode] -> successStatus*/
-DLLEXPORT int socketBlockingMode(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+/*socketSetBlockingMode[socketId, mode] -> successStatus*/
+DLLEXPORT int socketSetBlockingMode(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]); // socket
-    int nonBlocking = (int)MArgument_getInteger(Args[1]); // 0 | 1 default 0 == blocking mode
+    int blockingMode = (int)MArgument_getInteger(Args[1]); // 0 | 1 default 0 == blocking mode
     
-    #ifdef _DEBUG
-    printf("%s\n%ssocketBlockngMode[%s%I64d, %d%s]%s -> ", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        socketId, nonBlocking, 
-        BLUE, RESET
-    );
-    #endif
-
-    /*set blocking mode*/
-    #ifdef _WIN32
-    int iResult = ioctlsocket(socketId, FIONBIO, &nonBlocking);
-    #else
-    int flags = fcntl(socketId, F_GETFL, 0);
-    flags |= O_NONBLOCK;
-    flags |= O_ASYNC;
-    int iResult = fcntl(socketId, F_SETFL, flags, &nonBlocking);
-    #endif
-    if (iResult != NO_ERROR) {
-        #ifdef _DEBUG
-        printf("%sERROR = %d%s\n\n", 
-            RED, GETSOCKETERRNO(), RESET
-        );
-        #endif
-
+    int iResult = setBlockingMode(socketId, blockingMode);
+    if (iResult != NO_ERROR)
+    {
         return LIBRARY_FUNCTION_ERROR;
     }
-
-    #ifdef _DEBUG
-        printf("%sSuccess%s\n\n", 
-            GREEN, RESET
-        );
-        #endif
 
     MArgument_setInteger(Res, 0); // success
     return LIBRARY_NO_ERROR;
@@ -692,30 +246,11 @@ DLLEXPORT int socketListen(WolframLibraryData libData, mint Argc, MArgument *Arg
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     int backlog = (int)MArgument_getInteger(Args[1]);
 
-    #ifdef _DEBUG
-    printf("%s\n%ssocketListen[%s%I64d%s]%s -> ", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        socketId, 
-        BLUE, RESET
-    );
-    #endif
-
     /*wait clients*/
     int iResult = listen(socketId, backlog);
-    if (iResult == SOCKET_ERROR) {
-        #ifdef _DEBUG
-        printf("%sERROR = %d%s\n\n", RED, GETSOCKETERRNO(), RESET);
-        #endif
-
+    if (iResult == SOCKET_ERROR){
         return LIBRARY_FUNCTION_ERROR;
     }
-
-    #ifdef _DEBUG
-    printf("%sSuccess%s\n\n", 
-        GREEN, RESET
-    );
-    #endif
 
     MArgument_setInteger(Res, 0);
     return LIBRARY_NO_ERROR;
@@ -729,36 +264,19 @@ DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Ar
     struct addrinfo *address = (struct addrinfo*)addressPtr;
     bool wait = (bool)MArgument_getInteger(Args[2]); // wait for connection
 
-    #ifdef _DEBUG
-    printf("%s\n%ssocketConnect[%s%I64d, %p%s]%s -> ", 
-        getCurrentTime(), 
-        BLUE, RESET, 
-        socketId, (void *)address, 
-        BLUE, RESET
-    );
-    #endif
-
     bool blockingMode = blockingModeQ(socketId);
-
-    if (wait && !blockingMode) {
+    if (wait && !blockingMode){
         setBlocking(socketId, true); // set blocking mode if needed
     }
 
     int iResult = connect(socketId, address->ai_addr, (int)address->ai_addrlen);
-    if (iResult == SOCKET_ERROR) {
-        #ifdef _DEBUG
-        printf("%sERROR = %d%s\n\n", RED, GETSOCKETERRNO(), RESET);
-        #endif
+    if (iResult == SOCKET_ERROR){
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    if (wait && !blockingMode) {
+    if (wait && !blockingMode){
         setBlocking(socketId, false); // restore non-blocking mode if needed
     }
-
-    #ifdef _DEBUG
-    printf("%sSuccess%s\n\n", GREEN, RESET);
-    #endif
 
     MArgument_setInteger(Res, 0);
     return LIBRARY_NO_ERROR;
@@ -769,28 +287,15 @@ DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Arg
 {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
 
-    #ifdef _DEBUG
-    printf("%s\n%ssocketAccept[%s%I64d%s]%s -> ", getCurrentTime(), BLUE, RESET, socketId, BLUE, RESET);
-    #endif
-
-    mutexLock(globalMutex);
+    lockGlobalMutex();
     SOCKET client = accept(socketId, NULL, NULL);
-    mutexUnlock(globalMutex);
-
+    unlockGlobalMutex();
+    
     if (client == INVALID_SOCKET){
         int err = GETSOCKETERRNO();
-
-        #ifdef _DEBUG
-        printf("%sERROR = %d%s\n\n", RED, err, RESET);
-        #endif
-
         acceptErrorMessage(libData, err);
         return LIBRARY_FUNCTION_ERROR;
     }
-
-    #ifdef _DEBUG
-    printf("%s%I64d%s\n\n", GREEN, client, RESET);
-    #endif
 
     MArgument_setInteger(Res, client);
     return LIBRARY_NO_ERROR;
@@ -802,10 +307,6 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
     SOCKET client = (SOCKET)MArgument_getInteger(Args[0]);
     BYTE *buffer = (BYTE *)MArgument_getInteger(Args[1]);
     mint bufferSize = (mint)MArgument_getInteger(Args[2]);
-
-    #ifdef _DEBUG
-    printf("%s\n%sserverRecv[%s%I64d, buff = %I64d%s]%s -> ", getCurrentTime(), BLUE, RESET, (int64_t)client, (int64_t)bufferSize, BLUE, RESET);
-    #endif
 
     mutexLock(globalMutex);
     int result = recv(client, buffer, bufferSize, 0);

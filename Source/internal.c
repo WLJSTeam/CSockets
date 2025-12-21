@@ -28,61 +28,40 @@ char* getCurrentTime()
     return time_buffer;
 }
 
-#if defined(_WIN32)
-static Mutex globalMutex = NULL;
-#else
-static Mutex globalMutex;
-#endif
-
-static Mutex getGlobalMutex()
-{
-    return globalMutex;
-}
-
-static void initGlobalMutex()
-{
-    globalMutex = mutexCreate();
-}
-
-static void closeGlobalMutex()
-{
-    mutexClose(globalMutex);
-}
-
-Mutex mutexCreate()
+void initGlobalMutex()
 {
     #if defined(_WIN32)
-        return CreateMutex(NULL, FALSE, NULL);
+        globalMutex = CreateMutex(NULL, FALSE, NULL);
     #else
-        pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-        return mutex;
+        Mutex mutex = PTHREAD_MUTEX_INITIALIZER;
+        globalMutex = mutex;
     #endif
 }
 
-void mutexClose(Mutex mutex)
+void closeGlobalMutex()
 {
     #if defined(_WIN32) || defined(_WIN64)
-        CloseHandle(mutex);
+    CloseHandle(globalMutex);
     #else
-        pthread_mutex_destroy(&mutex);
+    pthread_mutex_destroy(&globalMutex);
     #endif
 }
 
-void mutexLock(Mutex mutex)
+void lockGlobalMutex()
 {
-    #if defined(_WIN32) || defined(_WIN64)
-        WaitForSingleObject(mutex, INFINITE);
+    #if defined(_WIN32)
+        WaitForSingleObject(globalMutex, INFINITE);
     #else
-        pthread_mutex_lock(&mutex);
+        pthread_mutex_lock(&globalMutex);
     #endif
 }
 
-void mutexUnlock(Mutex mutex)
+void unlockGlobalMutex()
 {
     #if defined(_WIN32) || defined(_WIN64)
-        ReleaseMutex(mutex);
+        ReleaseMutex(globalMutex);
     #else
-        pthread_mutex_unlock(&mutex);
+        pthread_mutex_unlock(&globalMutex);
     #endif
 }
 
@@ -106,17 +85,17 @@ void cleanupWSA()
     #endif
 }
 
-const void setBlocking(SOCKET socket, bool blocking)
+const int setBlockingMode(SOCKET socketId, bool blockingMode)
 {
     #ifdef _WIN32
-    u_long mode = blocking ? 0 : 1; // 0 for blocking, 1 for non-blocking
-    ioctlsocket(socket, FIONBIO, &mode);
+    u_long mode = blockingMode ? 0 : 1; // 0 for blocking, 1 for non-blocking
+    return ioctlsocket(socketId, FIONBIO, &mode);
     #else
-    int flags = fcntl(socket, F_GETFL, 0);
-    if (blocking) {
-        fcntl(socket, F_SETFL, flags & ~O_NONBLOCK);
+    int flags = fcntl(socketId, F_GETFL, 0);
+    if (blockingMode) {
+        return fcntl(socketId, F_SETFL, flags & ~O_NONBLOCK);
     } else {
-        fcntl(socket, F_SETFL, flags | O_NONBLOCK);
+        return fcntl(socketId, F_SETFL, flags | O_NONBLOCK);
     }
     #endif
 }
