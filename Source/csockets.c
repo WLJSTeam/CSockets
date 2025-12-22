@@ -452,21 +452,7 @@ DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Arg
     for (size_t i = 0; i < length; i++) {
         socketId = sockets[i];
 
-        #ifdef _WIN32
-        int result = getsockopt(sockedId, SOL_SOCKET, SO_TYPE, (char*)&opt, &len);
-        #else
-        int result = fcntl(socketId, F_GETFL);
-        #endif
-
-        err = GETSOCKETERRNO();
-
-        if (result >= 0 || 
-            #ifdef _WIN32
-            err != WSAENOTSOCK
-            #else
-            err != EBADF
-            #endif
-        ) {
+        if (socketValidQ(socketId)) {
             sockets[validCount] = socketId;
             validCount++;
         }

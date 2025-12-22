@@ -94,6 +94,8 @@ extern const int setBlockingMode(SOCKET socketId, bool blockingMode);
 
 extern const bool blockingModeQ(SOCKET socketId);
 
+extern const bool socketValidQ(SOCKET socketId);
+
 extern void acceptErrorMessage(WolframLibraryData libData, int err);
 
 extern void recvErrorMessage(WolframLibraryData libData, int err);
