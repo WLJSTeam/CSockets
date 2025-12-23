@@ -103,7 +103,7 @@ char* getCurrentTime() {
     gettimeofday(&tv, NULL);
     snprintf(time_buffer + strlen(time_buffer), 
              sizeof(time_buffer) - strlen(time_buffer), 
-             ".%06ld", tv.tv_usec);
+             ".%06ld", (long)(tv.tv_usec));
     #endif
     
     return time_buffer;
