@@ -23,7 +23,7 @@
     #define GETSOCKETERRNO() (WSAGetLastError())
     #pragma comment (lib, "Ws2_32.lib")
     typedef HANDLE Mutex;
-    extern Mutex globalMutex = NULL;
+    Mutex globalMutex = NULL;
     #define MUTEX_INITIALIZER NULL
     #define SLEEP Sleep
     #define ms 1
@@ -54,7 +54,7 @@
     #define BYTE uint8_t
     #define BOOL int
     typedef pthread_mutex_t Mutex;
-    extern Mutex globalMutex;
+    Mutex globalMutex;
     #define MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
     #define SLEEP usleep
 #endif
