@@ -1,0 +1,165 @@
+(* Content-type: application/vnd.wolfram.cdf.text *)
+
+(*** Wolfram CDF File ***)
+(* http://www.wolfram.com/cdf *)
+
+(* CreatedBy='Wolfram 14.3' *)
+
+(*************************************************************************)
+(*                                                                       *)
+(*                                                                       *)
+(*  This file was created under the Wolfram Enterprise licensing terms.  *)
+(*                                                                       *)
+(*       For additional information concerning CDF licensing see:        *)
+(*                                                                       *)
+(*        www.wolfram.com/cdf/adopting-cdf/licensing-options.html        *)
+(*                                                                       *)
+(*                                                                       *)
+(*                                                                       *)
+(*************************************************************************)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[      1060,         20]
+NotebookDataLength[      6458,        144]
+NotebookOptionsPosition[      6250,        133]
+NotebookOutlinePosition[      6641,        149]
+CellTagsIndexPosition[      6598,        146]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+Cell[BoxData[{
+ RowBox[{"<<", "CCompilerDriver`"}], "\[IndentingNewLine]", 
+ RowBox[{"<<", "LibraryLink`"}]}], "Code",
+ CellChangeTimes->{{3.975547561009081*^9, 3.97554757374701*^9}},
+ CellLabel->"In[3]:=",ExpressionUUID->"40987ba1-dd5d-4ec4-bb30-a99f24820ee5"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"SetDirectory", "[", 
+   RowBox[{"NotebookDirectory", "[", "]"}], "]"}], ";"}]], "Code",
+ CellChangeTimes->{{3.9755476055603943`*^9, 3.9755476154292717`*^9}},
+ CellLabel->"In[5]:=",ExpressionUUID->"9b4b8c0f-d752-4fd1-be36-dfdba4b02b60"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"$HistoryLength", " ", "=", " ", "0"}], ";"}]], "Code",
+ CellChangeTimes->{{3.975547626412014*^9, 3.9755476293924103`*^9}},
+ CellLabel->"In[6]:=",ExpressionUUID->"5ceec925-cb3c-45bd-baaa-23272e837e7a"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"$csocketsLib", " ", "=", " ", 
+   RowBox[{"FileNameJoin", "[", 
+    RowBox[{"{", 
+     RowBox[{"\"\<LibraryResources\>\"", ",", " ", "\"\<MacOSX-ARM64-v8\>\"", 
+      ",", " ", "\"\<csockets.dylib\>\""}], "}"}], "]"}]}], ";"}]], "Code",
+ CellChangeTimes->{{3.9755476322874193`*^9, 3.975547736821342*^9}, {
+  3.975547774304523*^9, 3.975547781211898*^9}},
+ CellLabel->"In[11]:=",ExpressionUUID->"9d16c51b-3f8e-41bd-be62-d6533355445b"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"$sourceFile", " ", "=", " ", 
+   RowBox[{"FileNameJoin", "[", 
+    RowBox[{"{", 
+     RowBox[{"\"\<Source\>\"", ",", " ", "\"\<csockets.c\>\""}], "}"}], 
+    "]"}]}], ";"}]], "Code",
+ CellChangeTimes->{{3.975547832966832*^9, 3.975547868621746*^9}, {
+  3.9755480002590113`*^9, 3.975548012805399*^9}},
+ CellLabel->"In[13]:=",ExpressionUUID->"59a8ce0e-d152-42f1-bf12-6f564c3918c4"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"$sourceString", " ", "=", " ", 
+   RowBox[{"ReadString", "[", "$sourceFile", "]"}]}], ";"}]], "Code",
+ CellChangeTimes->{{3.975548019009508*^9, 3.975548043221972*^9}},
+ CellLabel->"In[15]:=",ExpressionUUID->"cdf0b2b2-5f6c-4b4f-9935-a5770b99a8e1"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"$sourceStringFuncs", " ", "=", " ", "\n", 
+   RowBox[{"StringCases", "[", 
+    RowBox[{"$sourceString", ",", " ", 
+     RowBox[{"Shortest", "[", 
+      RowBox[{"\"\<DLLEXPORT int \>\"", " ", "~~", " ", 
+       RowBox[{"LetterCharacter", ".."}], " ", "~~", 
+       " ", "\"\<(WolframLibraryData libData, mint Argc\>\"", " ", "~~", " ", 
+       "__", " ", "~~", " ", "\"\<return \>\"", " ", "~~", " ", "__", " ", "~~",
+        " ", "\"\<;\>\"", " ", "~~", " ", "___", " ", "~~", 
+       " ", "\"\<\\n}\\n\>\""}], "]"}]}], "]"}]}], ";"}]], "Code",
+ CellChangeTimes->{{3.975548047162736*^9, 3.975548091080868*^9}, {
+  3.975548122121038*^9, 3.975548225489174*^9}, {3.975549885773346*^9, 
+  3.975549888317438*^9}, {3.97554994116042*^9, 3.97555003563083*^9}, {
+  3.975550086142475*^9, 3.975550115587769*^9}, {3.9755509885212173`*^9, 
+  3.975551023277261*^9}},
+ CellLabel->"In[29]:=",ExpressionUUID->"3add2c83-68e9-47d4-b85f-2c6ca0d18526"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"$sourceStringFuncs", "[", 
+  RowBox[{"[", "1", "]"}], "]"}]], "Code",
+ CellChangeTimes->{{3.975550118080851*^9, 3.975550121101295*^9}},
+ CellLabel->"In[30]:=",ExpressionUUID->"301961a8-fddc-4adf-b4b3-dfe10dc9f4a8"],
+
+Cell[BoxData["\<\"DLLEXPORT int socketAddressInfoCreate(WolframLibraryData \
+libData, mint Argc, MArgument *Args, MArgument Res) {\\n    char *host = \
+MArgument_getUTF8String(Args[0]); // localhost by default\\n    char *port = \
+MArgument_getUTF8String(Args[1]); // positive integer as string\\n\\n    int \
+ai_family = (int)MArgument_getInteger(Args[2]); // AF_UNSPEC == 0 | AF_INET \
+== 2 | AF_INET6 == 23/10 | ..\\n    int ai_socktype = \
+(int)MArgument_getInteger(Args[3]); // SOCK_STREAM == 1 | SOCK_DGRAM == 2 | \
+SOCK_RAW == 3 | ..\\n    int ai_protocol = \
+(int)MArgument_getInteger(Args[4]); // 0 | IPPROTO_TCP == 6 | IPPROTO_UDP == \
+17 | IPPROTO_SCTP == 132 | IPPROTO_ICMP == 1 | ..\\n\\n    int result;\\n    \
+struct addrinfo *address = NULL;\\n    struct addrinfo hints;\\n\\n    \
+ZeroMemory(&hints, sizeof(hints));\\n    hints.ai_family = ai_family;\\n    \
+hints.ai_socktype = ai_socktype;\\n    hints.ai_protocol = ai_protocol;\\n\\n \
+   result = getaddrinfo(host, port, &hints, &address);\\n    if (result != 0) \
+{\\n        libData->UTF8String_disown(host);\\n        \
+libData->UTF8String_disown(port);\\n        return LIBRARY_FUNCTION_ERROR;\\n \
+   }\\n\\n    libData->UTF8String_disown(host);\\n    \
+libData->UTF8String_disown(port);\\n\\n    uintptr_t addressPtr = \
+(uintptr_t)address;\\n    MArgument_setInteger(Res, (mint)addressPtr);\\n    \
+return LIBRARY_NO_ERROR;\\n}\\n\"\>"], "Output",
+ CellChangeTimes->{
+  3.975550121505888*^9, {3.975551002349141*^9, 3.9755510252252607`*^9}},
+ CellLabel->"Out[30]=",ExpressionUUID->"fde26dd2-4cdc-42d4-a4c1-1cd6764b384d"]
+}, Open  ]]
+},
+WindowSize->{1440, 781},
+WindowMargins->{{0, Automatic}, {Automatic, 0}},
+FrontEndVersion->"14.3 for Mac OS X ARM (64-bit) (July 8, 2025)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"6f83093b-3bdf-4dd1-886b-79921bd7d2f0"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[1460, 33, 261, 4, 69, "Code",ExpressionUUID->"40987ba1-dd5d-4ec4-bb30-a99f24820ee5"],
+Cell[1724, 39, 270, 5, 51, "Code",ExpressionUUID->"9b4b8c0f-d752-4fd1-be36-dfdba4b02b60"],
+Cell[1997, 46, 235, 4, 51, "Code",ExpressionUUID->"5ceec925-cb3c-45bd-baaa-23272e837e7a"],
+Cell[2235, 52, 467, 9, 51, "Code",ExpressionUUID->"9d16c51b-3f8e-41bd-be62-d6533355445b"],
+Cell[2705, 63, 413, 9, 51, "Code",ExpressionUUID->"59a8ce0e-d152-42f1-bf12-6f564c3918c4"],
+Cell[3121, 74, 281, 5, 51, "Code",ExpressionUUID->"cdf0b2b2-5f6c-4b4f-9935-a5770b99a8e1"],
+Cell[3405, 81, 966, 17, 69, "Code",ExpressionUUID->"3add2c83-68e9-47d4-b85f-2c6ca0d18526"],
+Cell[CellGroupData[{
+Cell[4396, 102, 238, 4, 51, "Code",ExpressionUUID->"301961a8-fddc-4adf-b4b3-dfe10dc9f4a8"],
+Cell[4637, 108, 1597, 22, 666, "Output",ExpressionUUID->"fde26dd2-4cdc-42d4-a4c1-1cd6764b384d"]
+}, Open  ]]
+}
+]
+*)
+
