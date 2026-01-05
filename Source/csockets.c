@@ -866,12 +866,12 @@ DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Arg
 
 /*socketsSelect[{sockets}, length, timeout] -> {readySockets}*/
 DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    MTensor socketIdsList = MArgument_getMTensor(Args[0]); // list of sockets
+    MTensor socketIdsTensor = MArgument_getMTensor(Args[0]); // list of sockets
     size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
     int timeout = (int)MArgument_getInteger(Args[2]); // timeout in microseconds
 
     int err;
-    SOCKET *socketIds = (SOCKET*)libData->MTensor_getIntegerData(socketIdsList);
+    SOCKET *socketIds = (SOCKET*)libData->MTensor_getIntegerData(socketIdsTensor);
     SOCKET socketId;
     SOCKET maxFd = 0;
     fd_set readfds;
@@ -910,6 +910,37 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
         selectErrorMessage(libData, err);
         return LIBRARY_FUNCTION_ERROR;
     }
+}
+
+#pragma endregion
+
+#pragma region async functions
+
+typedef struct SocketSelectArgs_st {
+    WolframLibraryData libData;
+    SOCKET *socketIds;
+    size_t length;
+    struct timeval tv;
+}* SocketSelectArgs;
+
+int socketSeclectTask(mint taskId, void *args) {
+
+}
+
+DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    MTensor socketIdsTensor = MArgument_getMTensor(Args[0]); // list of sockets
+    size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
+    int timeout = (int)MArgument_getInteger(Args[2]); // timeout in microseconds
+
+    SOCKET *socketIds = (SOCKET*)libData->MTensor_getIntegerData(socketIdsTensor);
+    struct timeval tv;
+    tv.tv_sec  = timeout / 1000000;
+    tv.tv_usec = timeout % 1000000;
+    
+    SocketSelectArgs taskArgs = {libData, socketIds, length, tv};
+    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketSeclectTask, taskArgs);
+    MArgument_setInteger(Res, taskId);
+    return LIBRARY_NO_ERROR;
 }
 
 #pragma endregion
