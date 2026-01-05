@@ -924,7 +924,47 @@ typedef struct SocketSelectArgs_st {
 }* SocketSelectArgs;
 
 int socketSeclectTask(mint taskId, void *args) {
+    SocketSelectArgs taskArgs = (SocketSelectArgs)args;
+    WolframLibraryData libData = taskArgs->libData;
+    SOCKET *socketIds = taskArgs->socketIds;
+    struct timeval tv = taskArgs->tv;
+    size_t length = taskArgs->length;
 
+    int err;
+    SOCKET socketId;
+    SOCKET maxFd = 0;
+    fd_set readfds;
+    FD_ZERO(&readfds);
+
+    for (size_t i = 0; i < length; i++) {
+        socketId = socketIds[i];
+        if (socketId > maxFd) maxFd = socketId;
+        FD_SET(socketId, &readfds);
+    }
+
+    int result = select((int)(maxFd + 1), &readfds, NULL, NULL, &tv);
+    if (result >= 0) {
+        mint len = (mint)result;
+        MTensor readySocketsTensor;
+        libData->MTensor_new(MType_Integer, 1, &len, &readySocketsTensor);
+        SOCKET *readySockets = (SOCKET*)libData->MTensor_getIntegerData(readySocketsTensor);
+
+        int j = 0;
+        for (size_t i = 0; i < length; i++) {
+            socketId = socketIds[i];
+            if (FD_ISSET(socketId, &readfds)) { 
+                readySockets[j] = socketId;
+                j++;
+            }
+        }
+        DataStore store = libData->ioLibraryFunctions->createDataStore();
+        libData->ioLibraryFunctions->DataStore_addMTensor(store, readySockets);
+        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "SocketSelect", store);
+    } else {
+        err = GETSOCKETERRNO();
+        selectErrorMessage(libData, err);
+        return LIBRARY_FUNCTION_ERROR;
+    }
 }
 
 DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
