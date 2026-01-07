@@ -42,6 +42,7 @@
     #include <time.h>
     #include <sys/time.h>
     #include <pthread.h>
+    #include <dlfcn.h>
     #define INVALID_SOCKET -1
     #define NO_ERROR 0
     #define SOCKET_ERROR -1
@@ -82,7 +83,7 @@ typedef struct Server_st *Server;
 
 #pragma region internal
 
-char* getCurrentTime() {
+static char* getCurrentTime() {
     static char time_buffer[64];
     time_t rawtime;
     struct tm* timeinfo;
@@ -105,11 +106,21 @@ char* getCurrentTime() {
              sizeof(time_buffer) - strlen(time_buffer), 
              ".%06ld", (long)(tv.tv_usec));
     #endif
-    
+
     return time_buffer;
 }
 
-void initGlobalMutex() {
+static void* getFuncByName(const char *funcName) {
+    #ifdef _WIN32
+        HMODULE hModule = GetModuleHandle(NULL);
+        return (void*)GetProcAddress(hModule, funcName);
+    #else
+        void* handle = RTLD_DEFAULT;
+        return dlsym(handle, funcName);
+    #endif
+}
+
+static void initGlobalMutex() {
     #if defined(_WIN32)
         globalMutex = CreateMutex(NULL, FALSE, NULL);
     #else
@@ -521,8 +532,8 @@ DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MAr
 
 /*socketAddressCreate[addressType] -> addressPtr*/
 DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    struct sockaddr_in *address = malloc(sizeof(struct sockaddr_in));
-    if (address == NULL) {
+    struct sockaddr_in *address;
+    if (!(address = malloc(sizeof(struct sockaddr_in)))) {
         return LIBRARY_FUNCTION_ERROR;
     }
 
@@ -866,12 +877,12 @@ DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Arg
 
 /*socketsSelect[{sockets}, length, timeout] -> {readySockets}*/
 DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    MTensor socketIdsTensor = MArgument_getMTensor(Args[0]); // list of sockets
+    MTensor sockets = MArgument_getMTensor(Args[0]); // list of sockets
     size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
     int timeout = (int)MArgument_getInteger(Args[2]); // timeout in microseconds
 
     int err;
-    SOCKET *socketIds = (SOCKET*)libData->MTensor_getIntegerData(socketIdsTensor);
+    SOCKET *socketIds = (SOCKET*)libData->MTensor_getIntegerData(sockets);
     SOCKET socketId;
     SOCKET maxFd = 0;
     fd_set readfds;
@@ -916,73 +927,25 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
 
 #pragma region async functions
 
-typedef struct SocketSelectArgs_st {
+typedef struct TaskArgs_st {
     WolframLibraryData libData;
-    SOCKET *socketIds;
-    size_t length;
-    struct timeval tv;
-}* SocketSelectArgs;
+    void *args;
+}* TaskArgs;
 
-int socketSeclectTask(mint taskId, void *args) {
-    SocketSelectArgs taskArgs = (SocketSelectArgs)args;
-    WolframLibraryData libData = taskArgs->libData;
-    SOCKET *socketIds = taskArgs->socketIds;
-    struct timeval tv = taskArgs->tv;
-    size_t length = taskArgs->length;
+typedef mint (*TaskFunc)(mint, void*);
 
-    int err;
-    SOCKET socketId;
-    SOCKET maxFd = 0;
-    fd_set readfds;
-    FD_ZERO(&readfds);
+DLLEXPORT int createTask(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    char *funcName = MArgument_getUTF8String(Args[0]); // func name
+    void *args = (void *)MArgument_getInteger(Args[1]); // integer pointer
 
-    for (size_t i = 0; i < length; i++) {
-        socketId = socketIds[i];
-        if (socketId > maxFd) maxFd = socketId;
-        FD_SET(socketId, &readfds);
-    }
-
-    int result = select((int)(maxFd + 1), &readfds, NULL, NULL, &tv);
-    if (result >= 0) {
-        mint len = (mint)result;
-        MTensor readySocketsTensor;
-        libData->MTensor_new(MType_Integer, 1, &len, &readySocketsTensor);
-        SOCKET *readySockets = (SOCKET*)libData->MTensor_getIntegerData(readySocketsTensor);
-
-        int j = 0;
-        for (size_t i = 0; i < length; i++) {
-            socketId = socketIds[i];
-            if (FD_ISSET(socketId, &readfds)) { 
-                readySockets[j] = socketId;
-                j++;
-            }
-        }
-        DataStore store = libData->ioLibraryFunctions->createDataStore();
-        libData->ioLibraryFunctions->DataStore_addMTensor(store, readySockets);
-        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "SocketSelect", store);
-    } else {
-        err = GETSOCKETERRNO();
-        selectErrorMessage(libData, err);
-        return LIBRARY_FUNCTION_ERROR;
-    }
-}
-
-DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    MTensor socketIdsTensor = MArgument_getMTensor(Args[0]); // list of sockets
-    size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
-    int timeout = (int)MArgument_getInteger(Args[2]); // timeout in microseconds
-
-    SOCKET *socketIds = (SOCKET*)libData->MTensor_getIntegerData(socketIdsTensor);
-    struct timeval tv;
-    tv.tv_sec  = timeout / 1000000;
-    tv.tv_usec = timeout % 1000000;
-    
-    SocketSelectArgs taskArgs = {libData, socketIds, length, tv};
-    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketSeclectTask, taskArgs);
+    TaskFunc taskFunc = getFuncByName(funcName);
+    TaskArgs taskArgs;
+    taskArgs = malloc(sizeof(struct TaskArgs_st));
+    taskArgs->libData = libData;
+    taskArgs->args = taskArgs;
+    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(taskFunc, taskArgs);
     MArgument_setInteger(Res, taskId);
     return LIBRARY_NO_ERROR;
 }
-
-
 
 #pragma endregion
