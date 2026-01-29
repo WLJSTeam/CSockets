@@ -27,21 +27,6 @@ CSocketListener::usage =
 (*Library Functions*)
 
 
-socketListCreate::usage = "socketListCreate[interrupt, length] -> socketList";
-
-
-socketListSet::usage = "socketListSet[socketList, length] -> 0";
-
-
-socketListRemove::usage = "socketListRemove[socketList] -> 0";
-
-
-serverCreate::usage = "serverCreate[interrupt, listenSocket, clientsCapacity, bufferSize, timeout] -> serverPtr";
-
-
-serverRemove::usage = "serverRemove[server] -> 0";
-
-
 socketAddressInfoCreate::usage = "socketAddressInfoCreate[] -> addressPtr";
 
 
@@ -75,16 +60,13 @@ socketSetOpt::usage = "socketSetOpt[socketId, level, optname, optval] -> 0";
 socketGetOpt::usage = "socketGetOpt[socketId, level, optname] -> optval";
 
 
-socketBlockingMode::usage = "socketBlockingMode[socketId, nonBlocking] -> 0";
+socketSetBlockingMode::usage = "socketSetBlockingMode[socketId, blockingMode] -> 0";
 
 
 socketListen::usage = "socketListen[socketId, backlog] -> 0";
 
 
 socketConnect::usage = "socketConnect[socketId, addressPtr, wait] -> 0";
-
-
-socketsCheck::usage = "socketsCheck[length] -> validSocketsList";
 
 
 socketAccept::usage = "socketAccept[socketId] -> client";
@@ -102,19 +84,13 @@ socketSend::usage = "socketSend[] -> result";
 socketSendString::usage = "socketSendString[] -> result";
 
 
-serverListen::usage = "serverListen[server] -> taskId";
+socketsCheck::usage = "socketsCheck[length] -> validSocketsList";
 
 
 socketsSelect::usage = "socketsSelect[length, timeout] -> readySocketsTensor";
 
 
-createTaskSelect::usage = "createTaskSelect[socketListPtr] -> taskId";
-
-
-createTaskSelectAcceptRecv::usage = "createTaskSelectAcceptRecv[serverPtr] -> taskId";
-
-
-createTaskSelectRecvFrom::usage = "createTaskSelectRecvFrom[socketListPtr] -> taskId";
+createTask::usage = "createTask[args] -> taskId";
 
 
 Begin["`Private`"];
@@ -381,21 +357,6 @@ $socketOptLevelMap = <|
 (*Library Functions*)
 
 
-socketListCreate = LibraryFunctionLoad[$libFile, "socketListCreate", {Integer, Integer}, Integer];
-
-
-socketListSet = LibraryFunctionLoad[$libFile, "socketListSet", {Integer, Integer}, Integer];
-
-
-socketListRemove = LibraryFunctionLoad[$libFile, "socketListRemove", {Integer}, Integer];
-
-
-serverCreate = LibraryFunctionLoad[$libFile, "serverCreate", {Integer, Integer, Integer, Integer, Integer}, Integer];
-
-
-serverRemove = LibraryFunctionLoad[$libFile, "serverRemove", {Integer}, Integer];
-
-
 socketAddressInfoCreate = LibraryFunctionLoad[$libFile, "socketAddressInfoCreate", {}, Integer];
 
 
@@ -429,16 +390,13 @@ socketSetOpt = LibraryFunctionLoad[$libFile, "socketSetOpt", {Integer, Integer, 
 socketGetOpt = LibraryFunctionLoad[$libFile, "socketGetOpt", {Integer, Integer, Integer}, Integer];
 
 
-socketBlockingMode = LibraryFunctionLoad[$libFile, "socketBlockingMode", {Integer, Integer}, Integer];
+socketSetBlockingMode = LibraryFunctionLoad[$libFile, "socketSetBlockingMode", {Integer, Integer}, Integer];
 
 
 socketListen = LibraryFunctionLoad[$libFile, "socketListen", {Integer, Integer}, Integer];
 
 
 socketConnect = LibraryFunctionLoad[$libFile, "socketConnect", {Integer, Integer, Integer}, Integer];
-
-
-socketsCheck = LibraryFunctionLoad[$libFile, "socketsCheck", {Integer}, {Integer, 1}];
 
 
 socketAccept = LibraryFunctionLoad[$libFile, "socketAccept", {Integer}, Integer];
@@ -456,19 +414,13 @@ socketSend = LibraryFunctionLoad[$libFile, "socketSend", {}, Integer];
 socketSendString = LibraryFunctionLoad[$libFile, "socketSendString", {}, Integer];
 
 
-serverListen = LibraryFunctionLoad[$libFile, "serverListen", {Integer}, Integer];
+socketsCheck = LibraryFunctionLoad[$libFile, "socketsCheck", {Integer}, {Integer, 1}];
 
 
 socketsSelect = LibraryFunctionLoad[$libFile, "socketsSelect", {Integer, Integer}, {Integer, 1}];
 
 
-createTaskSelect = LibraryFunctionLoad[$libFile, "createTaskSelect", {Integer}, Integer];
-
-
-createTaskSelectAcceptRecv = LibraryFunctionLoad[$libFile, "createTaskSelectAcceptRecv", {Integer}, Integer];
-
-
-createTaskSelectRecvFrom = LibraryFunctionLoad[$libFile, "createTaskSelectRecvFrom", {Integer}, Integer];
+createTask = LibraryFunctionLoad[$libFile, "createTask", {Integer}, Integer];
 
 
 End[];

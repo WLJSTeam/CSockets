@@ -932,13 +932,11 @@ typedef struct TaskArgs_st {
     void *args;
 }* TaskArgs;
 
-typedef mint (*TaskFunc)(mint, void*);
-
 DLLEXPORT int createTask(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     char *funcName = MArgument_getUTF8String(Args[0]); // func name
     void *args = (void *)MArgument_getInteger(Args[1]); // integer pointer
 
-    TaskFunc taskFunc = getFuncByName(funcName);
+    void *taskFunc = getFuncByName(funcName);
     TaskArgs taskArgs;
     taskArgs = malloc(sizeof(struct TaskArgs_st));
     taskArgs->libData = libData;
