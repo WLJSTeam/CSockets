@@ -65,7 +65,7 @@ export[libName_String] := Module[{
     getArgs = StringCases[#, 
         p: Shortest[Except["\n"].. ~~ {" *", " "} ~~ (name: LetterCharacter..) ~~ 
             " = " ~~ Except["\n"].. ~~ "MArgument_get" ~~ type__ ~~ 
-            "(Args[" ~~ num_ ~~ "])"
+            "(Args[" ~~ num_ ~~ "]);"
         ] :> {Once[Echo[p]]; name, type, ToExpression[num] + 1}
     ]&;
 

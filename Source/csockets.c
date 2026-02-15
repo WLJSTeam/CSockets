@@ -129,7 +129,7 @@ static void initGlobalMutex() {
     #endif
 }
 
-void closeGlobalMutex() {
+static void closeGlobalMutex() {
     #if defined(_WIN32) || defined(_WIN64)
     CloseHandle(globalMutex);
     #else
@@ -137,7 +137,7 @@ void closeGlobalMutex() {
     #endif
 }
 
-void lockGlobalMutex() {
+static void lockGlobalMutex() {
     #if defined(_WIN32)
         WaitForSingleObject(globalMutex, INFINITE);
     #else
@@ -145,7 +145,7 @@ void lockGlobalMutex() {
     #endif
 }
 
-void unlockGlobalMutex() {
+static void unlockGlobalMutex() {
     #if defined(_WIN32) || defined(_WIN64)
         ReleaseMutex(globalMutex);
     #else
@@ -153,7 +153,7 @@ void unlockGlobalMutex() {
     #endif
 }
 
-void initWSA() {
+static void initWSA() {
     #ifdef _WIN32
     int iResult;
     WSADATA wsaData;
@@ -163,7 +163,7 @@ void initWSA() {
     #endif
 }
 
-void cleanupWSA() {
+static void cleanupWSA() {
     #ifdef _WIN32
     WSACleanup();
     #else
@@ -171,7 +171,7 @@ void cleanupWSA() {
     #endif
 }
 
-const int setBlockingMode(SOCKET socketId, bool blockingMode) {
+static const int setBlockingMode(SOCKET socketId, bool blockingMode) {
     #ifdef _WIN32
     u_long mode = blockingMode ? 0 : 1; // 0 for blocking, 1 for non-blocking
     return ioctlsocket(socketId, FIONBIO, &mode);
@@ -185,18 +185,18 @@ const int setBlockingMode(SOCKET socketId, bool blockingMode) {
     #endif
 }
 
-const bool blockingModeQ(SOCKET socketId) {
+static const bool blockingModeQ(SOCKET socketId) {
     #ifdef _WIN32
     u_long mode;
     ioctlsocket(socketId, FIONBIO, &mode);
-    return (mode == 0);
+    return (mode == 0); // 0 - blocking, 1 - non blocking
     #else
     int flags = fcntl(socketId, F_GETFL, 0);
     return !(flags & O_NONBLOCK);
     #endif
 }
 
-void acceptErrorMessage(WolframLibraryData libData, int err) {
+static void acceptErrorMessage(WolframLibraryData libData, int err) {
     #ifdef _WIN32
     if (err == WSAEINTR)
     #else
@@ -242,7 +242,7 @@ void acceptErrorMessage(WolframLibraryData libData, int err) {
         libData->Message("acceptUnexpectedError");
 }
 
-void recvErrorMessage(WolframLibraryData libData, int err) {
+static void recvErrorMessage(WolframLibraryData libData, int err) {
     if (err == 0) {
         libData->Message("recvGracefulClose");
         return;
@@ -293,7 +293,7 @@ void recvErrorMessage(WolframLibraryData libData, int err) {
         libData->Message("recvUnexpectedError");
 }
 
-void selectErrorMessage(WolframLibraryData libData, int err) {
+static void selectErrorMessage(WolframLibraryData libData, int err) {
     #ifdef _WIN32
     if (err == WSAEINTR)
     #else
@@ -332,7 +332,7 @@ void selectErrorMessage(WolframLibraryData libData, int err) {
         libData->Message("selectUnexpectedError");
 }
 
-void sendErrorMessage(WolframLibraryData libData, int err) {
+static void sendErrorMessage(WolframLibraryData libData, int err) {
     #ifdef _WIN32
     if (err == WSAEINTR)
     #else
@@ -385,7 +385,7 @@ void sendErrorMessage(WolframLibraryData libData, int err) {
         libData->Message("sendUnexpectedError");
 }
 
-void pushSelect(WolframLibraryData libData, mint taskId, SOCKET *sockets, size_t socketsLength, fd_set *readset) {
+static void pushSelect(WolframLibraryData libData, mint taskId, SOCKET *sockets, size_t socketsLength, fd_set *readset) {
     SOCKET socketId;
 
     DataStore data = libData->ioLibraryFunctions->createDataStore();
@@ -399,7 +399,7 @@ void pushSelect(WolframLibraryData libData, mint taskId, SOCKET *sockets, size_t
 }
 
 /*push listen socket and new accepted socket*/
-void pushAccept(WolframLibraryData libData, mint taskId, SOCKET listenSocket, SOCKET acceptedSocket) {
+static void pushAccept(WolframLibraryData libData, mint taskId, SOCKET listenSocket, SOCKET acceptedSocket) {
     DataStore data = libData->ioLibraryFunctions->createDataStore();
     libData->ioLibraryFunctions->DataStore_addInteger(data, listenSocket);
     libData->ioLibraryFunctions->DataStore_addInteger(data, acceptedSocket);
@@ -407,7 +407,7 @@ void pushAccept(WolframLibraryData libData, mint taskId, SOCKET listenSocket, SO
 }
 
 /*push listening tcp socket, source socket and received data*/
-void pushRecv(WolframLibraryData libData, mint taskId, SOCKET listenSocket, SOCKET socketId, BYTE *buffer, int bufferLength) {
+static void pushRecv(WolframLibraryData libData, mint taskId, SOCKET listenSocket, SOCKET socketId, BYTE *buffer, int bufferLength) {
     MNumericArray byteArray;
     mint arrayLen = (mint)bufferLength;
     libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &arrayLen, &byteArray);
@@ -422,7 +422,7 @@ void pushRecv(WolframLibraryData libData, mint taskId, SOCKET listenSocket, SOCK
 }
 
 /*push opened udp socket, from address and received data*/
-void pushRecvFrom(WolframLibraryData libData, mint taskId, SOCKET socketId, struct sockaddr *address, BYTE *buffer, int bufferLength) {
+static void pushRecvFrom(WolframLibraryData libData, mint taskId, SOCKET socketId, struct sockaddr *address, BYTE *buffer, int bufferLength) {
     MNumericArray byteArray;
     mint arrayLen2 = (mint)bufferLength;
     libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &arrayLen2, &byteArray);
@@ -437,13 +437,13 @@ void pushRecvFrom(WolframLibraryData libData, mint taskId, SOCKET socketId, stru
 }
 
 /*push closed socket*/
-void pushClose(WolframLibraryData libData, mint taskId, SOCKET socketId) {
+static void pushClose(WolframLibraryData libData, mint taskId, SOCKET socketId) {
     DataStore data = libData->ioLibraryFunctions->createDataStore();
     libData->ioLibraryFunctions->DataStore_addInteger(data, socketId);
     libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Close", data);
 }
 
-const bool socketValidQ(SOCKET socketId) {
+static const bool socketValidQ(SOCKET socketId) {
     #ifdef _WIN32
     int result = getsockopt(sockedId, SOL_SOCKET, SO_TYPE, (char*)&opt, &len);
     #else
@@ -921,29 +921,6 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
         selectErrorMessage(libData, err);
         return LIBRARY_FUNCTION_ERROR;
     }
-}
-
-#pragma endregion
-
-#pragma region async functions
-
-typedef struct TaskArgs_st {
-    WolframLibraryData libData;
-    void *args;
-}* TaskArgs;
-
-DLLEXPORT int createTask(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    char *funcName = MArgument_getUTF8String(Args[0]); // func name
-    void *args = (void *)MArgument_getInteger(Args[1]); // integer pointer
-
-    void *taskFunc = getFuncByName(funcName);
-    TaskArgs taskArgs;
-    taskArgs = malloc(sizeof(struct TaskArgs_st));
-    taskArgs->libData = libData;
-    taskArgs->args = taskArgs;
-    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(taskFunc, taskArgs);
-    MArgument_setInteger(Res, taskId);
-    return LIBRARY_NO_ERROR;
 }
 
 #pragma endregion
