@@ -163,7 +163,7 @@ LibraryFunctionLoad[$libFile, "socketCreate", {Integer, Integer, Integer}, Integ
 
 
 socketClose = 
-LibraryFunctionLoad[$libFile, "socketClose", {}, Integer];
+LibraryFunctionLoad[$libFile, "socketClose", {Integer}, Integer];
 
 
 socketBind = 

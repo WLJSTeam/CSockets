@@ -532,7 +532,7 @@ DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MAr
 
 /*socketAddressCreate[addressType] -> addressPtr*/
 DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    mint addressType = MArgument_getInteger(Args[0]); // 4=IPv4, 6=IPv6, 1=Unix
+    mint addressType = MArgument_getInteger(Args[0]); // 4=IPv4, 6=IPv6, 1=Unix, 0=Unspec
 
     void *address = NULL;
     size_t size = 0;
@@ -559,17 +559,7 @@ DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgume
                 addr->sin6_addr = in6addr_any;
             }
             break;
-            
-        case 1: // Unix
-            size = sizeof(struct sockaddr_un);
-            address = malloc(size);
-            if (address) {
-                struct sockaddr_un *addr = (struct sockaddr_un*)address;
-                addr->sun_family = AF_UNIX;
-                memset(addr->sun_path, 0, sizeof(addr->sun_path));
-            }
-            break;
-            
+
         default:
             return LIBRARY_FUNCTION_ERROR;
     }
@@ -625,7 +615,7 @@ DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Arg
     return LIBRARY_NO_ERROR;
 }
 
-/*socketCreate[socketId] -> successStatus*/
+/*socketClose[socketId] -> successStatus*/
 DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = MArgument_getInteger(Args[0]); // positive integer
 
@@ -733,7 +723,7 @@ DLLEXPORT int socketListen(WolframLibraryData libData, mint Argc, MArgument *Arg
     return LIBRARY_NO_ERROR;
 }
 
-/*socketConnect[socketId, addressInfoPtr] -> successStatus*/
+/*socketConnect[socketId, addressInfoPointer] -> successStatus*/
 DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
@@ -792,12 +782,10 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
         libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &len, &byteArray);
         BYTE *array = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
         memcpy(array, buffer, result);
-        free(buffer);
         MArgument_setMNumericArray(Res, byteArray);
         return LIBRARY_NO_ERROR;
     }
     
-    free(buffer);
     int err = GETSOCKETERRNO();
     recvErrorMessage(libData, err);
     return LIBRARY_FUNCTION_ERROR;
@@ -823,12 +811,10 @@ DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *A
         BYTE *array = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
         memcpy(array, buffer, result);
 
-        free(buffer);
         MArgument_setMNumericArray(Res, byteArray);
         return LIBRARY_NO_ERROR;
     }
     
-    free(buffer);
     int err = GETSOCKETERRNO();
     recvErrorMessage(libData, err);
     return LIBRARY_FUNCTION_ERROR;
