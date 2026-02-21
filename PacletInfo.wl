@@ -15,18 +15,9 @@ PacletObject[
         "Kernel",
         "Root" -> "Kernel",
         "Context" -> {
-          {"KirillBelov`CSockets`", "CSockets.wl"}, 
-          {"KirillBelov`CSockets`TCP`", "TCP.wl"}, 
-          {"KirillBelov`CSockets`Constants`", "Constants.wl"}, 
-          {"KirillBelov`CSockets`Handler`", "Handler.wl"}
+          {"KirillBelov`CSockets`Library`", "Library.wl"}
         },
-        "Symbols" -> {
-          "KirillBelov`CSockets`CSocketObject",
-          "KirillBelov`CSockets`CSocketListener",
-          "KirillBelov`CSockets`CSocketOpen",
-          "KirillBelov`CSockets`CSocketConnect",
-          "KirillBelov`CSockets`CSocketHandler"
-        }
+        "Symbols" -> {}
       },
       {"Documentation", "Language" -> "English"},
       {"LibraryLink", "Root" -> "LibraryResources"},
