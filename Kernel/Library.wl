@@ -203,11 +203,11 @@ LibraryFunctionLoad[$libFile, "socketRecvFrom", {Integer, Integer, Integer, Inte
 
 
 socketSend = 
-LibraryFunctionLoad[$libFile, "socketSend", {}, Integer];
+LibraryFunctionLoad[$libFile, "socketSend", {Integer, "ByteArray", Integer}, Integer];
 
 
 socketSendString = 
-LibraryFunctionLoad[$libFile, "socketSendString", {}, Integer];
+LibraryFunctionLoad[$libFile, "socketSendString", {Integer, String, Integer}, Integer];
 
 
 socketsCheck = 
