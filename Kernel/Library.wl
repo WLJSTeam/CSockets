@@ -1,7 +1,7 @@
 (* ::Package:: *)
 
 BeginPackage["KirillBelov`CSockets`Library`", {
-    "CCompilerDriver`", 
+    "CCompilerDriver`",
     "LibraryLink`"
 }];
 
