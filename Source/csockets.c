@@ -444,21 +444,26 @@ static void pushClose(WolframLibraryData libData, mint taskId, SOCKET socketId) 
 }
 
 static const bool socketValidQ(SOCKET socketId) {
+    if (socketId == INVALID_SOCKET) {
+        return false;
+    }
+
     #ifdef _WIN32
-    int result = getsockopt(sockedId, SOL_SOCKET, SO_TYPE, (char*)&opt, &len);
+    int opt = 0;
+    int len = sizeof(opt);
+    int result = getsockopt(socketId, SOL_SOCKET, SO_TYPE, (char*)&opt, &len);
+
+    if (result == 0) {
+        return true;
+    }
+
+    int err = WSAGetLastError();
+    return err != WSAENOTSOCK;
+
     #else
     int result = fcntl(socketId, F_GETFL);
+    return result >= 0 || errno != EBADF;
     #endif
-
-    int err = GETSOCKETERRNO();
-
-    return result >= 0 || 
-        #ifdef _WIN32
-        err != WSAENOTSOCK
-        #else
-        err != EBADF
-        #endif
-        ;
 }
 
 #pragma endregion
