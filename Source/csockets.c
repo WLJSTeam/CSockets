@@ -1032,7 +1032,7 @@ DLLEXPORT int createSocketsSelectTask(WolframLibraryData libData, mint Argc, MAr
     taskArgs->length = length;
     taskArgs->timeout = timeout;
 
-    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketSelectTask, (void *)taskArgs);
+    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketsSelectTask, (void *)taskArgs);
 
     MArgument_setInteger(Res, taskId);
     return LIBRARY_NO_ERROR;
