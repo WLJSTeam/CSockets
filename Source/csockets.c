@@ -1006,13 +1006,13 @@ void socketsSelectTask(mint taskId, void *taskArgs) {
         mint len = (mint)result;
         MTensor readySocketsTensor;
         libData->MTensor_new(MType_Integer, 1, &len, &readySocketsTensor);
-        SOCKET *readySockets = (SOCKET*)libData->MTensor_getIntegerData(readySocketsTensor);
+        mint *readySockets = libData->MTensor_getIntegerData(readySocketsTensor);
 
         int j = 0;
         for (size_t i = 0; i < length; i++) {
             socketId = sockets[i];
             if (FD_ISSET(socketId, &readfds)) { 
-                readySockets[j] = socketId;
+                readySockets[j] = (mint)socketId;
                 j++;
             }
         }
