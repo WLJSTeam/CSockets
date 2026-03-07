@@ -951,3 +951,73 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
 }
 
 #pragma endregion
+
+#pragma region
+
+typedef struct SocketSelectTaskArgs_st
+{
+    WolframLibraryData libData; 
+    SOCKET *sockets;
+    size_t length;
+    mint timeout;
+} *SocketSelectTaskArgs;
+
+
+void socketSelectTask(mint taskId, void *taskArgs) {
+    SocketSelectTaskArgs socketSelectTaskArgs = (SocketSelectTaskArgs)taskArgs;
+    WolframLibraryData libData = socketSelectTaskArgs->libData;
+
+    SOCKET *sockets = socketSelectTaskArgs->sockets;
+    size_t length = socketSelectTaskArgs->length;
+    mint timeout = socketSelectTaskArgs->timeout;
+
+    SOCKET socketId;
+    SOCKET maxFd = 0;
+
+    fd_set readfds;
+    FD_ZERO(&readfds);
+
+    for (size_t i = 0; i < length; i++) {
+        socketId = sockets[i];
+        if (socketId > maxFd) maxFd = socketId;
+        FD_SET(socketId, &readfds);
+    }
+
+    struct timeval tv;
+    tv.tv_sec  = timeout / 1000000;
+    tv.tv_usec = timeout % 1000000;
+
+    int result = select((int)(maxFd + 1), &readfds, NULL, NULL, &tv);
+    if (result >= 0) {
+        
+    }
+
+    free(sockets);
+}
+
+DLLEXPORT int createSocketSelectTask(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    MTensor sockets = MArgument_getMTensor(Args[0]); // list of sockets
+    size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
+    int timeout = (int)MArgument_getInteger(Args[2]); // timeout in microseconds
+
+    SOCKET *socketIds = malloc(length * sizeof(SOCKET));
+
+    mint *socketsData = libData->MTensor_getIntegerData(sockets);
+    for(size_t i = 0; i < length; i++) {
+        socketIds[i] = (SOCKET)socketsData[i];
+    }
+
+    SocketSelectTaskArgs taskArgs = malloc(sizeof(struct SocketSelectTaskArgs_st));
+    
+    taskArgs->libData = libData;
+    taskArgs->sockets = socketIds;
+    taskArgs->length = length;
+    taskArgs->timeout = timeout;
+
+    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketSelectTask, (void *)taskArgs);
+
+    MArgument_setInteger(Res, taskId);
+    return LIBRARY_NO_ERROR;
+}
+
+#pragma endregion
