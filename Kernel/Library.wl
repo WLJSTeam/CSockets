@@ -215,7 +215,11 @@ LibraryFunctionLoad[$libFile, "socketsCheck", {Integer}, {Integer, 1}];
 
 
 socketsSelect = 
-LibraryFunctionLoad[$libFile, "socketsSelect", {Integer, Integer}, {Integer, 1}];
+LibraryFunctionLoad[$libFile, "socketsSelect", {{Integer, 1}, Integer, Integer}, {Integer, 1}];
+
+
+createSocketsSelectTask = 
+LibraryFunctionLoad[$libFile, "createSocketsSelectTask", {{Integer, 1}, Integer, Integer}, Integer];
 
 
 End[];
