@@ -963,7 +963,7 @@ typedef struct SocketSelectTaskArgs_st
 } *SocketSelectTaskArgs;
 
 
-void socketSelectTask(mint taskId, void *taskArgs) {
+void socketsSelectTask(mint taskId, void *taskArgs) {
     SocketSelectTaskArgs socketSelectTaskArgs = (SocketSelectTaskArgs)taskArgs;
     WolframLibraryData libData = socketSelectTaskArgs->libData;
 
@@ -989,13 +989,31 @@ void socketSelectTask(mint taskId, void *taskArgs) {
 
     int result = select((int)(maxFd + 1), &readfds, NULL, NULL, &tv);
     if (result >= 0) {
-        
+        mint len = (mint)result;
+        MTensor readySocketsTensor;
+        libData->MTensor_new(MType_Integer, 1, &len, &readySocketsTensor);
+        SOCKET *readySockets = (SOCKET*)libData->MTensor_getIntegerData(readySocketsTensor);
+
+        int j = 0;
+        for (size_t i = 0; i < length; i++) {
+            socketId = sockets[i];
+            if (FD_ISSET(socketId, &readfds)) { 
+                readySockets[j] = socketId;
+                j++;
+            }
+        }
+
+        DataStore dataStore;
+        libData->ioLibraryFunctions->createDataStore();
+        libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readySocketsTensor);
+        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "socketsSelectTask", dataStore);
+        libData->MTensor_free(readySocketsTensor);
     }
 
     free(sockets);
 }
 
-DLLEXPORT int createSocketSelectTask(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int createSocketsSelectTask(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     MTensor sockets = MArgument_getMTensor(Args[0]); // list of sockets
     size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
     int timeout = (int)MArgument_getInteger(Args[2]); // timeout in microseconds
