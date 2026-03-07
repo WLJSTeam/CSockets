@@ -552,6 +552,9 @@ DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgume
                 addr->sin_port = 0; // port will set after
                 addr->sin_addr.s_addr = INADDR_ANY;
             }
+            else {
+                return LIBRARY_FUNCTION_ERROR;
+            }
             break;
             
         case 6: // IPv6
@@ -562,6 +565,9 @@ DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgume
                 addr->sin6_family = AF_INET6;
                 addr->sin6_port = 0;
                 addr->sin6_addr = in6addr_any;
+            }
+            else {
+                return LIBRARY_FUNCTION_ERROR;
             }
             break;
 
@@ -592,6 +598,9 @@ DLLEXPORT int socketAddressRemove(WolframLibraryData libData, mint Argc, MArgume
 DLLEXPORT int socketBufferCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     mint bufferSize = (mint)MArgument_getInteger(Args[0]);
     BYTE *buffer = malloc(bufferSize * sizeof(BYTE));
+    if (!buffer) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
     uintptr_t bufferPtr = (uintptr_t)buffer;
     MArgument_setInteger(Res, bufferPtr);
     return LIBRARY_NO_ERROR;
@@ -640,11 +649,11 @@ DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args
     return LIBRARY_NO_ERROR;
 }
 
-/*socketBind[socketId, addressPtr] -> successStatus*/
+/*socketBind[socketId, addressInfoPtr] -> successStatus*/
 DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]); // socket for binding
-    uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
-    struct addrinfo *address = (struct addrinfo*)addressPtr;
+    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
+    struct addrinfo *address = (struct addrinfo*)addressInfoPtr;
 
     bool successState = 0;
 
