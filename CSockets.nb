@@ -23,10 +23,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[      1060,         20]
-NotebookDataLength[     57870,       1346]
-NotebookOptionsPosition[     53286,       1259]
-NotebookOutlinePosition[     53677,       1275]
-CellTagsIndexPosition[     53634,       1272]
+NotebookDataLength[     48104,       1121]
+NotebookOptionsPosition[     43490,       1032]
+NotebookOutlinePosition[     43881,       1048]
+CellTagsIndexPosition[     43838,       1045]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -581,8 +581,7 @@ SOCK_RAW == 3 | ..\\n    protocol: AUTO == 0 | IPPROTO_TCP == 6 | IPPROTO_UDP \
              "InformationUsageText",
              StripOnInput->False,
              LineSpacing->{1.5, 1.5, 3.}],
-            FrameMargins->{{10, 10}, {8, 10}},
-            ScrollPosition->{0., 0.}],
+            FrameMargins->{{10, 10}, {8, 10}}],
            BaseStyle->"InformationUsageSubtitleBackground",
            StripOnInput->False], 
           ItemBox["\<\"\"\>",
@@ -663,8 +662,8 @@ csockets.dylib", "socketAddressInfoCreate", {
     "KirillBelov`CSockets`Library`socketAddressInfoCreate"|>, 
    False]]], "Output",
  CellChangeTimes->{3.980668591582705*^9, 3.98185590732887*^9, 
-  3.9818728681383047`*^9, 3.981880045641107*^9},
- CellLabel->"Out[7]=",ExpressionUUID->"22433f23-61d0-44e9-a2df-2555686da272"]
+  3.9818728681383047`*^9, 3.981880045641107*^9, 3.981881199661804*^9},
+ CellLabel->"Out[7]=",ExpressionUUID->"c4aee1b9-6ca4-4bc9-abda-9ab7841e7747"]
 }, Open  ]],
 
 Cell[CellGroupData[{
@@ -679,10 +678,10 @@ Cell[BoxData[
   3.981872872594262*^9}},
  CellLabel->"In[8]:=",ExpressionUUID->"2212515c-e35f-4616-8672-6d199b20d102"],
 
-Cell[BoxData["43703082352"], "Output",
+Cell[BoxData["54467237840"], "Output",
  CellChangeTimes->{3.98066862414084*^9, 3.981855910366461*^9, 
-  3.981872876621298*^9, 3.981880047806501*^9},
- CellLabel->"Out[8]=",ExpressionUUID->"dfb3cebc-b87c-4752-b5b1-9da834f8d51b"]
+  3.981872876621298*^9, 3.981880047806501*^9, 3.9818812011715307`*^9},
+ CellLabel->"Out[8]=",ExpressionUUID->"616d9293-0696-4929-8e63-afff15c8c730"]
 }, Open  ]],
 
 Cell[CellGroupData[{
@@ -694,10 +693,10 @@ Cell[BoxData[
  CellChangeTimes->{{3.9818560238653173`*^9, 3.981856060803677*^9}},
  CellLabel->"In[9]:=",ExpressionUUID->"08a0ff79-53c2-4f86-91d8-1e9a88f7b95b"],
 
-Cell[BoxData["144"], "Output",
+Cell[BoxData["153"], "Output",
  CellChangeTimes->{3.981856062904798*^9, 3.981872885483223*^9, 
-  3.981880050081293*^9},
- CellLabel->"Out[9]=",ExpressionUUID->"6897aefc-66b5-4c38-8533-d58f43295a80"]
+  3.981880050081293*^9, 3.9818812031941557`*^9},
+ CellLabel->"Out[9]=",ExpressionUUID->"b0b301fb-c632-47fe-9043-96d247cc83ea"]
 }, Open  ]],
 
 Cell[CellGroupData[{
@@ -712,8 +711,8 @@ Cell[BoxData[
 
 Cell[BoxData["0"], "Output",
  CellChangeTimes->{3.9818561315700607`*^9, 3.981872895572857*^9, 
-  3.981880052490356*^9},
- CellLabel->"Out[10]=",ExpressionUUID->"71e326c3-6ec8-4acc-a6d8-7e33ccae1f6d"]
+  3.981880052490356*^9, 3.9818812059446697`*^9},
+ CellLabel->"Out[10]=",ExpressionUUID->"6edf1ec3-9325-4c37-8dee-d0060331a1ef"]
 }, Open  ]],
 
 Cell[CellGroupData[{
@@ -727,8 +726,8 @@ Cell[BoxData[
 
 Cell[BoxData["0"], "Output",
  CellChangeTimes->{3.981856161814166*^9, 3.9818729079887123`*^9, 
-  3.981880054255104*^9},
- CellLabel->"Out[11]=",ExpressionUUID->"46e14dc3-4c75-42ce-bf70-ca74fde5f44d"]
+  3.981880054255104*^9, 3.981881209824759*^9},
+ CellLabel->"Out[11]=",ExpressionUUID->"3542751a-39b4-4b0c-906a-d602a45d2dd6"]
 }, Open  ]],
 
 Cell[CellGroupData[{
@@ -738,14 +737,15 @@ Cell[BoxData[
   RowBox[{
    RowBox[{"{", "socket1", "}"}], ",", " ", "1", ",", " ", "100000000"}], 
   "]"}]], "Code",
- CellChangeTimes->{{3.9818561656205997`*^9, 3.981856185867381*^9}},
+ CellChangeTimes->{{3.9818561656205997`*^9, 3.981856185867381*^9}, {
+  3.981881220185793*^9, 3.981881237925179*^9}},
  CellLabel->"In[12]:=",ExpressionUUID->"aaf02966-74af-400e-886d-4ca1d8102e20"],
 
 Cell[BoxData[
- RowBox[{"{", "144", "}"}]], "Output",
+ RowBox[{"{", "153", "}"}]], "Output",
  CellChangeTimes->{{3.981856181829606*^9, 3.9818562366004877`*^9}, 
-   3.981880102653379*^9},
- CellLabel->"Out[12]=",ExpressionUUID->"b41e4b29-e1e7-4b28-b056-994c20e43119"]
+   3.981880102653379*^9, 3.981881280309372*^9},
+ CellLabel->"Out[12]=",ExpressionUUID->"c9546484-6906-471a-879c-f215d4f6e87f"]
 }, Open  ]],
 
 Cell[CellGroupData[{
@@ -756,9 +756,22 @@ Cell[BoxData[
  CellChangeTimes->{{3.98188011201431*^9, 3.9818801279148397`*^9}},
  CellLabel->"In[13]:=",ExpressionUUID->"4867b584-1316-4321-94fe-015d41e3eea6"],
 
-Cell[BoxData["146"], "Output",
- CellChangeTimes->{3.981880128454256*^9},
- CellLabel->"Out[13]=",ExpressionUUID->"b58958df-bc54-4ae3-ae3f-d2e6f385f564"]
+Cell[BoxData["154"], "Output",
+ CellChangeTimes->{3.981880128454256*^9, 3.981881280367117*^9},
+ CellLabel->"Out[13]=",ExpressionUUID->"be1e5e32-0d86-495e-b8a7-effed6564f6c"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"buffer", " ", "=", " ", 
+  RowBox[{"socketBufferCreate", "[", "1024", "]"}]}]], "Code",
+ CellChangeTimes->{{3.981856273832971*^9, 3.981856284877857*^9}},
+ CellLabel->"In[14]:=",ExpressionUUID->"e7553185-3811-4512-8721-78792cefae43"],
+
+Cell[BoxData["54505078784"], "Output",
+ CellChangeTimes->{3.981881298268299*^9},
+ CellLabel->"Out[14]=",ExpressionUUID->"6556eb5b-3e08-47c4-8baf-b4afea11fadd"]
 }, Open  ]],
 
 Cell[CellGroupData[{
@@ -824,14 +837,128 @@ sxQCaa0VwhYxtwlnB81N4xeu5I9E
   Editable->False,
   SelectWithContents->True,
   Selectable->False]], "Output",
- CellChangeTimes->{3.9818801534697523`*^9},
- CellLabel->"Out[15]=",ExpressionUUID->"ae89b662-edc7-4825-af79-a22d320eab52"]
+ CellChangeTimes->{3.9818801534697523`*^9, 3.9818813027907763`*^9},
+ CellLabel->"Out[15]=",ExpressionUUID->"613229d2-ccc6-4d6a-9d6c-2fe3f5821063"]
 }, Open  ]],
 
 Cell[CellGroupData[{
 
 Cell[BoxData[
- RowBox[{"ByteArrayToString", "[", 
+ RowBox[{"socketsSelect", "[", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{"socket1", ",", " ", "client1"}], "}"}], ",", " ", "1", ",", " ", 
+   "100000000"}], "]"}]], "Code",
+ CellChangeTimes->{{3.981881313225768*^9, 3.981881331597674*^9}},
+ CellLabel->"In[16]:=",ExpressionUUID->"e5c4d9ab-2bc5-4a79-ad4a-7b3b534bf443"],
+
+Cell[BoxData[
+ RowBox[{"{", "153", "}"}]], "Output",
+ CellChangeTimes->{3.981881339920587*^9},
+ CellLabel->"Out[16]=",ExpressionUUID->"eb61d552-e209-4fe1-a56e-79b53b65b665"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"client2", " ", "=", " ", 
+  RowBox[{"socketAccept", "[", "socket1", "]"}]}]], "Code",
+ CellChangeTimes->{{3.981881348159943*^9, 3.981881362161642*^9}},
+ CellLabel->"In[17]:=",ExpressionUUID->"31ce7206-9248-4da2-b293-5e68daa58453"],
+
+Cell[BoxData["155"], "Output",
+ CellChangeTimes->{3.9818813624281588`*^9},
+ CellLabel->"Out[17]=",ExpressionUUID->"e1f428cb-38bd-4387-a82c-9bf8f8432ba9"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"socketsSelect", "[", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{"socket1", ",", " ", "client2"}], "}"}], ",", " ", "2", ",", " ", 
+   "1000000"}], "]"}]], "Code",
+ CellChangeTimes->{{3.981881368532712*^9, 3.9818813836422243`*^9}},
+ CellLabel->"In[18]:=",ExpressionUUID->"fb68be49-2582-4802-8d68-fbe9d3a7d300"],
+
+Cell[BoxData[
+ RowBox[{"{", "155", "}"}]], "Output",
+ CellChangeTimes->{3.981881384273776*^9},
+ CellLabel->"Out[18]=",ExpressionUUID->"2ce44ead-0ef9-4784-88bf-726e84836bfb"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"socketRecv", "[", 
+  RowBox[{"client2", ",", " ", "buffer", ",", " ", "1024"}], "]"}]], "Code",
+ CellChangeTimes->{{3.981881387433846*^9, 3.981881398213318*^9}},
+ CellLabel->"In[19]:=",ExpressionUUID->"ba48d2d2-88b9-4a2e-a704-da2a83b7a908"],
+
+Cell[BoxData[
+ InterpretationBox[
+  RowBox[{
+   TagBox["ByteArray",
+    "SummaryHead"], "[", 
+   DynamicModuleBox[{Typeset`open$$ = False, Typeset`embedState$$ = "Ready"}, 
+    
+    TemplateBox[{
+      PaneSelectorBox[{False -> GridBox[{{
+            GridBox[{{
+               TagBox["\"445 bytes\"", "SummaryItem"]}}, 
+             GridBoxAlignment -> {
+              "Columns" -> {{Left}}, "Rows" -> {{Automatic}}}, AutoDelete -> 
+             False, GridBoxItemSize -> {
+              "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}, 
+             GridBoxSpacings -> {"Columns" -> {{2}}, "Rows" -> {{Automatic}}},
+              BaseStyle -> {
+              ShowStringCharacters -> False, NumberMarks -> False, 
+               PrintPrecision -> 3, ShowSyntaxStyles -> False}]}}, 
+          GridBoxAlignment -> {"Columns" -> {{Left}}, "Rows" -> {{Top}}}, 
+          AutoDelete -> False, 
+          GridBoxItemSize -> {
+           "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}, 
+          BaselinePosition -> {1, 1}], True -> GridBox[{{
+            GridBox[{{
+               TagBox["\"445 bytes\"", "SummaryItem"]}}, 
+             GridBoxAlignment -> {
+              "Columns" -> {{Left}}, "Rows" -> {{Automatic}}}, AutoDelete -> 
+             False, GridBoxItemSize -> {
+              "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}, 
+             GridBoxSpacings -> {"Columns" -> {{2}}, "Rows" -> {{Automatic}}},
+              BaseStyle -> {
+              ShowStringCharacters -> False, NumberMarks -> False, 
+               PrintPrecision -> 3, ShowSyntaxStyles -> False}]}}, 
+          GridBoxAlignment -> {"Columns" -> {{Left}}, "Rows" -> {{Top}}}, 
+          AutoDelete -> False, 
+          GridBoxItemSize -> {
+           "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}, 
+          BaselinePosition -> {1, 1}]}, 
+       Dynamic[Typeset`open$$], ImageSize -> Automatic]},
+     "SummaryPanel"],
+    DynamicModuleValues:>{}], "]"}],
+  ByteArray[CompressedData["
+1:eJxdkMtuwjAQRek2Uv5hugOaZ6tQGsQCtRQQREUkfeyQcYZgYeyQOIjyb/23
+OkhFqBvr6ow9c8a3K7lY3TQajR99jIYJuDBOkrnrO75pjGWpQuCSEr6pY9fz
+PNOIkdqvqOjGfsG6nkpa7VAo03gvsbAHmc4hRPLEOCdu4HjQjAhlQsly04OJ
+UMhBA3iL4Qt8b+kHy8cWDPKc4yeupky5HS9wtEAAzek4iWYWcLZFGCHdyhZ8
+YFEyKdz7jvPg+BCTNSnY5YmWyLOCpGhPRIm0KtBe4L7SomUIeqUBpZhrPYVH
+5W7UjltED2aUqLrnsSZ3x/90x3v7vuc8WW23fU7d61+ImcIQhBR4TSOZ1pQc
+WEYU/g22Z0RkFcl0qahMY14wWTD1HULV9yxgl2tDQWXKRBZCdmK5BSmu+bnN
+sxQCaa0VwhYxtwlnB81N4xeu5I9E
+   "]],
+  Editable->False,
+  SelectWithContents->True,
+  Selectable->False]], "Output",
+ CellChangeTimes->{3.981881399273857*^9},
+ CellLabel->"Out[19]=",ExpressionUUID->"7dbcf8c1-0689-4841-a993-de21a232181c"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"ByteArrayToString", " ", "@", " ", 
   InterpretationBox[
    RowBox[{
     TagBox["ByteArray",
@@ -886,9 +1013,9 @@ sxQCaa0VwhYxtwlnB81N4xeu5I9E
     "]],
    Editable->False,
    SelectWithContents->True,
-   Selectable->False], "]"}]], "Input",
- CellChangeTimes->{{3.981880160587412*^9, 3.98188016450386*^9}},
- CellLabel->"In[16]:=",ExpressionUUID->"473b931d-3b6b-4fe7-b67c-71251be25f07"],
+   Selectable->False]}]], "Input",
+ CellChangeTimes->{{3.981881404389406*^9, 3.981881407622753*^9}},
+ CellLabel->"In[20]:=",ExpressionUUID->"0be8c17b-193f-4501-ae63-ed17ff20840f"],
 
 Cell[BoxData["\<\"GET / HTTP/1.1\\r\\nHost: \
 localhost:8000\\r\\nSec-Fetch-Dest: document\\r\\nUser-Agent: Mozilla/5.0 \
@@ -898,362 +1025,8 @@ text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\\r\\nSec-\
 Fetch-Site: none\\r\\nSec-Fetch-Mode: navigate\\r\\nAccept-Language: \
 ru\\r\\nPriority: u=0, i\\r\\nAccept-Encoding: gzip, deflate\\r\\nConnection: \
 keep-alive\\r\\n\\r\\n\"\>"], "Output",
- CellChangeTimes->{3.98188016515622*^9},
- CellLabel->"Out[16]=",ExpressionUUID->"bc4ce6ef-af10-4146-a73c-d4a29604d8a9"]
-}, Open  ]],
-
-Cell[CellGroupData[{
-
-Cell[BoxData[
- RowBox[{"buffer", " ", "=", " ", 
-  RowBox[{"socketBufferCreate", "[", "1024", "]"}]}]], "Code",
- CellChangeTimes->{{3.981856273832971*^9, 3.981856284877857*^9}},
- CellLabel->"In[14]:=",ExpressionUUID->"e7553185-3811-4512-8721-78792cefae43"],
-
-Cell[BoxData["43708153856"], "Output",
- CellChangeTimes->{3.98185628554592*^9, 3.981880133487114*^9},
- CellLabel->"Out[14]=",ExpressionUUID->"dff924de-6bb4-426e-99ea-b96561a603ef"]
-}, Open  ]],
-
-Cell[CellGroupData[{
-
-Cell[BoxData[
- RowBox[{"socketRecv", "[", 
-  RowBox[{"socket1", ",", " ", "buffer", ",", " ", "1024"}], "]"}]], "Input",
- CellChangeTimes->{{3.981856238863956*^9, 3.9818562998632927`*^9}},
- CellLabel->"In[22]:=",ExpressionUUID->"36df9eea-8ec1-4261-bbde-35f054072ac7"],
-
-Cell[BoxData[
- TemplateBox[{
-  "LibraryFunction", "recvCloseSocket", "\"-- Message text not found --\"", 2,
-    22, 1, 32833912587767098863, "Local"},
-  "MessageTemplate",
-  BaseStyle->"MSG"]], "Message",
- CellChangeTimes->{3.981856300897975*^9},
- CellLabel->
-  "During evaluation of \
-In[22]:=",ExpressionUUID->"9fb41b33-4dc4-41da-978f-adab4295aa1b"],
-
-Cell[BoxData[
- RowBox[{"LibraryFunctionError", "[", 
-  RowBox[{"\<\"LIBRARY_FUNCTION_ERROR\"\>", ",", "6"}], "]"}]], "Output",
- CellChangeTimes->{3.981856300907465*^9},
- CellLabel->"Out[22]=",ExpressionUUID->"75f327f5-2b80-4935-9c92-64797b45c3c3"]
-}, Open  ]],
-
-Cell[CellGroupData[{
-
-Cell[BoxData[
- RowBox[{"socketAddressInfoRemove", "[", "addr1", "]"}]], "Code",
- CellChangeTimes->{{3.9806686277956533`*^9, 3.9806686359072943`*^9}},
- CellLabel->"In[10]:=",ExpressionUUID->"c1025e9d-2044-4bc1-8977-7e47fb801a76"],
-
-Cell[BoxData["0"], "Output",
- CellChangeTimes->{3.980668636357368*^9},
- CellLabel->"Out[10]=",ExpressionUUID->"17434cd6-9d3c-4e40-a098-cb6df3efa56c"]
-}, Open  ]],
-
-Cell[BoxData[""], "Code",ExpressionUUID->"78c566f0-2e1c-4c61-9f68-68cf99c50bf4"],
-
-Cell[CellGroupData[{
-
-Cell[BoxData[
- RowBox[{"?", "socket*"}]], "Code",
- CellChangeTimes->{{3.9806678534262333`*^9, 3.980667857318211*^9}},
- CellLabel->"In[7]:=",ExpressionUUID->"0ba16f1c-c589-457c-a954-5cf76223057a"],
-
-Cell[BoxData[
- StyleBox[
-  FrameBox[GridBox[{
-     {
-      DynamicModuleBox[{Typeset`open$$ = True}, 
-       PaneSelectorBox[{False->
-        ButtonBox[
-         RowBox[{
-          
-          DynamicBox[FEPrivate`FrontEndResource[
-           "FEBitmaps", "RightPointerOpener"]], " ", 
-          
-          StyleBox["KirillBelov`CSockets`Library`", 
-           "InformationGridGroupHeader"]}],
-         Appearance->None,
-         BaseStyle->"InformationGridLink",
-         ButtonFunction:>FEPrivate`Set[Typeset`open$$, True],
-         Evaluator->Automatic,
-         Method->"Preemptive"], True->
-        PaneBox[GridBox[{
-           {
-            ButtonBox[
-             RowBox[{
-              
-              DynamicBox[FEPrivate`FrontEndResource[
-               "FEBitmaps", "DownPointerOpener"],
-               ImageSizeCache->{10., {2.134033203125, 7.865966796875}}], " ", 
-              
-              
-              StyleBox["KirillBelov`CSockets`Library`", 
-               "InformationGridGroupHeader"]}],
-             Appearance->None,
-             BaseStyle->"InformationGridLink",
-             ButtonFunction:>FEPrivate`Set[Typeset`open$$, False],
-             Evaluator->Automatic,
-             Method->"Preemptive"]},
-           {
-            PaneBox[GridBox[{
-               {
-                ButtonBox[
-                 StyleBox["socketAccept", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketAccept", "KirillBelov`CSockets`Library`"}, False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic], 
-                ButtonBox[
-                 StyleBox["socketBufferRemove", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketBufferRemove", "KirillBelov`CSockets`Library`"}, 
-                   False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic], 
-                ButtonBox[
-                 StyleBox["socketRecvFrom", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketRecvFrom", "KirillBelov`CSockets`Library`"}, False},
-                 
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic]},
-               {
-                ButtonBox[
-                 StyleBox["socketAddressCreate", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketAddressCreate", "KirillBelov`CSockets`Library`"}, 
-                   False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic], 
-                ButtonBox[
-                 StyleBox["socketClose", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketClose", "KirillBelov`CSockets`Library`"}, False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic], 
-                ButtonBox[
-                 StyleBox["socketsCheck", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketsCheck", "KirillBelov`CSockets`Library`"}, False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic]},
-               {
-                ButtonBox[
-                 StyleBox["socketAddressInfoCreate", "InformationGridButton"],
-                 
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketAddressInfoCreate", 
-                    "KirillBelov`CSockets`Library`"}, False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic], 
-                ButtonBox[
-                 StyleBox["socketConnect", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketConnect", "KirillBelov`CSockets`Library`"}, False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic], 
-                ButtonBox[
-                 StyleBox["socketSend", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketSend", "KirillBelov`CSockets`Library`"}, False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic]},
-               {
-                ButtonBox[
-                 StyleBox["socketAddressInfoRemove", "InformationGridButton"],
-                 
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketAddressInfoRemove", 
-                    "KirillBelov`CSockets`Library`"}, False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic], 
-                ButtonBox[
-                 StyleBox["socketCreate", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketCreate", "KirillBelov`CSockets`Library`"}, False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic], 
-                ButtonBox[
-                 StyleBox["socketSendString", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketSendString", "KirillBelov`CSockets`Library`"}, 
-                   False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic]},
-               {
-                ButtonBox[
-                 StyleBox["socketAddressRemove", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketAddressRemove", "KirillBelov`CSockets`Library`"}, 
-                   False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic], 
-                ButtonBox[
-                 StyleBox["socketGetOpt", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketGetOpt", "KirillBelov`CSockets`Library`"}, False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic], 
-                ButtonBox[
-                 StyleBox["socketSetBlockingMode", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketSetBlockingMode", "KirillBelov`CSockets`Library`"}, 
-                   False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic]},
-               {
-                ButtonBox[
-                 StyleBox["socketBind", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketBind", "KirillBelov`CSockets`Library`"}, False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic], 
-                ButtonBox[
-                 StyleBox["socketListen", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketListen", "KirillBelov`CSockets`Library`"}, False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic], 
-                ButtonBox[
-                 StyleBox["socketSetOpt", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketSetOpt", "KirillBelov`CSockets`Library`"}, False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic]},
-               {
-                ButtonBox[
-                 StyleBox["socketBufferCreate", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketBufferCreate", "KirillBelov`CSockets`Library`"}, 
-                   False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic], 
-                ButtonBox[
-                 StyleBox["socketRecv", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketRecv", "KirillBelov`CSockets`Library`"}, False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic], 
-                ButtonBox[
-                 StyleBox["socketsSelect", "InformationGridButton"],
-                 Appearance->None,
-                 BaseStyle->"InformationGridLink",
-                 
-                 ButtonData:>{
-                  "Info-9fffe214-f336-466c-a3a8-42d447c8e1d3", {
-                   "socketsSelect", "KirillBelov`CSockets`Library`"}, False},
-                 ButtonNote->"KirillBelov`CSockets`Library`",
-                 Evaluator->Automatic]}
-              },
-              DefaultBaseStyle->"Text",
-              
-              GridBoxAlignment->{
-               "Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
-              GridBoxItemSize->{"Columns" -> {{
-                   Scaled[0.31666666666666665`]}}}],
-             ImageMargins->{{10, 0}, {0, 2}}]}
-          },
-          GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}}],
-         FrameMargins->{{0, 0}, {8, 0}},
-         ScrollPosition->{0., 0.}]}, Dynamic[Typeset`open$$],
-        ImageSize->Automatic]]}
-    },
-    GridBoxAlignment->{"Columns" -> {{Left}}, "Rows" -> {{Baseline}}},
-    GridBoxDividers->{"ColumnsIndexed" -> {{False}}, "RowsIndexed" -> {}},
-    GridBoxSpacings->{"Columns" -> {
-        Offset[0.27999999999999997`], {
-         Offset[0.5599999999999999]}, 
-        Offset[0.27999999999999997`]}, "Rows" -> {
-        Offset[0.2], {
-         Offset[0.8]}, 
-        Offset[0.2]}}],
-   BaseStyle->"InformationTitleFrame"], "InformationGridPlain"]], "Output",
- CellChangeTimes->{3.9806678576058807`*^9},
- CellLabel->"Out[7]=",ExpressionUUID->"c06878ab-7f27-4eee-b9f5-fb3732de04e8"]
+ CellChangeTimes->{3.981881407901525*^9},
+ CellLabel->"Out[20]=",ExpressionUUID->"d7a803cb-635a-4617-a74c-1f2ad1ca2480"]
 }, Open  ]]
 }, Open  ]]
 },
@@ -1308,57 +1081,59 @@ Cell[15186, 350, 337, 6, 51, "Code",ExpressionUUID->"e48f31c0-fcff-4bab-8b18-e0d
 Cell[15526, 358, 216, 3, 51, "Code",ExpressionUUID->"530b9e8b-5573-49ed-9dde-16c9217ecc3f"],
 Cell[CellGroupData[{
 Cell[15767, 365, 209, 3, 51, "Code",ExpressionUUID->"e3a25d6b-a92f-46bc-a07f-cd2a7676850c"],
-Cell[15979, 370, 12483, 296, 225, "Output",ExpressionUUID->"22433f23-61d0-44e9-a2df-2555686da272"]
+Cell[15979, 370, 12467, 295, 225, "Output",ExpressionUUID->"c4aee1b9-6ca4-4bc9-abda-9ab7841e7747"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[28499, 671, 468, 8, 51, "Code",ExpressionUUID->"2212515c-e35f-4616-8672-6d199b20d102"],
-Cell[28970, 681, 226, 3, 33, "Output",ExpressionUUID->"dfb3cebc-b87c-4752-b5b1-9da834f8d51b"]
+Cell[28483, 670, 468, 8, 51, "Code",ExpressionUUID->"2212515c-e35f-4616-8672-6d199b20d102"],
+Cell[28954, 680, 250, 3, 33, "Output",ExpressionUUID->"616d9293-0696-4929-8e63-afff15c8c730"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[29233, 689, 293, 5, 51, "Code",ExpressionUUID->"08a0ff79-53c2-4f86-91d8-1e9a88f7b95b"],
-Cell[29529, 696, 197, 3, 33, "Output",ExpressionUUID->"6897aefc-66b5-4c38-8533-d58f43295a80"]
+Cell[29241, 688, 293, 5, 51, "Code",ExpressionUUID->"08a0ff79-53c2-4f86-91d8-1e9a88f7b95b"],
+Cell[29537, 695, 221, 3, 33, "Output",ExpressionUUID->"b0b301fb-c632-47fe-9043-96d247cc83ea"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[29763, 704, 347, 6, 51, "Code",ExpressionUUID->"242c3253-4306-4604-96c1-09d8975cc27a"],
-Cell[30113, 712, 198, 3, 33, "Output",ExpressionUUID->"71e326c3-6ec8-4acc-a6d8-7e33ccae1f6d"]
+Cell[29795, 703, 347, 6, 51, "Code",ExpressionUUID->"242c3253-4306-4604-96c1-09d8975cc27a"],
+Cell[30145, 711, 222, 3, 33, "Output",ExpressionUUID->"6edf1ec3-9325-4c37-8dee-d0060331a1ef"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[30348, 720, 297, 5, 51, "Code",ExpressionUUID->"acbfaf0a-e3c9-4775-8087-66f32d13d86a"],
-Cell[30648, 727, 198, 3, 33, "Output",ExpressionUUID->"46e14dc3-4c75-42ce-bf70-ca74fde5f44d"]
+Cell[30404, 719, 297, 5, 51, "Code",ExpressionUUID->"acbfaf0a-e3c9-4775-8087-66f32d13d86a"],
+Cell[30704, 726, 220, 3, 33, "Output",ExpressionUUID->"3542751a-39b4-4b0c-906a-d602a45d2dd6"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[30883, 735, 296, 6, 51, "Code",ExpressionUUID->"aaf02966-74af-400e-886d-4ca1d8102e20"],
-Cell[31182, 743, 225, 4, 33, "Output",ExpressionUUID->"b41e4b29-e1e7-4b28-b056-994c20e43119"]
+Cell[30961, 734, 345, 7, 51, "Code",ExpressionUUID->"aaf02966-74af-400e-886d-4ca1d8102e20"],
+Cell[31309, 743, 247, 4, 33, "Output",ExpressionUUID->"c9546484-6906-471a-879c-f215d4f6e87f"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[31444, 752, 255, 4, 51, "Code",ExpressionUUID->"4867b584-1316-4321-94fe-015d41e3eea6"],
-Cell[31702, 758, 151, 2, 33, "Output",ExpressionUUID->"b58958df-bc54-4ae3-ae3f-d2e6f385f564"]
+Cell[31593, 752, 255, 4, 51, "Code",ExpressionUUID->"4867b584-1316-4321-94fe-015d41e3eea6"],
+Cell[31851, 758, 173, 2, 33, "Output",ExpressionUUID->"be1e5e32-0d86-495e-b8a7-effed6564f6c"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[31890, 765, 266, 4, 51, "Code",ExpressionUUID->"c7650071-7f85-424d-b644-5c7632606f2f"],
-Cell[32159, 771, 2656, 56, 45, "Output",ExpressionUUID->"ae89b662-edc7-4825-af79-a22d320eab52"]
+Cell[32061, 765, 256, 4, 51, "Code",ExpressionUUID->"e7553185-3811-4512-8721-78792cefae43"],
+Cell[32320, 771, 159, 2, 33, "Output",ExpressionUUID->"6556eb5b-3e08-47c4-8baf-b4afea11fadd"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[34852, 832, 2791, 58, 41, "Input",ExpressionUUID->"473b931d-3b6b-4fe7-b67c-71251be25f07"],
-Cell[37646, 892, 666, 9, 584, "Output",ExpressionUUID->"bc4ce6ef-af10-4146-a73c-d4a29604d8a9"]
+Cell[32516, 778, 266, 4, 51, "Code",ExpressionUUID->"c7650071-7f85-424d-b644-5c7632606f2f"],
+Cell[32785, 784, 2680, 56, 45, "Output",ExpressionUUID->"613229d2-ccc6-4d6a-9d6c-2fe3f5821063"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[38349, 906, 256, 4, 51, "Code",ExpressionUUID->"e7553185-3811-4512-8721-78792cefae43"],
-Cell[38608, 912, 180, 2, 33, "Output",ExpressionUUID->"dff924de-6bb4-426e-99ea-b96561a603ef"]
+Cell[35502, 845, 331, 7, 51, "Code",ExpressionUUID->"e5c4d9ab-2bc5-4a79-ad4a-7b3b534bf443"],
+Cell[35836, 854, 173, 3, 33, "Output",ExpressionUUID->"eb61d552-e209-4fe1-a56e-79b53b65b665"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[38825, 919, 267, 4, 29, "Input",ExpressionUUID->"36df9eea-8ec1-4261-bbde-35f054072ac7"],
-Cell[39095, 925, 351, 9, 26, "Message",ExpressionUUID->"9fb41b33-4dc4-41da-978f-adab4295aa1b"],
-Cell[39449, 936, 247, 4, 33, "Output",ExpressionUUID->"75f327f5-2b80-4935-9c92-64797b45c3c3"]
+Cell[36046, 862, 254, 4, 51, "Code",ExpressionUUID->"31ce7206-9248-4da2-b293-5e68daa58453"],
+Cell[36303, 868, 153, 2, 33, "Output",ExpressionUUID->"e1f428cb-38bd-4387-a82c-9bf8f8432ba9"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[39733, 945, 228, 3, 51, "Code",ExpressionUUID->"c1025e9d-2044-4bc1-8977-7e47fb801a76"],
-Cell[39964, 950, 149, 2, 33, "Output",ExpressionUUID->"17434cd6-9d3c-4e40-a098-cb6df3efa56c"]
+Cell[36493, 875, 331, 7, 51, "Code",ExpressionUUID->"fb68be49-2582-4802-8d68-fbe9d3a7d300"],
+Cell[36827, 884, 173, 3, 33, "Output",ExpressionUUID->"2ce44ead-0ef9-4784-88bf-726e84836bfb"]
 }, Open  ]],
-Cell[40128, 955, 80, 0, 51, "Code",ExpressionUUID->"78c566f0-2e1c-4c61-9f68-68cf99c50bf4"],
 Cell[CellGroupData[{
-Cell[40233, 959, 195, 3, 51, "Code",ExpressionUUID->"0ba16f1c-c589-457c-a954-5cf76223057a"],
-Cell[40431, 964, 12827, 291, 212, "Output",ExpressionUUID->"c06878ab-7f27-4eee-b9f5-fb3732de04e8"]
+Cell[37037, 892, 264, 4, 51, "Code",ExpressionUUID->"ba48d2d2-88b9-4a2e-a704-da2a83b7a908"],
+Cell[37304, 898, 2654, 56, 45, "Output",ExpressionUUID->"7dbcf8c1-0689-4841-a993-de21a232181c"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[39995, 959, 2797, 58, 41, "Input",ExpressionUUID->"0be8c17b-193f-4501-ae63-ed17ff20840f"],
+Cell[42795, 1019, 667, 9, 584, "Output",ExpressionUUID->"d7a803cb-635a-4617-a74c-1f2ad1ca2480"]
 }, Open  ]]
 }, Open  ]]
 }
