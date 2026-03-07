@@ -653,11 +653,11 @@ DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args
 DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]); // socket for binding
     uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
-    struct addrinfo *address = (struct addrinfo*)addressInfoPtr;
+    struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
 
     bool successState = 0;
 
-    if (address == NULL) {
+    if (addressInfo == NULL) {
         return LIBRARY_FUNCTION_ERROR;
     }
 
@@ -665,7 +665,7 @@ DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args,
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    int iResult = bind(socketId, address->ai_addr, (int)address->ai_addrlen);
+    int iResult = bind(socketId, addressInfo->ai_addr, (int)addressInfo->ai_addrlen);
     if (iResult == SOCKET_ERROR) {
         return LIBRARY_FUNCTION_ERROR;
     }
@@ -923,14 +923,14 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
     int timeout = (int)MArgument_getInteger(Args[2]); // timeout in microseconds
 
     int err;
-    SOCKET *socketIds = (SOCKET*)libData->MTensor_getIntegerData(sockets);
+    mint *socketIds = libData->MTensor_getIntegerData(sockets);
     SOCKET socketId;
     SOCKET maxFd = 0;
     fd_set readfds;
     FD_ZERO(&readfds);
 
     for (size_t i = 0; i < length; i++) {
-        socketId = socketIds[i];
+        socketId = (SOCKET)socketIds[i];
         if (socketId > maxFd) maxFd = socketId;
         FD_SET(socketId, &readfds);
     }
@@ -944,13 +944,13 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
         mint len = (mint)result;
         MTensor readySocketsTensor;
         libData->MTensor_new(MType_Integer, 1, &len, &readySocketsTensor);
-        SOCKET *readySockets = (SOCKET*)libData->MTensor_getIntegerData(readySocketsTensor);
+        mint *readySockets = libData->MTensor_getIntegerData(readySocketsTensor);
 
         int j = 0;
         for (size_t i = 0; i < length; i++) {
-            socketId = socketIds[i];
+            socketId = (SOCKET)socketIds[i];
             if (FD_ISSET(socketId, &readfds)) { 
-                readySockets[j] = socketId;
+                readySockets[j] = (mint)socketId;
                 j++;
             }
         }
