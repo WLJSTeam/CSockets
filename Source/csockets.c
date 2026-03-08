@@ -1062,6 +1062,12 @@ void socketsSelectLoopTask(mint taskId, void *taskArgs) {
     SOCKET maxfd;
     SOCKET socketId;
     int length;
+    mint *readySockets;
+    size_t j;
+    MTensor readySocketsTensor;
+    struct timeval tv;
+    mint len;
+    DataStore dataStore;
 
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
     {
@@ -1077,16 +1083,14 @@ void socketsSelectLoopTask(mint taskId, void *taskArgs) {
             }
         }
 
-        struct timeval tv;
         tv.tv_sec  = timeout / 1000000;
         tv.tv_usec = timeout % 1000000;
 
         int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
         if (result >= 0) {
-            mint len = (mint)result;
-            MTensor readySocketsTensor;
+            len = (mint)result;
             libData->MTensor_new(MType_Integer, 1, &len, &readySocketsTensor);
-            mint *readySockets = libData->MTensor_getIntegerData(readySocketsTensor);
+            readySockets = libData->MTensor_getIntegerData(readySocketsTensor);
             size_t j = 0;
 
             for (size_t i = 0; i < length; i++) {
@@ -1097,7 +1101,9 @@ void socketsSelectLoopTask(mint taskId, void *taskArgs) {
                 }
             }
 
-            
+            dataStore = libData->ioLibraryFunctions->createDataStore();
+            libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readySocketsTensor);
+            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "socketsSelectLoopTask", dataStore);
         }
     }
 
