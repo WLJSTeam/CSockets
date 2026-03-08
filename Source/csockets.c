@@ -1,5 +1,3 @@
-#pragma region header
-
 #undef UNICODE
 
 #define _DEBUG 1
@@ -75,13 +73,15 @@
 #include "WolframRawArrayLibrary.h"
 #include "WolframImageLibrary.h"
 
-typedef struct SocketList_st *SocketList;
+typedef struct SocketList_st {
+    SOCKET *sockets;
+    size_t capacity;
+    size_t length;
+} *SocketList;
 
-typedef struct Server_st *Server;
+typedef struct Server_st {
 
-#pragma endregion
-
-#pragma region internal
+} *Server;
 
 static char* getCurrentTime() {
     static char time_buffer[64];
@@ -465,10 +465,6 @@ static const bool socketValidQ(SOCKET socketId) {
     return result >= 0 || errno != EBADF;
     #endif
 }
-
-#pragma endregion
-
-#pragma region public
 
 DLLEXPORT mint WolframLibrary_getVersion() {
     return WolframLibraryVersion;
@@ -964,21 +960,17 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
     }
 }
 
-#pragma endregion
-
-#pragma region
-
-typedef struct SocketSelectTaskArgs_st
+typedef struct SocketSelectArgs_st
 {
     WolframLibraryData libData; 
     SOCKET *sockets;
     size_t length;
     mint timeout;
-} *SocketSelectTaskArgs;
+} *SocketSelectArgs;
 
 
 void socketsSelectTask(mint taskId, void *taskArgs) {
-    SocketSelectTaskArgs socketSelectTaskArgs = (SocketSelectTaskArgs)taskArgs;
+    SocketSelectArgs socketSelectTaskArgs = (SocketSelectArgs)taskArgs;
     WolframLibraryData libData = socketSelectTaskArgs->libData;
 
     SOCKET *sockets = socketSelectTaskArgs->sockets;
@@ -1027,7 +1019,7 @@ void socketsSelectTask(mint taskId, void *taskArgs) {
     free(sockets);
 }
 
-DLLEXPORT int createSocketsSelectTask(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     MTensor sockets = MArgument_getMTensor(Args[0]); // list of sockets
     size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
     int timeout = (int)MArgument_getInteger(Args[2]); // timeout in microseconds
@@ -1039,7 +1031,7 @@ DLLEXPORT int createSocketsSelectTask(WolframLibraryData libData, mint Argc, MAr
         socketIds[i] = (SOCKET)socketsData[i];
     }
 
-    SocketSelectTaskArgs taskArgs = malloc(sizeof(struct SocketSelectTaskArgs_st));
+    SocketSelectArgs taskArgs = malloc(sizeof(struct SocketSelectArgs_st));
     
     taskArgs->libData = libData;
     taskArgs->sockets = socketIds;
@@ -1052,4 +1044,64 @@ DLLEXPORT int createSocketsSelectTask(WolframLibraryData libData, mint Argc, MAr
     return LIBRARY_NO_ERROR;
 }
 
-#pragma endregion
+typedef struct SocketSelectLoopArgs_st {
+    WolframLibraryData libData;
+    SocketList socketList;
+    mint timeout;
+} *SocketSelectLoopArgs;
+
+void socketsSelectLoopTask(mint taskId, void *taskArgs) {
+    SocketSelectLoopArgs args = (SocketSelectLoopArgs)taskArgs;
+
+    WolframLibraryData libData = args->libData;
+    SocketList socketList = args->socketList;
+    mint timeout = args->timeout;
+
+    fd_set readfd;
+    SOCKET *sockets;
+    SOCKET maxfd;
+    SOCKET socketId;
+    int length;
+
+    while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
+    {
+        FD_ZERO(&readfd);
+        length = socketList->length;
+        sockets = socketList->sockets;
+
+        for (size_t i = 0; i < length; i++) {
+            socketId = sockets[i];
+            FD_SET(socketId, &readfd);
+            if (maxfd < socketId) {
+                maxfd = socketId;
+            }
+        }
+
+        struct timeval tv;
+        tv.tv_sec  = timeout / 1000000;
+        tv.tv_usec = timeout % 1000000;
+
+        int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
+        if (result >= 0) {
+            mint len = (mint)result;
+        }
+    }
+
+    free(taskArgs);
+}
+
+DLLEXPORT int socketsSelectLoopAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    SocketList socketList = (SocketList)MArgument_getInteger(Args[0]); // socket list struct
+    mint timeout = MArgument_getInteger(Args[1]);
+
+    SocketSelectLoopArgs taskArgs = malloc(sizeof(struct SocketSelectLoopArgs_st));
+    
+    taskArgs->libData = libData;
+    taskArgs->socketList = socketList;
+    taskArgs->timeout = timeout;
+
+    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketsSelectLoopTask, (void *)taskArgs);
+
+    MArgument_setInteger(Res, taskId);
+    return LIBRARY_NO_ERROR;
+}
