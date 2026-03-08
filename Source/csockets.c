@@ -1084,6 +1084,20 @@ void socketsSelectLoopTask(mint taskId, void *taskArgs) {
         int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
         if (result >= 0) {
             mint len = (mint)result;
+            MTensor readySocketsTensor;
+            libData->MTensor_new(MType_Integer, 1, &len, &readySocketsTensor);
+            mint *readySockets = libData->MTensor_getIntegerData(readySocketsTensor);
+            size_t j = 0;
+
+            for (size_t i = 0; i < length; i++) {
+                socketId = sockets[i];
+                if (FD_ISSET(socketId, &readfd)) {
+                    readySockets[j] = (mint)socketId;
+                    j++;
+                }
+            }
+
+            
         }
     }
 
