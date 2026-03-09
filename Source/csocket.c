@@ -157,8 +157,6 @@ DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Arg
     unlockGlobalMutex();
     
     if (client == INVALID_SOCKET) {
-        int err = GETSOCKETERRNO();
-        acceptErrorMessage(libData, err);
         return LIBRARY_FUNCTION_ERROR;
     }
 
@@ -186,8 +184,6 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
         return LIBRARY_NO_ERROR;
     }
     
-    int err = GETSOCKETERRNO();
-    recvErrorMessage(libData, err);
     return LIBRARY_FUNCTION_ERROR;
 }
 
@@ -215,8 +211,6 @@ DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *A
         return LIBRARY_NO_ERROR;
     }
     
-    int err = GETSOCKETERRNO();
-    recvErrorMessage(libData, err);
     return LIBRARY_FUNCTION_ERROR;
 }
 
@@ -239,9 +233,6 @@ DLLEXPORT int socketSend(WolframLibraryData libData, mint Argc, MArgument *Args,
     }
 
     libData->numericarrayLibraryFunctions->MNumericArray_disown(mArr);
-    int err = GETSOCKETERRNO();
-
-    sendErrorMessage(libData, err);
     return LIBRARY_FUNCTION_ERROR;
 }
 
@@ -264,8 +255,6 @@ DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument 
 
     libData->UTF8String_disown(dataString);
     
-    int err = GETSOCKETERRNO();
-    sendErrorMessage(libData, err);
     return LIBRARY_FUNCTION_ERROR;
 }
 
@@ -344,8 +333,6 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
         MArgument_setMTensor(Res, readySocketsTensor);
         return LIBRARY_NO_ERROR;
     } else {
-        err = GETSOCKETERRNO();
-        selectErrorMessage(libData, err);
         return LIBRARY_FUNCTION_ERROR;
     }
 }

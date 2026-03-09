@@ -53,8 +53,8 @@
     #define BYTE uint8_t
     #define BOOL int
     typedef pthread_mutex_t Mutex;
-    extern Mutex globalMutex;
     #define MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
+    extern Mutex globalMutex;
     #define SLEEP usleep
 #endif
 

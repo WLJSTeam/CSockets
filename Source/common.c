@@ -1,5 +1,7 @@
 #include "common.h"
 
+Mutex globalMutex = MUTEX_INITIALIZER;
+
 char* getCurrentTime() {
     static char time_buffer[64];
     time_t rawtime;

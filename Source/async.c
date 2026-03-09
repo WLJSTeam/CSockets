@@ -1,14 +1,5 @@
 #include "async.h"
 
-typedef struct SocketSelectArgs_st
-{
-    WolframLibraryData libData; 
-    SOCKET *sockets;
-    size_t length;
-    mint timeout;
-} *SocketSelectArgs;
-
-
 void socketsSelectTask(mint taskId, void *taskArgs) {
     SocketSelectArgs socketSelectTaskArgs = (SocketSelectArgs)taskArgs;
     WolframLibraryData libData = socketSelectTaskArgs->libData;
@@ -83,12 +74,6 @@ DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgumen
     MArgument_setInteger(Res, taskId);
     return LIBRARY_NO_ERROR;
 }
-
-typedef struct SocketSelectLoopArgs_st {
-    WolframLibraryData libData;
-    SocketList socketList;
-    mint timeout;
-} *SocketSelectLoopArgs;
 
 void socketsSelectLoopTask(mint taskId, void *taskArgs) {
     SocketSelectLoopArgs args = (SocketSelectLoopArgs)taskArgs;
