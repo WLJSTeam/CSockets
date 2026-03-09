@@ -1,3 +1,7 @@
+#ifndef COMMON_H
+#define COMMON_H
+#endif
+
 #undef UNICODE
 
 #define _DEBUG 1

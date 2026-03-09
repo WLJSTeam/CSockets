@@ -43,13 +43,12 @@ void initGlobalMutex() {
     #if defined(_WIN32)
         globalMutex = CreateMutex(NULL, FALSE, NULL);
     #else
-        Mutex mutex = PTHREAD_MUTEX_INITIALIZER;
-        globalMutex = mutex;
+        pthread_mutex_init(&globalMutex, NULL);
     #endif
 }
 
 void closeGlobalMutex() {
-    #if defined(_WIN32) || defined(_WIN64)
+    #if defined(_WIN32)
     CloseHandle(globalMutex);
     #else
     pthread_mutex_destroy(&globalMutex);
@@ -76,9 +75,7 @@ void initWSA() {
     #ifdef _WIN32
     int iResult;
     WSADATA wsaData;
-
-    iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
-    if (iResult != 0) return LIBRARY_FUNCTION_ERROR;
+    WSAStartup(MAKEWORD(2,2), &wsaData);
     #endif
 }
 

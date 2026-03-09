@@ -3,6 +3,11 @@
 /*socketBufferCreate[bufferSize] -> bufferPtr*/
 DLLEXPORT int socketBufferCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     mint bufferSize = (mint)MArgument_getInteger(Args[0]);
+
+    if (bufferSize <= 0) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
     BYTE *buffer = malloc(bufferSize * sizeof(BYTE));
     if (!buffer) {
         return LIBRARY_FUNCTION_ERROR;
