@@ -150,3 +150,81 @@ DLLEXPORT int socketsSelectLoopAsync(WolframLibraryData libData, mint Argc, MArg
     MArgument_setInteger(Res, taskId);
     return LIBRARY_NO_ERROR;
 }
+
+void serverLoopTask(mint taskId, void *taskArgs) {
+    ServerLoopArgs args = (ServerLoopArgs)taskArgs;
+    WolframLibraryData libData = args->libData;
+    SocketList listenSockets = args->listenSockets;
+    SocketList clientSockets = args->clientSockets;
+    SOCKET interrupter = args->interrupter;
+    mint timeout = args->timeout;
+
+    fd_set readfd;
+    SOCKET *sockets;
+    SOCKET maxfd;
+    SOCKET socketId;
+    int length;
+    mint *readySockets;
+    size_t j;
+    MTensor readySocketsTensor;
+    struct timeval tv;
+    mint len;
+    DataStore dataStore;
+
+    while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
+    {
+        tv.tv_sec  = timeout / 1000000;
+        tv.tv_usec = timeout % 1000000;
+
+        FD_ZERO(&readfd);
+        length = listenSockets->length;
+        sockets = listenSockets->sockets;
+
+        maxfd = interrupter;
+        FD_SET(interrupter, &readfd);
+
+        for (size_t i = 0; i < length; i++) {
+            socketId = sockets[i];
+            FD_SET(socketId, &readfd);
+            if (maxfd < socketId) {
+                maxfd = socketId;
+            }
+        }
+
+        length = clientSockets->length;
+        sockets = clientSockets->sockets;
+
+        for (size_t i = 0; i < length; i++) {
+            socketId = sockets[i];
+            FD_SET(socketId, &readfd);
+            if (maxfd < socketId) {
+                maxfd = socketId;
+            }
+        }
+
+        int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
+        if (result >= 0) {
+            
+        }
+    }
+    
+}
+
+DLLEXPORT int createServerLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    SocketList listenSockets = (SocketList)MArgument_getInteger(Args[0]);
+    SocketList clientSockets = (SocketList)MArgument_getInteger(Args[1]);
+    SOCKET interrupter = (SOCKET)MArgument_getInteger(Args[2]);
+    mint timeout = MArgument_getInteger(Args[3]);
+
+    ServerLoopArgs serverLoopArgs = malloc(sizeof(struct ServerLoopArgs_st));
+    serverLoopArgs->libData = libData;
+    serverLoopArgs->listenSockets = listenSockets;
+    serverLoopArgs->clientSockets = clientSockets;
+    serverLoopArgs->interrupter = interrupter;
+    serverLoopArgs->timeout = timeout;
+
+    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(serverLoopTask, (void *)serverLoopArgs);
+
+    MArgument_setInteger(Res, taskId);
+    return LIBRARY_NO_ERROR;
+}
