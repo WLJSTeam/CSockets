@@ -219,7 +219,7 @@ LibraryFunctionLoad[$libFile, "socketsSelect", {{Integer, 1}, Integer, Integer},
 
 
 createSocketsSelectTask = 
-LibraryFunctionLoad[$libFile, "createSocketsSelectTask", {{Integer, 1}, Integer, Integer}, Integer];
+LibraryFunctionLoad[$libFile, "socketsSelectAsync", {{Integer, 1}, Integer, Integer}, Integer];
 
 
 End[];
