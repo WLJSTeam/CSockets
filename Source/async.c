@@ -27,7 +27,7 @@ void socketsSelectTask(mint taskId, void *taskArgs) {
         DataStore dataStore;
         libData->ioLibraryFunctions->createDataStore();
         libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readySockets);
-        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "socketsSelectTask", dataStore);
+        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReadySockets", dataStore);
         libData->MTensor_free(readySockets);
     }
 
