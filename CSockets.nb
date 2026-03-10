@@ -23,10 +23,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[      1060,         20]
-NotebookDataLength[      9634,        239]
-NotebookOptionsPosition[      8515,        215]
-NotebookOutlinePosition[      8919,        231]
-CellTagsIndexPosition[      8876,        228]
+NotebookDataLength[      9733,        242]
+NotebookOptionsPosition[      8613,        218]
+NotebookOutlinePosition[      9017,        234]
+CellTagsIndexPosition[      8974,        231]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -204,7 +204,10 @@ Cell["UDP + echotool", "Section",
   3.982135686997965*^9}},ExpressionUUID->"5ca7bc52-7522-2b42-a3cd-\
 bfbd0f6b6727"],
 
-Cell[BoxData[""], "Code",ExpressionUUID->"3ab0c3b5-9830-7041-9e94-ea7d3237f96e"],
+Cell[BoxData["socketAddressInfoCreate"], "Code",
+ CellChangeTimes->{{3.9821357155023956`*^9, 
+  3.9821357200874176`*^9}},ExpressionUUID->"3ab0c3b5-9830-7041-9e94-\
+ea7d3237f96e"],
 
 Cell[BoxData[
  RowBox[{"address", " ", "=", " ", "socketAddressCreate"}]], "Code",
@@ -251,8 +254,8 @@ Cell[5715, 143, 2294, 53, 313, "Code",ExpressionUUID->"f3ee41cc-b27d-4a06-97af-7
 }, Closed]],
 Cell[CellGroupData[{
 Cell[8046, 201, 159, 3, 52, "Section",ExpressionUUID->"5ca7bc52-7522-2b42-a3cd-bfbd0f6b6727"],
-Cell[8208, 206, 80, 0, 50, "Code",ExpressionUUID->"3ab0c3b5-9830-7041-9e94-ea7d3237f96e"],
-Cell[8291, 208, 208, 4, 50, "Code",ExpressionUUID->"35249723-ce0b-0643-b28d-5641e3a0bb6a"]
+Cell[8208, 206, 178, 3, 50, "Code",ExpressionUUID->"3ab0c3b5-9830-7041-9e94-ea7d3237f96e"],
+Cell[8389, 211, 208, 4, 50, "Code",ExpressionUUID->"35249723-ce0b-0643-b28d-5641e3a0bb6a"]
 }, Open  ]]
 }
 ]
