@@ -6,23 +6,23 @@ char* getCurrentTime() {
     static char time_buffer[64];
     time_t rawtime;
     struct tm* timeinfo;
-    
+
     time(&rawtime);
     timeinfo = localtime(&rawtime);
-    
+
     strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
-    
+
     #ifdef _WIN32
     SYSTEMTIME st;
     GetSystemTime(&st);
-    snprintf(time_buffer + strlen(time_buffer), 
-             sizeof(time_buffer) - strlen(time_buffer), 
+    snprintf(time_buffer + strlen(time_buffer),
+             sizeof(time_buffer) - strlen(time_buffer),
              ".%03d", st.wMilliseconds);
     #else
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    snprintf(time_buffer + strlen(time_buffer), 
-             sizeof(time_buffer) - strlen(time_buffer), 
+    snprintf(time_buffer + strlen(time_buffer),
+             sizeof(time_buffer) - strlen(time_buffer),
              ".%06ld", (long)(tv.tv_usec));
     #endif
 
@@ -133,4 +133,25 @@ bool socketValidQ(SOCKET socketId) {
     int result = fcntl(socketId, F_GETFL);
     return result >= 0 || errno != EBADF;
     #endif
+}
+
+inline struct timeval new_tv(long long usec) {
+    struct timeval tv = {
+        .tv_sec = usec / USEC_PER_SEC,
+        .tv_usec = usec % USEC_PER_SEC
+    };
+    return tv;
+}
+
+mint filterFdset(fd_set *set, SOCKET *input, SOCKET *result, mint length) {
+    SOCKET socketId;
+    mint j = 0;
+    for (mint i = 0; i < length; i++) {
+        socketId = input[i];
+        if (FD_ISSET(socketId, set)) {
+            result[j] = socketId;
+            j++;
+        }
+    }
+    return j;
 }

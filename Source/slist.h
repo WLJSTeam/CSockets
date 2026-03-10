@@ -13,9 +13,13 @@ DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument 
 
 DLLEXPORT int socketListRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
 
-DLLEXPORT int socketListAddt(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
+DLLEXPORT int socketListAdd(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
+
+DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
 
 DLLEXPORT int socketListClear(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
+
+int slistFdset(SocketList socketList, fd_set *set, int initmaxfd);
 
 void slistAdd(SocketList slist, SOCKET socketId);
 

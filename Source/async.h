@@ -2,6 +2,7 @@
 #define ASYNC_H
 
 #include "common.h"
+#include "slist.h"
 
 typedef struct SocketsSelectArgs_st
 {
@@ -28,10 +29,11 @@ DLLEXPORT int createSocketsSelectLoop(WolframLibraryData libData, mint Argc, MAr
 typedef struct ServerLoopArgs_st
 {
     WolframLibraryData libData;
-    SocketList listenSockets;
-    SocketList clientSockets;
+    SocketList acceptSockets;
+    SocketList recvSockets;
+    SocketList recvFromSockets;
     BYTE *buffer;
-    int bufferSize;
+    mint bufferSize;
     mint timeout;
     SOCKET interrupter;
 } *ServerLoopArgs;

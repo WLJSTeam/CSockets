@@ -7,6 +7,7 @@
 #define FD_SETSIZE 4096
 #define SECOND 1000000
 #define MININTERVAL 1000
+#define USEC_PER_SEC 1000000L
 
 #define RESET "\033[0m"
 #define RED "\033[91m"
@@ -97,5 +98,9 @@ int setBlockingMode(SOCKET socketId, bool blockingMode);
 bool blockingModeQ(SOCKET socketId);
 
 bool socketValidQ(SOCKET socketId);
+
+inline struct timeval new_tv(long long usec);
+
+mint filterFdset(fd_set *set, SOCKET *input, SOCKET *result, mint length);
 
 #endif

@@ -1,5 +1,9 @@
 #include "async.h"
 
+void pushTensor(WolframLibraryData libData, mint taskId, SOCKET *sockets) {
+
+}
+
 void socketsSelectTask(mint taskId, void *taskArgs) {
     SocketsSelectArgs socketsSelectTaskArgs = (SocketsSelectArgs)taskArgs;
     WolframLibraryData libData = socketsSelectTaskArgs->libData;
@@ -10,34 +14,25 @@ void socketsSelectTask(mint taskId, void *taskArgs) {
     SOCKET socketId;
     SOCKET maxFd = 0;
 
-    fd_set readfds;
-    FD_ZERO(&readfds);
+    struct timeval tv = new_tv(timeout);
+
+    fd_set readfd;
+    FD_ZERO(&readfd);
 
     for (size_t i = 0; i < length; i++) {
         socketId = sockets[i];
         if (socketId > maxFd) maxFd = socketId;
-        FD_SET(socketId, &readfds);
+        FD_SET(socketId, &readfd);
     }
 
-    struct timeval tv;
-    tv.tv_sec  = timeout / 1000000;
-    tv.tv_usec = timeout % 1000000;
-
-    int result = select((int)(maxFd + 1), &readfds, NULL, NULL, &tv);
+    int result = select((int)(maxFd + 1), &readfd, NULL, NULL, &tv);
     if (result >= 0) {
         mint len = (mint)result;
         MTensor readySocketsTensor;
         libData->MTensor_new(MType_Integer, 1, &len, &readySocketsTensor);
         mint *readySockets = libData->MTensor_getIntegerData(readySocketsTensor);
 
-        int j = 0;
-        for (size_t i = 0; i < length; i++) {
-            socketId = sockets[i];
-            if (FD_ISSET(socketId, &readfds)) {
-                readySockets[j] = (mint)socketId;
-                j++;
-            }
-        }
+        filterFdset(&readfd, sockets, readySockets, length);
 
         DataStore dataStore;
         libData->ioLibraryFunctions->createDataStore();
@@ -95,35 +90,20 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
 
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
     {
-        FD_ZERO(&readfd);
         length = socketList->length;
         sockets = socketList->sockets;
 
-        for (size_t i = 0; i < length; i++) {
-            socketId = sockets[i];
-            FD_SET(socketId, &readfd);
-            if (maxfd < socketId) {
-                maxfd = socketId;
-            }
-        }
-
-        tv.tv_sec  = timeout / 1000000;
-        tv.tv_usec = timeout % 1000000;
+        FD_ZERO(&readfd);
+        maxfd = slistFdset(socketList, &readfd, 0);
+        tv = new_tv(timeout);
 
         int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
         if (result >= 0) {
             len = (mint)result;
             libData->MTensor_new(MType_Integer, 1, &len, &readySocketsTensor);
             readySockets = libData->MTensor_getIntegerData(readySocketsTensor);
-            size_t j = 0;
 
-            for (size_t i = 0; i < length; i++) {
-                socketId = sockets[i];
-                if (FD_ISSET(socketId, &readfd)) {
-                    readySockets[j] = (mint)socketId;
-                    j++;
-                }
-            }
+            filterFdset(&readfd, sockets, readySockets, length);
 
             dataStore = libData->ioLibraryFunctions->createDataStore();
             libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readySocketsTensor);
@@ -153,8 +133,9 @@ DLLEXPORT int createSocketsSelectLoop(WolframLibraryData libData, mint Argc, MAr
 void serverLoop(mint taskId, void *taskArgs) {
     ServerLoopArgs args = (ServerLoopArgs)taskArgs;
     WolframLibraryData libData = args->libData;
-    SocketList listenSockets = args->listenSockets;
-    SocketList clientSockets = args->clientSockets;
+    SocketList acceptSockets = args->acceptSockets;
+    SocketList recvSockets = args->recvSockets;
+    SocketList recvFromSockets = args->recvFromSockets;
     SOCKET interrupter = args->interrupter;
     BYTE *buffer = args->buffer;
     int bufferSize = args->bufferSize;
@@ -179,30 +160,13 @@ void serverLoop(mint taskId, void *taskArgs) {
         tv.tv_usec = timeout % 1000000;
 
         FD_ZERO(&readfd);
-        length = listenSockets->length;
-        sockets = listenSockets->sockets;
 
         maxfd = interrupter;
         FD_SET(interrupter, &readfd);
 
-        for (size_t i = 0; i < length; i++) {
-            socketId = sockets[i];
-            FD_SET(socketId, &readfd);
-            if (maxfd < socketId) {
-                maxfd = socketId;
-            }
-        }
-
-        length = clientSockets->length;
-        sockets = clientSockets->sockets;
-
-        for (size_t i = 0; i < length; i++) {
-            socketId = sockets[i];
-            FD_SET(socketId, &readfd);
-            if (maxfd < socketId) {
-                maxfd = socketId;
-            }
-        }
+        maxfd = slistFdset(acceptSockets, &readfd, maxfd);
+        maxfd = slistFdset(recvSockets, &readfd, maxfd);
+        maxfd = slistFdset(recvFromSockets, &readfd, maxfd);
 
         int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
         if (result >= 0) {
@@ -218,17 +182,19 @@ void serverLoop(mint taskId, void *taskArgs) {
 }
 
 DLLEXPORT int createServerLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    SocketList listenSockets = (SocketList)MArgument_getInteger(Args[0]);
-    SocketList clientSockets = (SocketList)MArgument_getInteger(Args[1]);
-    SOCKET interrupter = (SOCKET)MArgument_getInteger(Args[2]);
-    BYTE *buffer = (char *)MArgument_getInteger(Args[3]);
-    int bufferSize = (int)MArgument_getInteger(Args[4]);
-    mint timeout = MArgument_getInteger(Args[5]);
+    SocketList acceptSockets = (SocketList)MArgument_getInteger(Args[0]);
+    SocketList recvSockets = (SocketList)MArgument_getInteger(Args[1]);
+    SocketList recvFromSockets = (SocketList)MArgument_getInteger(Args[2]);
+    SOCKET interrupter = (SOCKET)MArgument_getInteger(Args[3]);
+    BYTE *buffer = (char *)MArgument_getInteger(Args[4]);
+    int bufferSize = (int)MArgument_getInteger(Args[5]);
+    mint timeout = MArgument_getInteger(Args[6]);
 
     ServerLoopArgs serverLoopArgs = malloc(sizeof(struct ServerLoopArgs_st));
     serverLoopArgs->libData = libData;
-    serverLoopArgs->listenSockets = listenSockets;
-    serverLoopArgs->clientSockets = clientSockets;
+    serverLoopArgs->acceptSockets = acceptSockets;
+    serverLoopArgs->recvSockets = recvSockets;
+    serverLoopArgs->recvFromSockets = recvFromSockets;
     serverLoopArgs->interrupter = interrupter;
     serverLoopArgs->buffer = buffer;
     serverLoopArgs->bufferSize = bufferSize;
