@@ -5,8 +5,8 @@
 
 typedef struct SocketList_st {
     SOCKET *sockets;
-    size_t capacity;
-    size_t length;
+    mint capacity;
+    mint length;
 } *SocketList;
 
 DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);

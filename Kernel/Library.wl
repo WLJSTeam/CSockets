@@ -47,9 +47,9 @@ socketBind::usage =
 
 socketSetOpt::usage =
 "socketSetOpt[socketId, level, optname, optval] returns success state == 1.
-    level:
-    optname:
-    optval: ";
+- level:
+- optname:
+- optval: ";
 
 
 socketGetOpt::usage =
@@ -60,13 +60,13 @@ socketGetOpt::usage =
 
 socketSetBlockingMode::usage =
 "socketSetBlockingMode[socketId, blockingMode] returns success state == 1.
-    blockingMode: blocking == 0 | non-blocking == 1";
+- blockingMode: blocking == 0 | non-blocking == 1";
 
 
 socketListen::usage =
 "socketListen[socketId, backlog] returns success state == 1.
-    socketId: only created with SOCK_STEAM type
-    backlog: client store size for acception";
+- socketId: only created with SOCK_STEAM type
+- backlog: client store size for acception";
 
 
 socketConnect::usage =
@@ -75,17 +75,17 @@ socketConnect::usage =
 
 socketAccept::usage =
 "socketAccept[socketId] returns client socket id.
-    socketId: only listening socket";
+- socketId: only listening socket";
 
 
 socketRecv::usage =
 "socketRecv[socketId, bufferPointer, bufferSize] returns byte array.
-    socketId: except listening sockets";
+- socketId: except listening sockets";
 
 
 socketRecvFrom::usage =
 "socketRecvFrom[socketId, bufferPointer, bufferSize, addressPointer] returns byte array.
-    addressPointer: contains remote client address when data will receive.";
+- addressPointer: contains remote client address when data will receive.";
 
 
 socketSend::usage =
@@ -97,22 +97,22 @@ socketSendString::usage =
 
 
 socketSendTo::usage =
-"socketSendString[socketId, addressPtr, string, stringLength] returns size of the sent message == stringLength.";
+"socketSendString[socketId, addressInfo, byteArray, byteArrayLength] returns size of the sent message == byteArrayLength.";
 
 
 socketsCheck::usage =
 "socketsCheck[sockets, length] returns only valid sockets.
-    sockets: built-in List with socket ids.";
+- sockets: built-in List with socket ids.";
 
 
 socketsSelect::usage =
 "socketsSelect[sockets, length, timeout] returns list of ready socket ids.
-    sockets: built-in List with socket ids.";
+- sockets: built-in List with socket ids.";
 
 
 socketsSelectAsync::usage =
 "socketsSelectAsync[sockets, length, timeout] creates a thread where waits for sockets to be ready.
-    sockets: built-in List with socket ids."
+- sockets: built-in List with socket ids.";
 
 
 Begin["`Private`"];

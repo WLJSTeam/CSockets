@@ -67,9 +67,7 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
     SOCKET maxfd;
     SOCKET socketId;
     int length;
-    mint *readySockets;
     int result;
-    size_t j;
     MTensor readyTensor;
     struct timeval tv;
     mint dims;
@@ -88,9 +86,8 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
         if (result >= 0) {
             dims = (mint)result;
             libData->MTensor_new(MType_Integer, 1, &dims, &readyTensor);
-            readySockets = libData->MTensor_getIntegerData(readyTensor);
 
-            filterFdsetToArray(&readfd, sockets, readySockets, length);
+            filterFdsetToTensor(libData, &readfd, sockets, readyTensor, length);
 
             dataStore = libData->ioLibraryFunctions->createDataStore();
             libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readyTensor);
@@ -125,14 +122,15 @@ void serverLoop(mint taskId, void *taskArgs) {
     SocketList recvFromSockets = args->recvFromSockets;
     SOCKET interrupter = args->interrupter;
     BYTE *buffer = args->buffer;
-    int bufferSize = args->bufferSize;
+    mint bufferSize = args->bufferSize;
     mint timeout = args->timeout;
 
     fd_set readfd;
     SOCKET *sockets;
+    mint length;
     SOCKET maxfd;
     SOCKET socketId;
-    int length;
+    SOCKET clientId;
     mint *readySockets;
     size_t j;
     MTensor readySocketsTensor;
@@ -143,9 +141,7 @@ void serverLoop(mint taskId, void *taskArgs) {
 
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
     {
-        tv.tv_sec  = timeout / 1000000;
-        tv.tv_usec = timeout % 1000000;
-
+        tv = new_tv(timeout);
         FD_ZERO(&readfd);
         maxfd = interrupter;
         FD_SET(interrupter, &readfd);
@@ -159,7 +155,36 @@ void serverLoop(mint taskId, void *taskArgs) {
             if (FD_ISSET(interrupter, &readfd)) {
                 result = recv(interrupter, (char *)buffer, bufferSize, 0);
                 if (result > 0) {
+                    
+                } else {
 
+                }
+            }
+
+            length = acceptSockets->length;
+            sockets = acceptSockets->sockets;
+            for (mint i = 0; i < length; i++) {
+                socketId = sockets[i];
+                if (FD_ISSET(socketId, &readfd)) {
+                    clientId = accept(socketId, NULL, NULL);
+                    slistAdd(recvSockets, clientId);
+                    dataStore = libData->ioLibraryFunctions->createDataStore();
+                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)clientId);
+                    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "AcceptedClient", dataStore);
+                }
+            }
+
+            length = recvSockets->length;
+            sockets = recvSockets->sockets;
+            for (mint i = 0; i < length; i++) {
+                socketId = sockets[i];
+                if (FD_ISSET(socketId, &readfd)) {
+                    result = recv(socketId, buffer,bufferSize, 0);
+                    if (result > 0) {
+                        dataStore = libData->ioLibraryFunctions->createDataStore();
+                        libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)clientId);
+                        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "AcceptedClient", dataStore);
+                    }
                 }
             }
         }
@@ -172,8 +197,8 @@ DLLEXPORT int createServerLoop(WolframLibraryData libData, mint Argc, MArgument 
     SocketList recvSockets = (SocketList)MArgument_getInteger(Args[1]);
     SocketList recvFromSockets = (SocketList)MArgument_getInteger(Args[2]);
     SOCKET interrupter = (SOCKET)MArgument_getInteger(Args[3]);
-    BYTE *buffer = (char *)MArgument_getInteger(Args[4]);
-    int bufferSize = (int)MArgument_getInteger(Args[5]);
+    BYTE *buffer = (BYTE *)MArgument_getInteger(Args[4]);
+    mint bufferSize = MArgument_getInteger(Args[5]);
     mint timeout = MArgument_getInteger(Args[6]);
 
     ServerLoopArgs serverLoopArgs = malloc(sizeof(struct ServerLoopArgs_st));

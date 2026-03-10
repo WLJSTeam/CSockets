@@ -156,7 +156,7 @@ size_t filterFdsetToArray(fd_set *set, SOCKET *input, SOCKET *result, size_t len
     return j;
 }
 
-size_t filterFdsetToTensor(WolframLibraryData libData, fd_set *set, SOCKET *input, MTensor *result, size_t length) {
+size_t filterFdsetToTensor(WolframLibraryData libData, fd_set *set, SOCKET *input, MTensor result, size_t length) {
     mint *data = libData->MTensor_getIntegerData(result);
     SOCKET socketId;
     size_t j = 0;

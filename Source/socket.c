@@ -260,37 +260,24 @@ DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument 
 
 DLLEXPORT int socketSendTo(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
-    uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[1]);
-    struct sockaddr *address = (struct sockaddr*)addressPtr;
+    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]);
+    struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
 
-    MNumericArray mArr = MArgument_getMNumericArray(Args[2]);
-    int dataLength = (int)MArgument_getInteger(Args[3]);
+    MNumericArray dataByteArray = MArgument_getMNumericArray(Args[2]);
+    mint dataLength = MArgument_getInteger(Args[3]);
 
-    if (address == NULL || dataLength <= 0) {
-        if (mArr) libData->numericarrayLibraryFunctions->MNumericArray_disown(mArr);
+    if (addressInfo == NULL || dataLength <= 0) {
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    BYTE *data = (BYTE*)libData->numericarrayLibraryFunctions->MNumericArray_getData(mArr);
+    BYTE *data = (BYTE*)libData->numericarrayLibraryFunctions->MNumericArray_getData(dataByteArray);
     if (!data) {
-        libData->numericarrayLibraryFunctions->MNumericArray_disown(mArr);
         return LIBRARY_FUNCTION_ERROR;
-    }
-
-    socklen_t addrLen;
-    if (address->sa_family == AF_INET) {
-        addrLen = sizeof(struct sockaddr_in);
-    } else if (address->sa_family == AF_INET6) {
-        addrLen = sizeof(struct sockaddr_in6);
-    } else {
-        addrLen = sizeof(struct sockaddr_storage);
     }
 
     lockGlobalMutex();
-    int result = sendto(socketId, (const char*)data, dataLength, 0, address, addrLen);
+    int result = sendto(socketId, (const char*)data, dataLength, 0, addressInfo->ai_addr, addressInfo->ai_addrlen);
     unlockGlobalMutex();
-
-    libData->numericarrayLibraryFunctions->MNumericArray_disown(mArr);
 
     if (result > 0) {
         MArgument_setInteger(Res, result);
@@ -336,19 +323,27 @@ DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Arg
 /*socketsSelect[{sockets}, length, timeout] -> {readySockets}*/
 DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     MTensor sockets = MArgument_getMTensor(Args[0]); // list of sockets
-    size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
-    int timeout = (int)MArgument_getInteger(Args[2]); // timeout in microseconds
+    mint *socketArray = libData->MTensor_getIntegerData(sockets);
+    mint length = MArgument_getInteger(Args[1]); // number of sockets
+    mint timeout = MArgument_getInteger(Args[2]); // timeout in microseconds
 
     int err;
-    mint *socketIds = libData->MTensor_getIntegerData(sockets);
     SOCKET socketId;
     fd_set readfd;
-    FD_ZERO(&readfd);
     MTensor readySockets;
     mint dims;
 
-    SOCKET maxfd = fillFdsetFromArray(&readfd, socketIds, length, 0);
+    SOCKET *socketIds = malloc(sizeof(SOCKET) * length);
+    if (!socketIds) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
 
+    for (mint i = 0; i < length; i++) {
+        socketIds[i] = (SOCKET)socketArray[i];
+    }
+
+    FD_ZERO(&readfd);
+    SOCKET maxfd = fillFdsetFromArray(&readfd, socketIds, length, 0);
     struct timeval tv = new_tv(timeout);
 
     int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
@@ -357,10 +352,12 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
         libData->MTensor_new(MType_Integer, 1, &dims, &readySockets);
 
         filterFdsetToTensor(libData, &readfd, socketIds, readySockets, result);
+        free(socketIds);
 
         MArgument_setMTensor(Res, readySockets);
         return LIBRARY_NO_ERROR;
     } else {
+        free(socketIds);
         return LIBRARY_FUNCTION_ERROR;
     }
 }

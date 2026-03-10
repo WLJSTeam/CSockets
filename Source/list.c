@@ -58,7 +58,7 @@ DLLEXPORT int socketListAdd(WolframLibraryData libData, mint Argc, MArgument *Ar
 DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     SOCKET *sockets = socketList->sockets;
-    size_t length = socketList->length;
+    const mint length = socketList->length;
 
     MTensor socketsTensor;
     libData->MTensor_new(MType_Integer, 1, &length, &socketsTensor);

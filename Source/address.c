@@ -57,7 +57,9 @@ DLLEXPORT int socketAddressGet(WolframLibraryData libData, mint Argc, MArgument 
     uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[0]);
     struct addrinfo *addressInfo = (struct addrinfo *)addressInfoPtr;
 
-    if (addressInfo == NULL) return LIBRARY_FUNCTION_ERROR;
+    if (addressInfo == NULL) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
 
     struct sockaddr *address = addressInfo->ai_addr;
 
