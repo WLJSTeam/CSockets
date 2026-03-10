@@ -258,6 +258,48 @@ DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument 
     return LIBRARY_FUNCTION_ERROR;
 }
 
+DLLEXPORT int socketSendTo(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
+    uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[1]);
+    struct sockaddr *address = (struct sockaddr*)addressPtr;
+
+    MNumericArray mArr = MArgument_getMNumericArray(Args[2]);
+    int dataLength = (int)MArgument_getInteger(Args[3]);
+
+    if (address == NULL || dataLength <= 0) {
+        if (mArr) libData->numericarrayLibraryFunctions->MNumericArray_disown(mArr);
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    BYTE *data = (BYTE*)libData->numericarrayLibraryFunctions->MNumericArray_getData(mArr);
+    if (!data) {
+        libData->numericarrayLibraryFunctions->MNumericArray_disown(mArr);
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    socklen_t addrLen;
+    if (address->sa_family == AF_INET) {
+        addrLen = sizeof(struct sockaddr_in);
+    } else if (address->sa_family == AF_INET6) {
+        addrLen = sizeof(struct sockaddr_in6);
+    } else {
+        addrLen = sizeof(struct sockaddr_storage);
+    }
+
+    lockGlobalMutex();
+    int result = sendto(socketId, (const char*)data, dataLength, 0, address, addrLen);
+    unlockGlobalMutex();
+
+    libData->numericarrayLibraryFunctions->MNumericArray_disown(mArr);
+
+    if (result > 0) {
+        MArgument_setInteger(Res, result);
+        return LIBRARY_NO_ERROR;
+    }
+
+    return LIBRARY_FUNCTION_ERROR;
+}
+
 /*socketsCheck[{sockets}, length] -> validSockets*/
 DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     MTensor socketsTensor = MArgument_getMTensor(Args[0]); // list of sockets
