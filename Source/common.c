@@ -135,7 +135,7 @@ bool socketValidQ(SOCKET socketId) {
     #endif
 }
 
-inline struct timeval new_tv(long long usec) {
+struct timeval new_tv(long long usec) {
     struct timeval tv = {
         .tv_sec = usec / USEC_PER_SEC,
         .tv_usec = usec % USEC_PER_SEC
@@ -143,10 +143,10 @@ inline struct timeval new_tv(long long usec) {
     return tv;
 }
 
-mint filterFdset(fd_set *set, SOCKET *input, SOCKET *result, mint length) {
+size_t filterFdsetToArray(fd_set *set, SOCKET *input, SOCKET *result, size_t length) {
     SOCKET socketId;
-    mint j = 0;
-    for (mint i = 0; i < length; i++) {
+    size_t j = 0;
+    for (size_t i = 0; i < length; i++) {
         socketId = input[i];
         if (FD_ISSET(socketId, set)) {
             result[j] = socketId;
@@ -154,4 +154,40 @@ mint filterFdset(fd_set *set, SOCKET *input, SOCKET *result, mint length) {
         }
     }
     return j;
+}
+
+size_t filterFdsetToTensor(WolframLibraryData libData, fd_set *set, SOCKET *input, MTensor *result, size_t length) {
+    mint *data = libData->MTensor_getIntegerData(result);
+    SOCKET socketId;
+    size_t j = 0;
+    for (size_t i = 0; i < length; i++) {
+        socketId = input[i];
+        if (FD_ISSET(socketId, set)) {
+            result[j] = (mint)socketId;
+            j++;
+        }
+    }
+    return j;
+}
+
+SOCKET fillFdsetFromArray(fd_set *set, SOCKET *sockets, size_t length, SOCKET initmaxfd) {
+    SOCKET maxfd = initmaxfd;
+    SOCKET socketId;
+
+    for (size_t i = 0; i < length; i++) {
+        socketId = sockets[i];
+        FD_SET(socketId, set);
+        if (maxfd < socketId) {
+            maxfd = socketId;
+        }
+    }
+
+    return maxfd;
+}
+
+void copyTensorToSocketArray(WolframLibraryData libData, MTensor tensor, SOCKET *result, size_t length) {
+    mint *data = libData->MTensor_getIntegerData(tensor);
+    for (size_t i = 0; i < length; i++) {
+        result[i] = (SOCKET)data[i];
+    }
 }

@@ -1,9 +1,5 @@
 #include "async.h"
 
-void pushTensor(WolframLibraryData libData, mint taskId, SOCKET *sockets) {
-
-}
-
 void socketsSelectTask(mint taskId, void *taskArgs) {
     SocketsSelectArgs socketsSelectTaskArgs = (SocketsSelectArgs)taskArgs;
     WolframLibraryData libData = socketsSelectTaskArgs->libData;
@@ -12,54 +8,44 @@ void socketsSelectTask(mint taskId, void *taskArgs) {
     mint timeout = socketsSelectTaskArgs->timeout;
 
     SOCKET socketId;
-    SOCKET maxFd = 0;
-
+    SOCKET maxfd;
+    MTensor readySockets;
+    mint dims;
     struct timeval tv = new_tv(timeout);
 
     fd_set readfd;
     FD_ZERO(&readfd);
+    maxfd = fillFdsetFromArray(&readfd, sockets, length, 0);
 
-    for (size_t i = 0; i < length; i++) {
-        socketId = sockets[i];
-        if (socketId > maxFd) maxFd = socketId;
-        FD_SET(socketId, &readfd);
-    }
-
-    int result = select((int)(maxFd + 1), &readfd, NULL, NULL, &tv);
+    int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
     if (result >= 0) {
-        mint len = (mint)result;
-        MTensor readySocketsTensor;
-        libData->MTensor_new(MType_Integer, 1, &len, &readySocketsTensor);
-        mint *readySockets = libData->MTensor_getIntegerData(readySocketsTensor);
+        mint dims = (mint)result;
+        libData->MTensor_new(MType_Integer, 1, &dims, &readySockets);
 
-        filterFdset(&readfd, sockets, readySockets, length);
+        filterFdsetToTensor(libData, &readfd, sockets, readySockets, length);
 
         DataStore dataStore;
         libData->ioLibraryFunctions->createDataStore();
-        libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readySocketsTensor);
+        libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readySockets);
         libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "socketsSelectTask", dataStore);
-        libData->MTensor_free(readySocketsTensor);
+        libData->MTensor_free(readySockets);
     }
 
     free(sockets);
 }
 
 DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    MTensor sockets = MArgument_getMTensor(Args[0]); // list of sockets
+    MTensor socketIds = MArgument_getMTensor(Args[0]); // list of sockets
     size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
     int timeout = (int)MArgument_getInteger(Args[2]); // timeout in microseconds
 
-    SOCKET *socketIds = malloc(length * sizeof(SOCKET));
-
-    mint *socketsData = libData->MTensor_getIntegerData(sockets);
-    for(size_t i = 0; i < length; i++) {
-        socketIds[i] = (SOCKET)socketsData[i];
-    }
+    SOCKET *sockets = malloc(length * sizeof(SOCKET));
+    copyTensorToSocketArray(libData, socketIds, sockets, length);
 
     SocketsSelectArgs taskArgs = malloc(sizeof(struct SocketsSelectArgs_st));
 
     taskArgs->libData = libData;
-    taskArgs->sockets = socketIds;
+    taskArgs->sockets = sockets;
     taskArgs->length = length;
     taskArgs->timeout = timeout;
 
@@ -82,10 +68,11 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
     SOCKET socketId;
     int length;
     mint *readySockets;
+    int result;
     size_t j;
-    MTensor readySocketsTensor;
+    MTensor readyTensor;
     struct timeval tv;
-    mint len;
+    mint dims;
     DataStore dataStore;
 
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
@@ -94,20 +81,20 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
         sockets = socketList->sockets;
 
         FD_ZERO(&readfd);
-        maxfd = slistFdset(socketList, &readfd, 0);
+        maxfd = fillFdsetFromArray(&readfd, sockets, length, 0);
         tv = new_tv(timeout);
 
-        int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
+        result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
         if (result >= 0) {
-            len = (mint)result;
-            libData->MTensor_new(MType_Integer, 1, &len, &readySocketsTensor);
-            readySockets = libData->MTensor_getIntegerData(readySocketsTensor);
+            dims = (mint)result;
+            libData->MTensor_new(MType_Integer, 1, &dims, &readyTensor);
+            readySockets = libData->MTensor_getIntegerData(readyTensor);
 
-            filterFdset(&readfd, sockets, readySockets, length);
+            filterFdsetToArray(&readfd, sockets, readySockets, length);
 
             dataStore = libData->ioLibraryFunctions->createDataStore();
-            libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readySocketsTensor);
-            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "socketsSelectLoopTask", dataStore);
+            libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readyTensor);
+            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReadySockets", dataStore);
         }
     }
 
@@ -160,13 +147,12 @@ void serverLoop(mint taskId, void *taskArgs) {
         tv.tv_usec = timeout % 1000000;
 
         FD_ZERO(&readfd);
-
         maxfd = interrupter;
         FD_SET(interrupter, &readfd);
 
-        maxfd = slistFdset(acceptSockets, &readfd, maxfd);
-        maxfd = slistFdset(recvSockets, &readfd, maxfd);
-        maxfd = slistFdset(recvFromSockets, &readfd, maxfd);
+        maxfd = fillFdsetFromArray(&readfd, acceptSockets->sockets, acceptSockets->length, maxfd);
+        maxfd = fillFdsetFromArray(&readfd, recvSockets->sockets, recvSockets->length, maxfd);
+        maxfd = fillFdsetFromArray(&readfd, recvFromSockets->sockets, recvFromSockets->length, maxfd);
 
         int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
         if (result >= 0) {

@@ -1,4 +1,4 @@
-#include "csocket.h"
+#include "socket.h"
 
 /*socketCreate[family, socktype, protocol] -> socketId*/
 DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
@@ -300,37 +300,23 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
     int err;
     mint *socketIds = libData->MTensor_getIntegerData(sockets);
     SOCKET socketId;
-    SOCKET maxFd = 0;
-    fd_set readfds;
-    FD_ZERO(&readfds);
+    fd_set readfd;
+    FD_ZERO(&readfd);
+    MTensor readySockets;
+    mint dims;
 
-    for (size_t i = 0; i < length; i++) {
-        socketId = (SOCKET)socketIds[i];
-        if (socketId > maxFd) maxFd = socketId;
-        FD_SET(socketId, &readfds);
-    }
+    SOCKET maxfd = fillFdsetFromArray(&readfd, socketIds, length, 0);
 
-    struct timeval tv;
-    tv.tv_sec  = timeout / 1000000;
-    tv.tv_usec = timeout % 1000000;
+    struct timeval tv = new_tv(timeout);
 
-    int result = select((int)(maxFd + 1), &readfds, NULL, NULL, &tv);
+    int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
     if (result >= 0) {
-        mint len = (mint)result;
-        MTensor readySocketsTensor;
-        libData->MTensor_new(MType_Integer, 1, &len, &readySocketsTensor);
-        mint *readySockets = libData->MTensor_getIntegerData(readySocketsTensor);
+        dims = (mint)result;
+        libData->MTensor_new(MType_Integer, 1, &dims, &readySockets);
 
-        int j = 0;
-        for (size_t i = 0; i < length; i++) {
-            socketId = (SOCKET)socketIds[i];
-            if (FD_ISSET(socketId, &readfds)) {
-                readySockets[j] = (mint)socketId;
-                j++;
-            }
-        }
+        filterFdsetToTensor(libData, &readfd, socketIds, readySockets, result);
 
-        MArgument_setMTensor(Res, readySocketsTensor);
+        MArgument_setMTensor(Res, readySockets);
         return LIBRARY_NO_ERROR;
     } else {
         return LIBRARY_FUNCTION_ERROR;

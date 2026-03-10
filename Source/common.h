@@ -99,8 +99,14 @@ bool blockingModeQ(SOCKET socketId);
 
 bool socketValidQ(SOCKET socketId);
 
-inline struct timeval new_tv(long long usec);
+struct timeval new_tv(long long usec);
 
-mint filterFdset(fd_set *set, SOCKET *input, SOCKET *result, mint length);
+size_t filterFdsetToArray(fd_set *set, SOCKET *input, SOCKET *result, size_t length);
+
+size_t filterFdsetToTensor(WolframLibraryData libData, fd_set *set, SOCKET *input, MTensor *result, size_t length);
+
+SOCKET fillFdsetFromArray(fd_set *set, SOCKET *sockets, size_t length, SOCKET initmaxfd);
+
+void copyTensorToSocketArray(WolframLibraryData libData, MTensor tensor, SOCKET *result, size_t length);
 
 #endif

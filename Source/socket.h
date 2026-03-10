@@ -1,5 +1,5 @@
-#ifndef CSOCKET_H
-#define CSOCKET_H
+#ifndef SOCKET_H
+#define SOCKET_H
 
 #include "common.h"
 

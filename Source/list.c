@@ -1,4 +1,4 @@
-#include "slist.h"
+#include "list.h"
 
 DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     MTensor sockets = MArgument_getMTensor(Args[0]);
@@ -78,24 +78,6 @@ DLLEXPORT int socketListClear(WolframLibraryData libData, mint Argc, MArgument *
     slistClear(socketList, socketId);
     MArgument_setInteger(Res, 0);
     return LIBRARY_NO_ERROR;
-}
-
-/*returns max fd*/
-int slistFdset(SocketList socketList, fd_set *set, int initmaxfd) {
-    int maxfd = initmaxfd;
-    size_t length = socketList->length;
-    SOCKET *sockets = socketList->sockets;
-    SOCKET socketId;
-
-    for (size_t i = 0; i < length; i++) {
-        socketId = sockets[i];
-        FD_SET(socketId, set);
-        if (maxfd < socketId) {
-            maxfd = socketId;
-        }
-    }
-
-    return maxfd;
 }
 
 void slistAdd(SocketList socketList, SOCKET socketId) {

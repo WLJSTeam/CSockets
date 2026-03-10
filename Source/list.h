@@ -1,5 +1,5 @@
-#ifndef SLIST_H
-#define SLIST_H
+#ifndef LIST_H
+#define LIST_H
 
 #include "common.h"
 
@@ -18,8 +18,6 @@ DLLEXPORT int socketListAdd(WolframLibraryData libData, mint Argc, MArgument *Ar
 DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
 
 DLLEXPORT int socketListClear(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
-
-int slistFdset(SocketList socketList, fd_set *set, int initmaxfd);
 
 void slistAdd(SocketList slist, SOCKET socketId);
 
