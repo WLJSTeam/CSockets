@@ -163,7 +163,7 @@ size_t filterFdsetToTensor(WolframLibraryData libData, fd_set *set, SOCKET *inpu
     for (size_t i = 0; i < length; i++) {
         socketId = input[i];
         if (FD_ISSET(socketId, set)) {
-            result[j] = (mint)socketId;
+            data[j] = (mint)socketId;
             j++;
         }
     }

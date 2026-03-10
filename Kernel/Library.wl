@@ -8,23 +8,19 @@ BeginPackage["KirillBelov`CSockets`Library`", {
 
 socketAddressInfoCreate::usage =
 "socketAddressInfoCreate[host, port, fammily, socktype, protocol] returns address info pointer.
-    host: \"localhost\"
-    port: \"8000\"
-    family: AF_UNSPEC == 0 | AF_INET == 2 | AF_INET6 == 23/10 | ..
-    socktype: SOCK_STREAM == 1 | SOCK_DGRAM == 2 | SOCK_RAW == 3 | ..
-    protocol: AUTO == 0 | IPPROTO_TCP == 6 | IPPROTO_UDP == 17 | IPPROTO_SCTP == 132 | IPPROTO_ICMP == 1 | ..";
+- host: \"localhost\"
+- port: \"8000\"
+- family: AF_UNSPEC == 0 | AF_INET == 2 | AF_INET6 == 23/10 | ..
+- socktype: SOCK_STREAM == 1 | SOCK_DGRAM == 2 | SOCK_RAW == 3 | ..
+- protocol: AUTO == 0 | IPPROTO_TCP == 6 | IPPROTO_UDP == 17 | IPPROTO_SCTP == 132 | IPPROTO_ICMP == 1 | ..";
 
 
 socketAddressInfoRemove::usage =
 "socketAddressInfoRemove[addressInfoPointer] returns success state == 1.";
 
 
-socketAddressCreate::usage =
-"socketAddressCreate[addressInfoPointer] returns address pointer.";
-
-
-socketAddressRemove::usage =
-"socketAddressRemove[addressPointer] returns success state == 1.";
+socketAddressGet::usage =
+"socketAddressGet[addressInfoPointer] returns address pointer.";
 
 
 socketBufferCreate::usage =
@@ -36,9 +32,9 @@ socketBufferRemove::usage =
 
 
 socketCreate::usage = "socketCreate[family, socktype, protocol] returns unbound socket id.
-    family: AF_UNSPEC == 0 | AF_INET == 2 | AF_INET6 == 23/10 | ..
-    socktype: SOCK_STREAM == 1 | SOCK_DGRAM == 2 | SOCK_RAW == 3 | ..
-    protocol: AUTO == 0 | IPPROTO_TCP == 6 | IPPROTO_UDP == 17 | IPPROTO_SCTP == 132 | IPPROTO_ICMP == 1 | ..";
+- family: AF_UNSPEC == 0 | AF_INET == 2 | AF_INET6 == 23/10 | ..
+- socktype: SOCK_STREAM == 1 | SOCK_DGRAM == 2 | SOCK_RAW == 3 | ..
+- protocol: AUTO == 0 | IPPROTO_TCP == 6 | IPPROTO_UDP == 17 | IPPROTO_SCTP == 132 | IPPROTO_ICMP == 1 | ..";
 
 
 socketClose::usage =
@@ -151,12 +147,8 @@ socketAddressInfoRemove =
 LibraryFunctionLoad[$libFile, "socketAddressInfoRemove", {Integer}, Integer];
 
 
-socketAddressCreate =
-LibraryFunctionLoad[$libFile, "socketAddressCreate", {Integer}, Integer];
-
-
-socketAddressRemove =
-LibraryFunctionLoad[$libFile, "socketAddressRemove", {Integer}, Integer];
+socketAddressGet =
+LibraryFunctionLoad[$libFile, "socketAddressGet", {Integer}, Integer];
 
 
 socketBufferCreate =

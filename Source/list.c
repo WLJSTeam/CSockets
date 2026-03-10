@@ -75,7 +75,7 @@ DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument 
 DLLEXPORT int socketListClear(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[1]);
-    slistClear(socketList, socketId);
+    slistClear(socketList);
     MArgument_setInteger(Res, 0);
     return LIBRARY_NO_ERROR;
 }
