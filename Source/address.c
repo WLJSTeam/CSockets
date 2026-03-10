@@ -48,52 +48,21 @@ DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MAr
     return LIBRARY_NO_ERROR;
 }
 
-/*socketAddressCreate[addressType] -> addressPtr*/
-DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    mint addressType = MArgument_getInteger(Args[0]); // 4=IPv4, 6=IPv6, 1=Unix, 0=Unspec
+/*socketAddressGet[addressInfoPtr] -> addressPtr*/
+DLLEXPORT int socketAddressGet(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    if (Argc != 1) return LIBRARY_FUNCTION_ERROR;
 
-    void *address = NULL;
-    size_t size = 0;
+    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[0]);
+    struct addrinfo *addressInfo = (struct addrinfo *)addressInfoPtr;
 
-    switch(addressType) {
-        case 4: // IPv4
-            size = sizeof(struct sockaddr_in);
-            address = malloc(size);
-            if (address) {
-                struct sockaddr_in *addr = (struct sockaddr_in*)address;
-                addr->sin_family = AF_INET;
-                addr->sin_port = 0; // port will set after
-                addr->sin_addr.s_addr = INADDR_ANY;
-            }
-            else {
-                return LIBRARY_FUNCTION_ERROR;
-            }
-            break;
+    if (addressInfo == NULL) return LIBRARY_FUNCTION_ERROR;
 
-        case 6: // IPv6
-            size = sizeof(struct sockaddr_in6);
-            address = malloc(size);
-            if (address) {
-                struct sockaddr_in6 *addr = (struct sockaddr_in6*)address;
-                addr->sin6_family = AF_INET6;
-                addr->sin6_port = 0;
-                addr->sin6_addr = in6addr_any;
-            }
-            else {
-                return LIBRARY_FUNCTION_ERROR;
-            }
-            break;
+    // ai_addr ЭТО УЖЕ УКАЗАТЕЛЬ! Не надо разыменовывать
+    struct sockaddr *address = addressInfo->ai_addr;
 
-        default:
-            return LIBRARY_FUNCTION_ERROR;
-    }
-
-    if (!address) return LIBRARY_FUNCTION_ERROR;
-
-    memset(address, 0, size);
-
-    uintptr_t ptr = (uintptr_t)address;
-    MArgument_setInteger(Res, (mint)ptr);
+    // Кастуем указатель в integer
+    uintptr_t addressPtr = (uintptr_t)address;
+    MArgument_setInteger(Res, (mint)addressPtr);
     return LIBRARY_NO_ERROR;
 }
 

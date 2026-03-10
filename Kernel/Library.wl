@@ -100,6 +100,10 @@ socketSendString::usage =
 "socketSendString[socketId, string, stringLength] returns size of the sent message == stringLength.";
 
 
+socketSendTo::usage =
+"socketSendString[socketId, addressPtr, string, stringLength] returns size of the sent message == stringLength.";
+
+
 socketsCheck::usage =
 "socketsCheck[sockets, length] returns only valid sockets.
     sockets: built-in List with socket ids.";
