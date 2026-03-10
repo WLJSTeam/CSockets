@@ -69,7 +69,7 @@ DLLEXPORT int socketAddressCreate(WolframLibraryData libData, mint Argc, MArgume
                 return LIBRARY_FUNCTION_ERROR;
             }
             break;
-            
+
         case 6: // IPv6
             size = sizeof(struct sockaddr_in6);
             address = malloc(size);

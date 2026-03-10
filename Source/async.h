@@ -1,8 +1,11 @@
+#ifndef ASYNC_H
+#define ASYNC_H
+
 #include "common.h"
 
 typedef struct SocketSelectArgs_st
 {
-    WolframLibraryData libData; 
+    WolframLibraryData libData;
     SOCKET *sockets;
     size_t length;
     mint timeout;
@@ -10,7 +13,7 @@ typedef struct SocketSelectArgs_st
 
 void socketsSelectTask(mint taskId, void *taskArgs);
 
-int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
+DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
 
 typedef struct SocketSelectLoopArgs_st {
     WolframLibraryData libData;
@@ -20,7 +23,7 @@ typedef struct SocketSelectLoopArgs_st {
 
 void socketsSelectLoopTask(mint taskId, void *taskArgs);
 
-int socketsSelectLoopAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
+DLLEXPORT int socketsSelectLoopAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
 
 typedef struct ServerLoopArgs_st
 {
@@ -33,4 +36,6 @@ typedef struct ServerLoopArgs_st
 
 void serverLoopTask(mint taskId, void *taskArgs);
 
-int createServerLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int createServerLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
+
+#endif

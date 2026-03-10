@@ -1,6 +1,5 @@
 #ifndef COMMON_H
 #define COMMON_H
-#endif
 
 #undef UNICODE
 
@@ -104,3 +103,5 @@ int setBlockingMode(SOCKET socketId, bool blockingMode);
 bool blockingModeQ(SOCKET socketId);
 
 bool socketValidQ(SOCKET socketId);
+
+#endif
