@@ -76,12 +76,6 @@
 #include "WolframRawArrayLibrary.h"
 #include "WolframImageLibrary.h"
 
-typedef struct SocketList_st {
-    SOCKET *sockets;
-    size_t capacity;
-    size_t length;
-} *SocketList;
-
 char* getCurrentTime();
 
 void* getFuncByName(const char *funcName);

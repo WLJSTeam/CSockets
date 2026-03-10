@@ -3,38 +3,40 @@
 
 #include "common.h"
 
-typedef struct SocketSelectArgs_st
+typedef struct SocketsSelectArgs_st
 {
     WolframLibraryData libData;
     SOCKET *sockets;
     size_t length;
     mint timeout;
-} *SocketSelectArgs;
+} *SocketsSelectArgs;
 
 void socketsSelectTask(mint taskId, void *taskArgs);
 
 DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
 
-typedef struct SocketSelectLoopArgs_st {
+typedef struct SocketsSelectLoopArgs_st {
     WolframLibraryData libData;
     SocketList socketList;
     mint timeout;
-} *SocketSelectLoopArgs;
+} *SocketsSelectLoopArgs;
 
-void socketsSelectLoopTask(mint taskId, void *taskArgs);
+void socketsSelectLoop(mint taskId, void *taskArgs);
 
-DLLEXPORT int socketsSelectLoopAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
+DLLEXPORT int createSocketsSelectLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
 
 typedef struct ServerLoopArgs_st
 {
     WolframLibraryData libData;
     SocketList listenSockets;
     SocketList clientSockets;
+    BYTE *buffer;
+    int bufferSize;
     mint timeout;
     SOCKET interrupter;
 } *ServerLoopArgs;
 
-void serverLoopTask(mint taskId, void *taskArgs);
+void serverLoop(mint taskId, void *taskArgs);
 
 DLLEXPORT int createServerLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
 

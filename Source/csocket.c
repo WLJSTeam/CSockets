@@ -98,7 +98,7 @@ DLLEXPORT int socketGetOpt(WolframLibraryData libData, mint Argc, MArgument *Arg
 DLLEXPORT int socketSetBlockingMode(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]); // socket
     int blockingMode = (int)MArgument_getInteger(Args[1]); // 0 | 1 default 0 == blocking mode
-    
+
     int iResult = setBlockingMode(socketId, blockingMode);
     if (iResult != NO_ERROR) {
         return LIBRARY_FUNCTION_ERROR;
@@ -155,7 +155,7 @@ DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Arg
     lockGlobalMutex();
     SOCKET client = accept(socketId, NULL, NULL);
     unlockGlobalMutex();
-    
+
     if (client == INVALID_SOCKET) {
         return LIBRARY_FUNCTION_ERROR;
     }
@@ -183,7 +183,7 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
         MArgument_setMNumericArray(Res, byteArray);
         return LIBRARY_NO_ERROR;
     }
-    
+
     return LIBRARY_FUNCTION_ERROR;
 }
 
@@ -210,14 +210,14 @@ DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *A
         MArgument_setMNumericArray(Res, byteArray);
         return LIBRARY_NO_ERROR;
     }
-    
+
     return LIBRARY_FUNCTION_ERROR;
 }
 
 /*socketSend[socketid, byteArray, length] -> sentLength*/
 DLLEXPORT int socketSend(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = MArgument_getInteger(Args[0]); // positive integer
-    MNumericArray mArr = MArgument_getMNumericArray(Args[1]); 
+    MNumericArray mArr = MArgument_getMNumericArray(Args[1]);
     int dataLength = MArgument_getInteger(Args[2]); // positive integer
 
     int result;
@@ -239,7 +239,7 @@ DLLEXPORT int socketSend(WolframLibraryData libData, mint Argc, MArgument *Args,
 /*socketSendString[socketid, text, length] -> sentLength*/
 DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = MArgument_getInteger(Args[0]); // positive integer
-    char *dataString = MArgument_getUTF8String(Args[1]); 
+    char *dataString = MArgument_getUTF8String(Args[1]);
     int dataLength = MArgument_getInteger(Args[2]); // positive integer
     int result;
 
@@ -254,7 +254,7 @@ DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument 
     }
 
     libData->UTF8String_disown(dataString);
-    
+
     return LIBRARY_FUNCTION_ERROR;
 }
 
@@ -324,7 +324,7 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
         int j = 0;
         for (size_t i = 0; i < length; i++) {
             socketId = (SOCKET)socketIds[i];
-            if (FD_ISSET(socketId, &readfds)) { 
+            if (FD_ISSET(socketId, &readfds)) {
                 readySockets[j] = (mint)socketId;
                 j++;
             }
