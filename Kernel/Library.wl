@@ -84,8 +84,8 @@ socketRecv::usage =
 
 
 socketRecvFrom::usage =
-"socketRecvFrom[socketId, bufferPointer, bufferSize, addressPointer] returns byte array.
-- addressPointer: contains remote client address when data will receive.";
+"socketRecvFrom[socketId, bufferPointer, bufferSize, addressInfoPtr] returns byte array.
+- addressInfoPtr: contains remote client address when data will receive.";
 
 
 socketSend::usage =
@@ -97,7 +97,7 @@ socketSendString::usage =
 
 
 socketSendTo::usage =
-"socketSendString[socketId, addressInfo, byteArray, byteArrayLength] returns size of the sent message == byteArrayLength.";
+"socketSendTo[socketId, addressInfo, byteArray, byteArrayLength] returns size of the sent message == byteArrayLength.";
 
 
 socketsCheck::usage =
@@ -209,6 +209,10 @@ LibraryFunctionLoad[$libFile, "socketSend", {Integer, "ByteArray", Integer}, Int
 
 socketSendString =
 LibraryFunctionLoad[$libFile, "socketSendString", {Integer, String, Integer}, Integer];
+
+
+socketSendTo =
+LibraryFunctionLoad[$libFile, "socketSendTo", {Integer, Integer, "ByteArray", Integer}, Integer];
 
 
 socketsCheck =

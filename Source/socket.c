@@ -187,23 +187,22 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
     return LIBRARY_FUNCTION_ERROR;
 }
 
-/*socketRecvFrom[socketId, addressPtr, bufferPtr, bufferLength] -> byteArray (only UDP)*/
+/*socketRecvFrom[socketId, addressInfoPtr, bufferPtr, bufferLength] -> byteArray (only UDP)*/
 DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET client = (SOCKET)MArgument_getInteger(Args[0]);
     BYTE *buffer = (BYTE *)MArgument_getInteger(Args[1]);
     mint bufferSize = (mint)MArgument_getInteger(Args[2]);
-    uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[3]); // address pointer as integer
-    struct addrinfo *address = (struct addrinfo*)addressPtr;
+    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[3]); // address pointer as integer
+    struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
 
-    socklen_t addrlen = sizeof(struct sockaddr);
     lockGlobalMutex();
-    int result = recvfrom(client, buffer, bufferSize, 0, address->ai_addr, &addrlen);
+    int result = recvfrom(client, buffer, bufferSize, 0, addressInfo->ai_addr, &(addressInfo->ai_addrlen));
     unlockGlobalMutex();
 
     if (result > 0) {
-        mint len = (mint)result;
+        mint dims = (mint)result;
         MNumericArray byteArray;
-        libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &len, &byteArray);
+        libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &dims, &byteArray);
         BYTE *array = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
         memcpy(array, buffer, result);
 

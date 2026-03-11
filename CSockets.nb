@@ -23,10 +23,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[      1060,         20]
-NotebookDataLength[      9733,        242]
-NotebookOptionsPosition[      8613,        218]
-NotebookOutlinePosition[      9017,        234]
-CellTagsIndexPosition[      8974,        231]
+NotebookDataLength[     18981,        455]
+NotebookOptionsPosition[     16496,        405]
+NotebookOutlinePosition[     16902,        421]
+CellTagsIndexPosition[     16859,        418]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -69,7 +69,7 @@ Cell[BoxData[
  RowBox[{"<<", "KirillBelov`CSockets`Library`"}]], "Code",
  CellChangeTimes->{{3.980667351121347*^9, 3.980667359420857*^9}},
  CellLabel->"In[6]:=",ExpressionUUID->"530b9e8b-5573-49ed-9dde-16c9217ecc3f"]
-}, Closed]],
+}, Open  ]],
 
 Cell[CellGroupData[{
 
@@ -204,20 +204,207 @@ Cell["UDP + echotool", "Section",
   3.982135686997965*^9}},ExpressionUUID->"5ca7bc52-7522-2b42-a3cd-\
 bfbd0f6b6727"],
 
-Cell[BoxData["socketAddressInfoCreate"], "Code",
- CellChangeTimes->{{3.9821357155023956`*^9, 
-  3.9821357200874176`*^9}},ExpressionUUID->"3ab0c3b5-9830-7041-9e94-\
-ea7d3237f96e"],
+Cell[CellGroupData[{
 
 Cell[BoxData[
- RowBox[{"address", " ", "=", " ", "socketAddressCreate"}]], "Code",
- CellChangeTimes->{{3.982135692303095*^9, 
-  3.982135701017372*^9}},ExpressionUUID->"35249723-ce0b-0643-b28d-\
-5641e3a0bb6a"]
+ RowBox[{"addrInfo", " ", "=", " ", 
+  RowBox[{"socketAddressInfoCreate", "[", 
+   RowBox[{"\"\<localhost\>\"", ",", " ", "\"\<8000\>\"", ",", " ", "2", ",", 
+    " ", "2", ",", " ", "17"}], "]"}]}]], "Code",
+ CellChangeTimes->{{3.9821357155023956`*^9, 3.9821357200874176`*^9}, {
+   3.982189086427908*^9, 3.9821891444581223`*^9}, 3.9821894796411304`*^9, 
+   3.982189944939831*^9},
+ CellLabel->"In[7]:=",ExpressionUUID->"3ab0c3b5-9830-7041-9e94-ea7d3237f96e"],
+
+Cell[BoxData["583586336"], "Output",
+ CellChangeTimes->{3.982189946766285*^9, 3.9821900860759945`*^9},
+ CellLabel->"Out[7]=",ExpressionUUID->"93fdbf41-fb93-7142-bfe8-f8dfae8089c4"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"message", " ", "=", " ", 
+  RowBox[{"StringToByteArray", "[", "\"\<hello\>\"", "]"}]}]], "Code",
+ CellChangeTimes->{{3.9821892496879177`*^9, 3.982189263083027*^9}, 
+   3.9821899522511005`*^9},
+ CellLabel->"In[8]:=",ExpressionUUID->"857507a7-20fa-9946-8130-0d310dbdb6ea"],
+
+Cell[BoxData[
+ InterpretationBox[
+  RowBox[{
+   TagBox["ByteArray",
+    "SummaryHead"], "[", 
+   DynamicModuleBox[{Typeset`open$$ = False, Typeset`embedState$$ = "Ready"}, 
+    TemplateBox[{
+      PaneSelectorBox[{False -> GridBox[{{
+            GridBox[{{
+               TagBox["\"5 bytes\"", "SummaryItem"]}}, 
+             GridBoxAlignment -> {
+              "Columns" -> {{Left}}, "Rows" -> {{Automatic}}}, AutoDelete -> 
+             False, GridBoxItemSize -> {
+              "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}, 
+             GridBoxSpacings -> {"Columns" -> {{2}}, "Rows" -> {{Automatic}}},
+              BaseStyle -> {
+              ShowStringCharacters -> False, NumberMarks -> False, 
+               PrintPrecision -> 3, ShowSyntaxStyles -> False}]}}, 
+          GridBoxAlignment -> {"Columns" -> {{Left}}, "Rows" -> {{Top}}}, 
+          AutoDelete -> False, 
+          GridBoxItemSize -> {
+           "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}, 
+          BaselinePosition -> {1, 1}], True -> GridBox[{{
+            GridBox[{{
+               TagBox["\"5 bytes\"", "SummaryItem"]}}, 
+             GridBoxAlignment -> {
+              "Columns" -> {{Left}}, "Rows" -> {{Automatic}}}, AutoDelete -> 
+             False, GridBoxItemSize -> {
+              "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}, 
+             GridBoxSpacings -> {"Columns" -> {{2}}, "Rows" -> {{Automatic}}},
+              BaseStyle -> {
+              ShowStringCharacters -> False, NumberMarks -> False, 
+               PrintPrecision -> 3, ShowSyntaxStyles -> False}]}}, 
+          GridBoxAlignment -> {"Columns" -> {{Left}}, "Rows" -> {{Top}}}, 
+          AutoDelete -> False, 
+          GridBoxItemSize -> {
+           "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}, 
+          BaselinePosition -> {1, 1}]}, 
+       Dynamic[Typeset`open$$], ImageSize -> Automatic]},
+     "SummaryPanel"],
+    DynamicModuleValues:>{}], "]"}],
+  ByteArray[{104, 101, 108, 108, 111}],
+  Editable->False,
+  SelectWithContents->True,
+  Selectable->False]], "Output",
+ CellChangeTimes->{3.982189952653965*^9, 3.9821900874994392`*^9},
+ CellLabel->"Out[8]=",ExpressionUUID->"6e34128b-42c9-eb4c-9199-4ae06ee4dfd4"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"socketId", " ", "=", " ", 
+  RowBox[{"socketCreate", "[", 
+   RowBox[{"2", ",", " ", "2", ",", " ", "17"}], "]"}]}]], "Code",
+ CellChangeTimes->{{3.9821892769839764`*^9, 3.982189311881052*^9}, 
+   3.9821899544279118`*^9},
+ CellLabel->"In[9]:=",ExpressionUUID->"0de5e807-7d06-f042-838b-096fa6b82df1"],
+
+Cell[BoxData["1744"], "Output",
+ CellChangeTimes->{3.982189955362627*^9, 3.9821900883433895`*^9},
+ CellLabel->"Out[9]=",ExpressionUUID->"da13b535-3b17-904e-8a26-ed9be84e86ae"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"socketSendTo", "[", 
+  RowBox[{"socketId", ",", " ", "addrInfo", ",", " ", "message", ",", " ", 
+   RowBox[{"Length", "[", "message", "]"}]}], "]"}]], "Code",
+ CellChangeTimes->{{3.9821892207524433`*^9, 3.9821892314334335`*^9}, {
+  3.982189314519991*^9, 3.982189328197603*^9}, {3.9821893710450935`*^9, 
+  3.9821893742103443`*^9}},
+ CellLabel->"In[10]:=",ExpressionUUID->"b9077e6d-9b43-c14e-8407-4dde3a2c4df7"],
+
+Cell[BoxData["5"], "Output",
+ CellChangeTimes->{3.982189330817335*^9, 3.9821893764723816`*^9, 
+  3.9821894446023483`*^9, 3.9821894846398697`*^9, 3.9821899667676506`*^9, 
+  3.982190002838415*^9, 3.9821900910133533`*^9},
+ CellLabel->"Out[10]=",ExpressionUUID->"3b584e1a-d321-b843-9251-fee85d56e1e1"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"buffer", " ", "=", " ", 
+  RowBox[{"socketBufferCreate", "[", "1024", "]"}]}]], "Code",
+ CellChangeTimes->{{3.982189604088209*^9, 3.9821896148011436`*^9}, 
+   3.98218996918412*^9},
+ CellLabel->"In[11]:=",ExpressionUUID->"a057c5c9-3a91-ba4c-8ffb-5ad717cbfc3c"],
+
+Cell[BoxData["652502560"], "Output",
+ CellChangeTimes->{3.9821899695306034`*^9, 3.9821900045602055`*^9, 
+  3.982190092481943*^9},
+ CellLabel->"Out[11]=",ExpressionUUID->"aeb630a5-17be-e442-ac53-f819ff22ce28"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"response", " ", "=", " ", 
+  RowBox[{"socketRecvFrom", "[", 
+   RowBox[{
+   "socketId", ",", " ", "buffer", ",", " ", "1024", ",", " ", "addrInfo"}], 
+   "]"}]}]], "Code",
+ CellChangeTimes->{{3.9821894982573433`*^9, 3.9821895070552807`*^9}, {
+  3.98218959562442*^9, 3.982189638883665*^9}},
+ CellLabel->"In[12]:=",ExpressionUUID->"52be5b16-0bd9-a144-b8b4-592b8dd28d62"],
+
+Cell[BoxData[
+ InterpretationBox[
+  RowBox[{
+   TagBox["ByteArray",
+    "SummaryHead"], "[", 
+   DynamicModuleBox[{Typeset`open$$ = False, Typeset`embedState$$ = "Ready"}, 
+    TemplateBox[{
+      PaneSelectorBox[{False -> GridBox[{{
+            GridBox[{{
+               TagBox["\"5 bytes\"", "SummaryItem"]}}, 
+             GridBoxAlignment -> {
+              "Columns" -> {{Left}}, "Rows" -> {{Automatic}}}, AutoDelete -> 
+             False, GridBoxItemSize -> {
+              "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}, 
+             GridBoxSpacings -> {"Columns" -> {{2}}, "Rows" -> {{Automatic}}},
+              BaseStyle -> {
+              ShowStringCharacters -> False, NumberMarks -> False, 
+               PrintPrecision -> 3, ShowSyntaxStyles -> False}]}}, 
+          GridBoxAlignment -> {"Columns" -> {{Left}}, "Rows" -> {{Top}}}, 
+          AutoDelete -> False, 
+          GridBoxItemSize -> {
+           "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}, 
+          BaselinePosition -> {1, 1}], True -> GridBox[{{
+            GridBox[{{
+               TagBox["\"5 bytes\"", "SummaryItem"]}}, 
+             GridBoxAlignment -> {
+              "Columns" -> {{Left}}, "Rows" -> {{Automatic}}}, AutoDelete -> 
+             False, GridBoxItemSize -> {
+              "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}, 
+             GridBoxSpacings -> {"Columns" -> {{2}}, "Rows" -> {{Automatic}}},
+              BaseStyle -> {
+              ShowStringCharacters -> False, NumberMarks -> False, 
+               PrintPrecision -> 3, ShowSyntaxStyles -> False}]}}, 
+          GridBoxAlignment -> {"Columns" -> {{Left}}, "Rows" -> {{Top}}}, 
+          AutoDelete -> False, 
+          GridBoxItemSize -> {
+           "Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}, 
+          BaselinePosition -> {1, 1}]}, 
+       Dynamic[Typeset`open$$], ImageSize -> Automatic]},
+     "SummaryPanel"],
+    DynamicModuleValues:>{}], "]"}],
+  ByteArray[{104, 101, 108, 108, 111}],
+  Editable->False,
+  SelectWithContents->True,
+  Selectable->False]], "Output",
+ CellChangeTimes->{3.982189639821623*^9, 3.982189971683914*^9, 
+  3.9821900059497185`*^9, 3.9821900932152348`*^9},
+ CellLabel->"Out[12]=",ExpressionUUID->"9c83c07a-1226-2e4a-a883-ec8c6fd516e4"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"ByteArrayToString", "[", "response", "]"}]], "Code",
+ CellChangeTimes->{{3.9821896433041897`*^9, 3.9821896566860237`*^9}},
+ CellLabel->"In[13]:=",ExpressionUUID->"7a27b9fa-fc42-6648-bac6-00fbf3cdd5f7"],
+
+Cell[BoxData["\<\"hello\"\>"], "Output",
+ CellChangeTimes->{{3.9821896508910103`*^9, 3.982189656914921*^9}, 
+   3.9821899799505253`*^9, 3.982190094963972*^9},
+ CellLabel->"Out[13]=",ExpressionUUID->"27fa3c12-f6b2-5348-8705-b6a3101aed32"]
+}, Open  ]]
 }, Open  ]]
 },
 WindowSize->{720, 781.5},
-WindowMargins->{{Automatic, 216}, {108.75, Automatic}},
+WindowMargins->{{Automatic, 171.75}, {Automatic, 100.5}},
 FrontEndVersion->"14.3 for Microsoft Windows (64-bit) (July 8, 2025)",
 StyleDefinitions->"Default.nb",
 ExpressionUUID->"6f83093b-3bdf-4dd1-886b-79921bd7d2f0"
@@ -240,9 +427,9 @@ Cell[1876, 46, 270, 5, 50, "Code",ExpressionUUID->"9b4b8c0f-d752-4fd1-be36-dfdba
 Cell[2149, 53, 261, 4, 67, "Code",ExpressionUUID->"40987ba1-dd5d-4ec4-bb30-a99f24820ee5"],
 Cell[2413, 59, 337, 6, 50, "Code",ExpressionUUID->"e48f31c0-fcff-4bab-8b18-e0de84dca0bc"],
 Cell[2753, 67, 216, 3, 50, "Code",ExpressionUUID->"530b9e8b-5573-49ed-9dde-16c9217ecc3f"]
-}, Closed]],
+}, Open  ]],
 Cell[CellGroupData[{
-Cell[3006, 75, 148, 3, 52, "Section",ExpressionUUID->"7a110733-2f8d-3a4f-bf09-5f58d65409c6"],
+Cell[3006, 75, 148, 3, 66, "Section",ExpressionUUID->"7a110733-2f8d-3a4f-bf09-5f58d65409c6"],
 Cell[3157, 80, 565, 10, 50, "Code",ExpressionUUID->"2212515c-e35f-4616-8672-6d199b20d102"],
 Cell[3725, 92, 339, 7, 50, "Code",ExpressionUUID->"08a0ff79-53c2-4f86-91d8-1e9a88f7b95b"],
 Cell[4067, 101, 437, 8, 50, "Code",ExpressionUUID->"242c3253-4306-4604-96c1-09d8975cc27a"],
@@ -254,8 +441,34 @@ Cell[5715, 143, 2294, 53, 313, "Code",ExpressionUUID->"f3ee41cc-b27d-4a06-97af-7
 }, Closed]],
 Cell[CellGroupData[{
 Cell[8046, 201, 159, 3, 52, "Section",ExpressionUUID->"5ca7bc52-7522-2b42-a3cd-bfbd0f6b6727"],
-Cell[8208, 206, 178, 3, 50, "Code",ExpressionUUID->"3ab0c3b5-9830-7041-9e94-ea7d3237f96e"],
-Cell[8389, 211, 208, 4, 50, "Code",ExpressionUUID->"35249723-ce0b-0643-b28d-5641e3a0bb6a"]
+Cell[CellGroupData[{
+Cell[8230, 208, 472, 8, 50, "Code",ExpressionUUID->"3ab0c3b5-9830-7041-9e94-ea7d3237f96e"],
+Cell[8705, 218, 180, 2, 32, "Output",ExpressionUUID->"93fdbf41-fb93-7142-bfe8-f8dfae8089c4"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[8922, 225, 294, 5, 50, "Code",ExpressionUUID->"857507a7-20fa-9946-8130-0d310dbdb6ea"],
+Cell[9219, 232, 2213, 46, 46, "Output",ExpressionUUID->"6e34128b-42c9-eb4c-9199-4ae06ee4dfd4"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[11469, 283, 323, 6, 50, "Code",ExpressionUUID->"0de5e807-7d06-f042-838b-096fa6b82df1"],
+Cell[11795, 291, 175, 2, 32, "Output",ExpressionUUID->"da13b535-3b17-904e-8a26-ed9be84e86ae"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[12007, 298, 433, 7, 50, "Code",ExpressionUUID->"b9077e6d-9b43-c14e-8407-4dde3a2c4df7"],
+Cell[12443, 307, 297, 4, 32, "Output",ExpressionUUID->"3b584e1a-d321-b843-9251-fee85d56e1e1"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[12777, 316, 283, 5, 50, "Code",ExpressionUUID->"a057c5c9-3a91-ba4c-8ffb-5ad717cbfc3c"],
+Cell[13063, 323, 208, 3, 32, "Output",ExpressionUUID->"aeb630a5-17be-e442-ac53-f819ff22ce28"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[13308, 331, 392, 8, 50, "Code",ExpressionUUID->"52be5b16-0bd9-a144-b8b4-592b8dd28d62"],
+Cell[13703, 341, 2263, 47, 46, "Output",ExpressionUUID->"9c83c07a-1226-2e4a-a883-ec8c6fd516e4"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[16003, 393, 225, 3, 50, "Code",ExpressionUUID->"7a27b9fa-fc42-6648-bac6-00fbf3cdd5f7"],
+Cell[16231, 398, 237, 3, 32, "Output",ExpressionUUID->"27fa3c12-f6b2-5348-8705-b6a3101aed32"]
+}, Open  ]]
 }, Open  ]]
 }
 ]
