@@ -54,8 +54,8 @@ socketSetOpt::usage =
 
 socketGetOpt::usage =
 "socketGetOpt[socketId, level, optname] returns optval.
-    level:
-    optname: ";
+- level:
+- optname: ";
 
 
 socketSetBlockingMode::usage =
@@ -70,7 +70,8 @@ socketListen::usage =
 
 
 socketConnect::usage =
-"socketConnect[socketId, addressPointer, wait] returns connection socket id.";
+"socketConnect[socketId, addressInfo, wait] returns connection socket id.
+- wait: True or False. True blocks evaluation until connect.";
 
 
 socketAccept::usage =
@@ -79,13 +80,13 @@ socketAccept::usage =
 
 
 socketRecv::usage =
-"socketRecv[socketId, bufferPointer, bufferSize] returns byte array.
+"socketRecv[socketId, buffer, bufferSize] returns byte array.
 - socketId: except listening sockets";
 
 
 socketRecvFrom::usage =
-"socketRecvFrom[socketId, bufferPointer, bufferSize, addressInfoPtr] returns byte array.
-- addressInfoPtr: contains remote client address when data will receive.";
+"socketRecvFrom[socketId, addressInfo, buffer, bufferSize] returns byte array.
+- addressInfo: contains remote client address when data will receive.";
 
 
 socketSend::usage =

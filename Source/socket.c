@@ -123,11 +123,11 @@ DLLEXPORT int socketListen(WolframLibraryData libData, mint Argc, MArgument *Arg
     return LIBRARY_NO_ERROR;
 }
 
-/*socketConnect[socketId, addressInfoPointer] -> successStatus*/
+/*socketConnect[socketId, addressInfo] -> successStatus*/
 DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
-    uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
-    struct addrinfo *address = (struct addrinfo*)addressPtr;
+    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
+    struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
     bool wait = (bool)MArgument_getInteger(Args[2]); // wait for connection
 
     bool blockingMode = blockingModeQ(socketId);
@@ -135,8 +135,11 @@ DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Ar
         setBlockingMode(socketId, true); // set blocking mode if needed
     }
 
-    int iResult = connect(socketId, address->ai_addr, (int)address->ai_addrlen);
+    int iResult = connect(socketId, addressInfo->ai_addr, (int)addressInfo->ai_addrlen);
     if (iResult == SOCKET_ERROR) {
+        if (wait && !blockingMode) {
+            setBlockingMode(socketId, false);
+        }
         return LIBRARY_FUNCTION_ERROR;
     }
 
@@ -190,10 +193,10 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
 /*socketRecvFrom[socketId, addressInfoPtr, bufferPtr, bufferLength] -> byteArray (only UDP)*/
 DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET client = (SOCKET)MArgument_getInteger(Args[0]);
-    BYTE *buffer = (BYTE *)MArgument_getInteger(Args[1]);
-    mint bufferSize = (mint)MArgument_getInteger(Args[2]);
-    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[3]); // address pointer as integer
+    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
     struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
+    BYTE *buffer = (BYTE *)MArgument_getInteger(Args[2]);
+    mint bufferSize = (mint)MArgument_getInteger(Args[3]);
 
     lockGlobalMutex();
     int result = recvfrom(client, buffer, bufferSize, 0, addressInfo->ai_addr, &(addressInfo->ai_addrlen));

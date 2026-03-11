@@ -155,7 +155,7 @@ void serverLoop(mint taskId, void *taskArgs) {
             if (FD_ISSET(interrupter, &readfd)) {
                 result = recv(interrupter, (char *)buffer, bufferSize, 0);
                 if (result > 0) {
-                    
+
                 } else {
 
                 }
@@ -170,7 +170,7 @@ void serverLoop(mint taskId, void *taskArgs) {
                     slistAdd(recvSockets, clientId);
                     dataStore = libData->ioLibraryFunctions->createDataStore();
                     libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)clientId);
-                    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "AcceptedClient", dataStore);
+                    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accept", dataStore);
                 }
             }
 
@@ -183,7 +183,21 @@ void serverLoop(mint taskId, void *taskArgs) {
                     if (result > 0) {
                         dataStore = libData->ioLibraryFunctions->createDataStore();
                         libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)clientId);
-                        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "AcceptedClient", dataStore);
+                        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Recv", dataStore);
+                    }
+                }
+            }
+
+            length = recvFromSockets->length;
+            sockets = recvFromSockets->sockets;
+            for (mint i = 0; i < length; i++) {
+                socketId = sockets[i];
+                if (FD_ISSET(socketId, &readfd)) {
+                    result = recv(socketId, buffer,bufferSize, 0);
+                    if (result > 0) {
+                        dataStore = libData->ioLibraryFunctions->createDataStore();
+                        libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)clientId);
+                        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "RecvFrom", dataStore);
                     }
                 }
             }
