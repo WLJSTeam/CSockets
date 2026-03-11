@@ -67,3 +67,34 @@ DLLEXPORT int socketAddressGet(WolframLibraryData libData, mint Argc, MArgument 
     MArgument_setInteger(Res, (mint)addressPtr);
     return LIBRARY_NO_ERROR;
 }
+
+DLLEXPORT int socketAddressInfoListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    if (Argc != 2) return LIBRARY_FUNCTION_ERROR;
+
+    MTensor addressInfos = MArgument_getMTensor(Args[0]);
+    mint *addressInfoData = libData->MTensor_getIntegerData(addressInfos);
+    mint length = MArgument_getInteger(Args[1]);
+
+    struct addrinfo **addresInfoArray = malloc(sizeof(struct addrinfo*) * length);
+    if (!addresInfoArray) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    for (mint i = 0; i < length; i++) {
+        addresInfoArray[i] = (struct addrinfo*)(uintptr_t)addressInfoData[i];
+    }
+
+    MArgument_setInteger(Res, (mint)(uintptr_t)addresInfoArray);
+    return LIBRARY_NO_ERROR;
+}
+
+DLLEXPORT int socketAddressInfoListRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    if (Argc != 1) return LIBRARY_FUNCTION_ERROR;
+
+    mint addressInfos = MArgument_getInteger(Args[0]);
+    void *addressInfosPtr = (void *)(uintptr_t)addressInfos;
+    free(addressInfosPtr);
+
+    MArgument_setInteger(Res, 0); // 0 - success
+    return LIBRARY_NO_ERROR;
+}

@@ -116,6 +116,14 @@ socketsSelectAsync::usage =
 - sockets: built-in List with socket ids.";
 
 
+socketAddressInfoListCreate::usage =
+"socketAddressInfoListCreate[addressInfoList, length] creates internal array of address infos.";
+
+
+socketAddressInfoListRemove::usage =
+"socketAddressInfoListRemove[addressInfoListPtr] free memory.";
+
+
 Begin["`Private`"];
 
 

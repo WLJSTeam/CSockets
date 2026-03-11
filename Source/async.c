@@ -120,6 +120,7 @@ void serverLoop(mint taskId, void *taskArgs) {
     SocketList acceptSockets = args->acceptSockets;
     SocketList recvSockets = args->recvSockets;
     SocketList recvFromSockets = args->recvFromSockets;
+    AddressInfoList recvFromAddrInfos = args->recvFromAddrInfos;
     SOCKET interrupter = args->interrupter;
     BYTE *buffer = args->buffer;
     mint bufferSize = args->bufferSize;
@@ -138,6 +139,7 @@ void serverLoop(mint taskId, void *taskArgs) {
     mint len;
     DataStore dataStore;
     int result;
+    struct addrinfo *addressInfo;
 
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
     {
@@ -193,7 +195,8 @@ void serverLoop(mint taskId, void *taskArgs) {
             for (mint i = 0; i < length; i++) {
                 socketId = sockets[i];
                 if (FD_ISSET(socketId, &readfd)) {
-                    result = recv(socketId, buffer,bufferSize, 0);
+                    addressInfo = recvFromAddrInfos->adrrinfos[i];
+                    result = recvfrom(socketId, buffer, bufferSize, 0, addressInfo->ai_addr, addressInfo->ai_addrlen);
                     if (result > 0) {
                         dataStore = libData->ioLibraryFunctions->createDataStore();
                         libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)clientId);
@@ -210,16 +213,18 @@ DLLEXPORT int createServerLoop(WolframLibraryData libData, mint Argc, MArgument 
     SocketList acceptSockets = (SocketList)MArgument_getInteger(Args[0]);
     SocketList recvSockets = (SocketList)MArgument_getInteger(Args[1]);
     SocketList recvFromSockets = (SocketList)MArgument_getInteger(Args[2]);
-    SOCKET interrupter = (SOCKET)MArgument_getInteger(Args[3]);
-    BYTE *buffer = (BYTE *)MArgument_getInteger(Args[4]);
-    mint bufferSize = MArgument_getInteger(Args[5]);
-    mint timeout = MArgument_getInteger(Args[6]);
+    AddressInfoList recvFromAddrInfos = (AddressInfoList)MArgument_getInteger(Args[3]);
+    SOCKET interrupter = (SOCKET)MArgument_getInteger(Args[4]);
+    BYTE *buffer = (BYTE *)MArgument_getInteger(Args[5]);
+    mint bufferSize = MArgument_getInteger(Args[6]);
+    mint timeout = MArgument_getInteger(Args[7]);
 
     ServerLoopArgs serverLoopArgs = malloc(sizeof(struct ServerLoopArgs_st));
     serverLoopArgs->libData = libData;
     serverLoopArgs->acceptSockets = acceptSockets;
     serverLoopArgs->recvSockets = recvSockets;
     serverLoopArgs->recvFromSockets = recvFromSockets;
+    serverLoopArgs->recvFromAddrInfos = recvFromAddrInfos;
     serverLoopArgs->interrupter = interrupter;
     serverLoopArgs->buffer = buffer;
     serverLoopArgs->bufferSize = bufferSize;

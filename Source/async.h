@@ -32,6 +32,7 @@ typedef struct ServerLoopArgs_st
     SocketList acceptSockets;
     SocketList recvSockets;
     SocketList recvFromSockets;
+    AddressInfoList recvFromAddrInfos;
     BYTE *buffer;
     mint bufferSize;
     mint timeout;

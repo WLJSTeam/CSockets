@@ -7,6 +7,4 @@ DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MAr
 
 DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
 
-DLLEXPORT int socketAddressGet(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
-
 #endif
