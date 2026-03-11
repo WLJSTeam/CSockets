@@ -1,6 +1,6 @@
 (* ::Package:: *)
 
-BeginPackage["KirillBelov`CSockets`Library`", {
+BeginPackage["WLJS`CSockets`Library`", {
     "CCompilerDriver`",
     "LibraryLink`"
 }];
@@ -17,10 +17,6 @@ socketAddressInfoCreate::usage =
 
 socketAddressInfoRemove::usage =
 "socketAddressInfoRemove[addressInfoPointer] returns success state == 1.";
-
-
-socketAddressGet::usage =
-"socketAddressGet[addressInfoPointer] returns address pointer.";
 
 
 socketBufferCreate::usage =
@@ -42,7 +38,7 @@ socketClose::usage =
 
 
 socketBind::usage =
-"socketBind[socketId, addressPointer] returns success state == 1.";
+"socketBind[socketId, addressInfo] returns success state == 1.";
 
 
 socketSetOpt::usage =

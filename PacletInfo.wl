@@ -2,20 +2,21 @@
 
 PacletObject[
   <|
-    "Name" -> "KirillBelov/CSockets",
+    "Name" -> "WLJS/CSockets",
     "Description" -> "Sockets powered by pure C",
-    "Creator" -> "Kirill Belov",
+    "Creator" -> "Kirill",
     "License" -> "MIT",
-    "PublisherID" -> "KirillBelov",
+    "PublisherID" -> "WLJS",
     "Version" -> "1.0.26",
     "WolframVersion" -> "13.3+",
-    "PrimaryContext" -> "KirillBelov`CSockets`",
+    "PrimaryContext" -> "WLJS`CSockets`",
     "Extensions" -> {
       {
         "Kernel",
         "Root" -> "Kernel",
         "Context" -> {
-          {"KirillBelov`CSockets`Library`", "Library.wl"}
+          {"WLJS`CSockets`", "CSockets.wl"},
+          {"WLJS`CSockets`Library`", "Library.wl"}
         },
         "Symbols" -> {}
       },
