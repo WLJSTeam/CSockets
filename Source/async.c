@@ -198,7 +198,15 @@ void serverLoop(mint taskId, void *taskArgs) {
                     addressInfo = recvFromAddrInfos->adrrinfos[i];
                     result = recvfrom(socketId, buffer, bufferSize, 0, addressInfo->ai_addr, addressInfo->ai_addrlen);
                     if (result > 0) {
+                        mint dims = (mint)result;
                         dataStore = libData->ioLibraryFunctions->createDataStore();
+                        libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)clientId);
+                        libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)(uintptr_t)addressInfo);
+                        MNumericArray numericArray;
+                        libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &dims, &numericArray);
+                        BYTE *numericArrayData = libData->numericarrayLibraryFunctions->MNumericArray_getData(numericArray);
+                        memcpy(numericArrayData, buffer, result);
+                        libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, numericArray);
                         libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)clientId);
                         libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "RecvFrom", dataStore);
                     }
