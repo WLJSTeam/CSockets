@@ -128,7 +128,7 @@ DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Ar
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
     struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
-    bool wait = (bool)MArgument_getInteger(Args[2]); // wait for connection
+    bool wait = (bool)MArgument_getBoolean(Args[2]); // wait for connection
 
     bool blockingMode = blockingModeQ(socketId);
     if (wait && !blockingMode) {
@@ -170,8 +170,8 @@ DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Arg
 /*socketRecv[socketId, bufferPtr, bufferLength] -> byteArray*/
 DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET client = (SOCKET)MArgument_getInteger(Args[0]);
-    BYTE *buffer = (BYTE *)MArgument_getInteger(Args[1]);
-    mint bufferSize = (mint)MArgument_getInteger(Args[2]);
+    BYTE *buffer = (BYTE *)(uintptr_t)MArgument_getInteger(Args[1]);
+    size_t bufferSize = (size_t)MArgument_getInteger(Args[2]);
 
     lockGlobalMutex();
     int result = recv(client, buffer, bufferSize, 0);
@@ -187,6 +187,9 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
         return LIBRARY_NO_ERROR;
     }
 
+    char errorMsg[256];
+    snprintf(errorMsg, sizeof(errorMsg), "Socket error: %d", GETSOCKETERRNO());
+    libData->Message(errorMsg);
     return LIBRARY_FUNCTION_ERROR;
 }
 

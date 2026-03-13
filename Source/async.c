@@ -196,7 +196,7 @@ void serverLoop(mint taskId, void *taskArgs) {
                 socketId = sockets[i];
                 if (FD_ISSET(socketId, &readfd)) {
                     addressInfo = recvFromAddrInfos->adrrinfos[i];
-                    result = recvfrom(socketId, buffer, bufferSize, 0, addressInfo->ai_addr, addressInfo->ai_addrlen);
+                    result = recvfrom(socketId, buffer, bufferSize, 0, addressInfo->ai_addr, &addressInfo->ai_addrlen);
                     if (result > 0) {
                         mint dims = (mint)result;
                         dataStore = libData->ioLibraryFunctions->createDataStore();

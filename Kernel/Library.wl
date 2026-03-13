@@ -193,7 +193,7 @@ LibraryFunctionLoad[$libFile, "socketListen", {Integer, Integer}, Integer];
 
 
 socketConnect =
-LibraryFunctionLoad[$libFile, "socketConnect", {Integer, Integer, Integer}, Integer];
+LibraryFunctionLoad[$libFile, "socketConnect", {Integer, Integer, "Boolean"}, Integer];
 
 
 socketAccept =
