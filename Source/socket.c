@@ -187,8 +187,13 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
         return LIBRARY_NO_ERROR;
     }
 
-    char errorMsg[256];
-    snprintf(errorMsg, sizeof(errorMsg), "Socket error: %d", GETSOCKETERRNO());
+    if (result == 0) {
+        libData->Message("socketrecvclose");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    char errorMsg[32];
+    snprintf(errorMsg, sizeof(errorMsg), "socketrecv%d", GETSOCKETERRNO());
     libData->Message(errorMsg);
     return LIBRARY_FUNCTION_ERROR;
 }
@@ -357,6 +362,48 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
         libData->MTensor_new(MType_Integer, 1, &dims, &readySockets);
 
         filterFdsetToTensor(libData, &readfd, socketIds, readySockets, result);
+        free(socketIds);
+
+        MArgument_setMTensor(Res, readySockets);
+        return LIBRARY_NO_ERROR;
+    } else {
+        free(socketIds);
+        return LIBRARY_FUNCTION_ERROR;
+    }
+}
+
+/*socketsSelectForWrite[{sockets}, length, timeout] -> {readySockets}*/
+DLLEXPORT int socketsSelectForWrite(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    MTensor sockets = MArgument_getMTensor(Args[0]); // list of sockets
+    mint *socketArray = libData->MTensor_getIntegerData(sockets);
+    mint length = MArgument_getInteger(Args[1]); // number of sockets
+    mint timeout = MArgument_getInteger(Args[2]); // timeout in microseconds
+
+    int err;
+    SOCKET socketId;
+    fd_set writefd;
+    MTensor readySockets;
+    mint dims;
+
+    SOCKET *socketIds = malloc(sizeof(SOCKET) * length);
+    if (!socketIds) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    for (mint i = 0; i < length; i++) {
+        socketIds[i] = (SOCKET)socketArray[i];
+    }
+
+    FD_ZERO(&writefd);
+    SOCKET maxfd = fillFdsetFromArray(&writefd, socketIds, length, 0);
+    struct timeval tv = new_tv(timeout);
+
+    int result = select((int)(maxfd + 1), NULL, &writefd, NULL, &tv);
+    if (result >= 0) {
+        dims = (mint)result;
+        libData->MTensor_new(MType_Integer, 1, &dims, &readySockets);
+
+        filterFdsetToTensor(libData, &writefd, socketIds, readySockets, result);
         free(socketIds);
 
         MArgument_setMTensor(Res, readySockets);

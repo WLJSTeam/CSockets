@@ -107,6 +107,11 @@ socketsSelect::usage =
 - sockets: built-in List with socket ids.";
 
 
+socketsSelectForWrite::usage =
+"socketsSelectForWrite[sockets, length, timeout] returns list of ready socket ids.
+- sockets: built-in List with socket ids.";
+
+
 socketsSelectAsync::usage =
 "socketsSelectAsync[sockets, length, timeout] creates a thread where waits for sockets to be ready.
 - sockets: built-in List with socket ids.";
@@ -226,6 +231,10 @@ LibraryFunctionLoad[$libFile, "socketsCheck", {Integer}, {Integer, 1}];
 
 socketsSelect =
 LibraryFunctionLoad[$libFile, "socketsSelect", {{Integer, 1}, Integer, Integer}, {Integer, 1}];
+
+
+socketsSelectForWrite =
+LibraryFunctionLoad[$libFile, "socketsSelectForWrite", {{Integer, 1}, Integer, Integer}, {Integer, 1}];
 
 
 createSocketsSelectTask =
