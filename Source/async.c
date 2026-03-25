@@ -116,14 +116,20 @@ DLLEXPORT int createSocketsSelectLoop(WolframLibraryData libData, mint Argc, MAr
 
 void serverLoop(mint taskId, void *taskArgs) {
     ServerLoopArgs args = (ServerLoopArgs)taskArgs;
+
     WolframLibraryData libData = args->libData;
+
     SocketList acceptSockets = args->acceptSockets;
     SocketList recvSockets = args->recvSockets;
+
     SocketList recvFromSockets = args->recvFromSockets;
     AddressInfoList recvFromAddrInfos = args->recvFromAddrInfos;
+
     SOCKET interrupter = args->interrupter;
+
     BYTE *buffer = args->buffer;
     mint bufferSize = args->bufferSize;
+
     mint timeout = args->timeout;
 
     fd_set readfd;
@@ -144,6 +150,7 @@ void serverLoop(mint taskId, void *taskArgs) {
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
     {
         tv = new_tv(timeout);
+
         FD_ZERO(&readfd);
         maxfd = interrupter;
         FD_SET(interrupter, &readfd);
@@ -214,7 +221,6 @@ void serverLoop(mint taskId, void *taskArgs) {
             }
         }
     }
-
 }
 
 DLLEXPORT int createServerLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
