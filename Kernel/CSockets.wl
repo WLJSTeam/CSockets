@@ -1,20 +1,25 @@
 (* ::Package:: *)
 
 BeginPackage["WLJS`CSockets`", {
+    "WLJS`CSockets`Constants`",
     "WLJS`CSockets`Library`"
 }];
 
 
 CSocketOpen::usage =
-"CSocketOpen[port]";
+"CSocketOpen[host, port, protocol]";
+
+
+CSocketClose::usage =
+"CSocketClose[socket]";
 
 
 CSocketConnect::usage =
-"CSocketOpen[host, port]";
+"CSocketOpen[host, port, protocol]";
 
 
 CSocketObject::usage =
-"CSocketObject[]";
+"CSocketObject[id]";
 
 
 Begin["`Private`"];
@@ -22,13 +27,47 @@ Begin["`Private`"];
 
 CSocketOpen[host_String: "localhost", port_Integer, protocol: "TCP" | "UDP": "TCP"] :=
 With[{
-    addressInfo = socketAddressInfoCreate[host, ToString[port], 2, protocol /. {"TCP" -> 1, "UDP" -> 2}, 0],
-    socketId = socketCreate[2, protocol /. {"TCP" -> 1, "UDP" -> 2}, 0]
+    addressInfo = socketAddressInfoCreate[host, ToString[port],
+        SOCKET`AFINET,
+        protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
+        SOCKET`IPPROTOIP
+    ],
+    socketId = socketCreate[
+        SOCKET`AFINET,
+        protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
+        SOCKET`IPPROTOIP
+    ]
 },
     socketBind[socketId, addressInfo];
-    If[protocol == "TCP", socketListen[socketId, 4096]];
+    If[protocol == "TCP", socketListen[socketId, SOCKET`SOMAXCONN]];
+
+    (*Return*)
     CSocketObject[socketId]
 ];
+
+
+CSocketConnect[host_String: "localhost", port_Integer, protocol: "TCP" | "UDP": "TCP", blockingMode: True | False: True] :=
+With[{
+    addressInfo = socketAddressInfoCreate[host, ToString[port],
+        SOCKET`AFINET,
+        protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
+        SOCKET`IPPROTOIP
+    ],
+    socketId = socketCreate[
+        SOCKET`AFINET,
+        protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
+        SOCKET`IPPROTOIP
+    ]
+},
+    socketBind[socketId, addressInfo];
+    If[protocol == "TCP", socketListen[socketId, SOCKET`SOMAXCONN]];
+
+    (*Return*)
+    CSocketObject[socketId]
+];
+
+
+CSocketClose
 
 
 End[];
