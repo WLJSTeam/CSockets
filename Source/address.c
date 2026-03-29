@@ -39,32 +39,10 @@ DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MAr
     struct addrinfo *address = (struct addrinfo*)addressPtr;
 
     if (address == NULL) {
-        MArgument_setInteger(Res, 1); // failure
         return LIBRARY_FUNCTION_ERROR;
     }
 
     freeaddrinfo(address);
-    MArgument_setInteger(Res, 0); // success
-    return LIBRARY_NO_ERROR;
-}
-
-/*socketAddressGet[addressInfoPtr] -> addressPtr*/
-DLLEXPORT int socketAddressGet(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    if (Argc != 1) {
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[0]);
-    struct addrinfo *addressInfo = (struct addrinfo *)addressInfoPtr;
-
-    if (addressInfo == NULL) {
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    struct sockaddr *address = addressInfo->ai_addr;
-
-    uintptr_t addressPtr = (uintptr_t)address;
-    MArgument_setInteger(Res, (mint)addressPtr);
     return LIBRARY_NO_ERROR;
 }
 
@@ -95,6 +73,5 @@ DLLEXPORT int socketAddressInfoListRemove(WolframLibraryData libData, mint Argc,
     void *addressInfosPtr = (void *)(uintptr_t)addressInfos;
     free(addressInfosPtr);
 
-    MArgument_setInteger(Res, 0); // 0 - success
     return LIBRARY_NO_ERROR;
 }

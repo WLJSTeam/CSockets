@@ -9,6 +9,9 @@
 #define MININTERVAL 1000
 #define USEC_PER_SEC 1000000L
 
+#define BLOCKING_MODE 0
+#define NON_BLOCKING_MODE 1
+
 #define RESET "\033[0m"
 #define RED "\033[91m"
 #define GREEN "\033[92m"

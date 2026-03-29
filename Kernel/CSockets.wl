@@ -46,7 +46,7 @@ With[{
 ];
 
 
-CSocketConnect[host_String: "localhost", port_Integer, protocol: "TCP" | "UDP": "TCP", blockingMode: True | False: True] :=
+CSocketConnect[host_String: "localhost", port_Integer, protocol: "TCP" | "UDP": "TCP", wait: True | False: False] :=
 With[{
     addressInfo = socketAddressInfoCreate[host, ToString[port],
         SOCKET`AFINET,
@@ -59,7 +59,7 @@ With[{
         SOCKET`IPPROTOIP
     ]
 },
-    socketBind[socketId, addressInfo];
+    socketConnect[socketId, addressInfo, wait];
     If[protocol == "TCP", socketListen[socketId, SOCKET`SOMAXCONN]];
 
     (*Return*)

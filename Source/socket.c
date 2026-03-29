@@ -123,31 +123,17 @@ DLLEXPORT int socketListen(WolframLibraryData libData, mint Argc, MArgument *Arg
     return LIBRARY_NO_ERROR;
 }
 
-/*socketConnect[socketId, addressInfo] -> successStatus*/
+/*socketConnect[socketId, addressInfo]*/
 DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
-    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
+    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address info pointer as integer
     struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
-    bool wait = (bool)MArgument_getBoolean(Args[2]); // wait for connection
-
-    bool blockingMode = blockingModeQ(socketId);
-    if (wait && !blockingMode) {
-        setBlockingMode(socketId, true); // set blocking mode if needed
-    }
 
     int iResult = connect(socketId, addressInfo->ai_addr, (int)addressInfo->ai_addrlen);
     if (iResult == SOCKET_ERROR) {
-        if (wait && !blockingMode) {
-            setBlockingMode(socketId, false);
-        }
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    if (wait && !blockingMode) {
-        setBlockingMode(socketId, false); // restore non-blocking mode if needed
-    }
-
-    MArgument_setInteger(Res, 0);
     return LIBRARY_NO_ERROR;
 }
 

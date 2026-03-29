@@ -24,7 +24,7 @@ socketBufferCreate::usage =
 
 
 socketBufferRemove::usage =
-"socketBufferRemove[bufferPointer] returns success state == 1.";
+"socketBufferRemove[bufferPointer] free buffer.";
 
 
 socketCreate::usage = "socketCreate[family, socktype, protocol] returns unbound socket id.
@@ -55,19 +55,18 @@ socketGetOpt::usage =
 
 
 socketSetBlockingMode::usage =
-"socketSetBlockingMode[socketId, blockingMode] returns success state == 1.
-- blockingMode: blocking == 0 | non-blocking == 1";
+"socketSetBlockingMode[socketId, blockingMode] returns success state.
+- blockingMode: blocking == True | non-blocking == False";
 
 
 socketListen::usage =
-"socketListen[socketId, backlog] returns success state == 1.
+"socketListen[socketId, backlog] returns success state.
 - socketId: only created with SOCK_STEAM type
 - backlog: client store size for acception";
 
 
 socketConnect::usage =
-"socketConnect[socketId, addressInfo, wait] returns connection socket id.
-- wait: True or False. True blocks evaluation until connect.";
+"socketConnect[socketId, addressInfo] returns success state.";
 
 
 socketAccept::usage =
@@ -154,11 +153,7 @@ LibraryFunctionLoad[$libFile, "socketAddressInfoCreate", {String, String, Intege
 
 
 socketAddressInfoRemove =
-LibraryFunctionLoad[$libFile, "socketAddressInfoRemove", {Integer}, Integer];
-
-
-socketAddressGet =
-LibraryFunctionLoad[$libFile, "socketAddressGet", {Integer}, Integer];
+LibraryFunctionLoad[$libFile, "socketAddressInfoRemove", {Integer}, "Void"];
 
 
 socketBufferCreate =
@@ -166,7 +161,7 @@ LibraryFunctionLoad[$libFile, "socketBufferCreate", {Integer}, Integer];
 
 
 socketBufferRemove =
-LibraryFunctionLoad[$libFile, "socketBufferRemove", {Integer}, Integer];
+LibraryFunctionLoad[$libFile, "socketBufferRemove", {Integer}, "Void"];
 
 
 socketCreate =
@@ -174,15 +169,15 @@ LibraryFunctionLoad[$libFile, "socketCreate", {Integer, Integer, Integer}, Integ
 
 
 socketClose =
-LibraryFunctionLoad[$libFile, "socketClose", {Integer}, Integer];
+LibraryFunctionLoad[$libFile, "socketClose", {Integer}, "Boolean"];
 
 
 socketBind =
-LibraryFunctionLoad[$libFile, "socketBind", {Integer, Integer}, Integer];
+LibraryFunctionLoad[$libFile, "socketBind", {Integer, Integer}, "Boolean"];
 
 
 socketSetOpt =
-LibraryFunctionLoad[$libFile, "socketSetOpt", {Integer, Integer, Integer, Integer}, Integer];
+LibraryFunctionLoad[$libFile, "socketSetOpt", {Integer, Integer, Integer, Integer}, "Boolean"];
 
 
 socketGetOpt =
@@ -190,15 +185,15 @@ LibraryFunctionLoad[$libFile, "socketGetOpt", {Integer, Integer, Integer}, Integ
 
 
 socketSetBlockingMode =
-LibraryFunctionLoad[$libFile, "socketSetBlockingMode", {Integer, Integer}, Integer];
+LibraryFunctionLoad[$libFile, "socketSetBlockingMode", {Integer, Integer}, "Boolean"];
 
 
 socketListen =
-LibraryFunctionLoad[$libFile, "socketListen", {Integer, Integer}, Integer];
+LibraryFunctionLoad[$libFile, "socketListen", {Integer, Integer}, "Void"];
 
 
 socketConnect =
-LibraryFunctionLoad[$libFile, "socketConnect", {Integer, Integer, "Boolean"}, Integer];
+LibraryFunctionLoad[$libFile, "socketConnect", {Integer, Integer}, "Void"];
 
 
 socketAccept =
