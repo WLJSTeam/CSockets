@@ -399,3 +399,80 @@ DLLEXPORT int socketsSelectForWrite(WolframLibraryData libData, mint Argc, MArgu
         return LIBRARY_FUNCTION_ERROR;
     }
 }
+
+DLLEXPORT int socketsPoll(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    MTensor socketsTensor = MArgument_getMTensor(Args[0]);
+    mint length = MArgument_getInteger(Args[1]);
+    mint timeout_us = MArgument_getInteger(Args[2]);
+
+    mint *socketArray = libData->MTensor_getIntegerData(socketsTensor);
+    if (!socketArray) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    int timeout_ms;
+    if (timeout_us == -1) {
+        timeout_ms = -1;
+    } else {
+        timeout_ms = (int)(timeout_us / 1000);
+        if (timeout_us > 0 && timeout_ms == 0) {
+            timeout_ms = 1;  // минимум 1 мс для poll
+        }
+    }
+
+    POLL_FD *fds = (POLL_FD*)malloc(sizeof(POLL_FD) * length);
+    if (!fds) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    for (mint i = 0; i < length; i++) {
+        fds[i].fd = (SOCKET)socketArray[i];
+        fds[i].events = POLLIN_FLAG;
+        fds[i].revents = 0;
+    }
+
+    int result = POLL_FUNCTION(fds, (nfds_t)length, timeout_ms);
+
+    if (result < 0) {
+        free(fds);
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    if (result == 0) {
+        free(fds);
+        mint dims = 0;
+        MTensor emptyTensor;
+        libData->MTensor_new(MType_Integer, 1, &dims, &emptyTensor);
+        MArgument_setMTensor(Res, emptyTensor);
+        return LIBRARY_NO_ERROR;
+    }
+
+    mint *readyArray = (mint*)malloc(sizeof(mint) * result);
+    if (!readyArray) {
+        free(fds);
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    int readyCount = 0;
+    for (mint i = 0; i < length; i++) {
+        if (fds[i].revents & POLLIN_FLAG) {
+            readyArray[readyCount++] = (mint)fds[i].fd;
+        } else if (fds[i].revents & POLLERR_FLAG) {
+            readyArray[readyCount++] = (mint)fds[i].fd;
+        }
+    }
+
+    free(fds);
+
+    MTensor resultTensor;
+    mint dims[1] = {readyCount};
+    libData->MTensor_new(MType_Integer, 1, dims, &resultTensor);
+
+    mint *resultData = libData->MTensor_getIntegerData(resultTensor);
+    memcpy(resultData, readyArray, sizeof(mint) * readyCount);
+
+    free(readyArray);
+    MArgument_setMTensor(Res, resultTensor);
+
+    return LIBRARY_NO_ERROR;
+}

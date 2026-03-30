@@ -32,6 +32,10 @@
     #define MUTEX_INITIALIZER NULL
     #define SLEEP Sleep
     #define ms 1
+    #define POLL_FD WSAPOLLFD
+    #define POLL_FUNCTION WSAPoll
+    #define POLLIN_FLAG POLLRDNORM
+    #define POLLERR_FLAG POLLERR
 #else
     #include <sys/types.h>
     #include <sys/socket.h>
@@ -63,6 +67,11 @@
     #define MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
     extern Mutex globalMutex;
     #define SLEEP usleep
+    #include <poll.h>
+    #define POLL_FD struct pollfd
+    #define POLL_FUNCTION poll
+    #define POLLIN_FLAG POLLIN
+    #define POLLERR_FLAG POLLERR
 #endif
 
 #include <stdio.h>
