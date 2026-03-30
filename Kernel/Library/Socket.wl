@@ -155,11 +155,11 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketsCheck", {Integer}, {Integer, 1}];
 
 
 socketsSelect =
-LibraryFunctionLoad[$CSocketsLibrary, "socketsSelect", {{Integer, 1}, Integer, Integer}, {Integer, 1}];
+LibraryFunctionLoad[$CSocketsLibrary, "socketsSelect", {{Integer, 1}, Integer, Integer, Integer}, {Integer, 1}];
 
 
-socketsSelectForWrite =
-LibraryFunctionLoad[$CSocketsLibrary, "socketsSelectForWrite", {{Integer, 1}, Integer, Integer}, {Integer, 1}];
+socketsPoll =
+LibraryFunctionLoad[$CSocketsLibrary, "socketsPoll", {{Integer, 1}, Integer, Integer, Integer}, {Integer, 1}];
 
 
 End[];

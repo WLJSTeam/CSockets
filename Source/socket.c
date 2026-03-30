@@ -316,16 +316,17 @@ DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Arg
     return LIBRARY_NO_ERROR;
 }
 
-/*socketsSelect[{sockets}, length, timeout] -> {readySockets}*/
+/*socketsSelect[{sockets}, length, timeout, mode] -> {readySockets}*/
 DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     MTensor sockets = MArgument_getMTensor(Args[0]); // list of sockets
     mint *socketArray = libData->MTensor_getIntegerData(sockets);
     mint length = MArgument_getInteger(Args[1]); // number of sockets
     mint timeout = MArgument_getInteger(Args[2]); // timeout in microseconds
+    mint mode = MArgument_getInteger(Args[3]); // 1 - read, 2 - write
 
     int err;
     SOCKET socketId;
-    fd_set readfd;
+    fd_set fds;
     MTensor readySockets;
     mint dims;
 
@@ -338,16 +339,27 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
         socketIds[i] = (SOCKET)socketArray[i];
     }
 
-    FD_ZERO(&readfd);
-    SOCKET maxfd = fillFdsetFromArray(&readfd, socketIds, length, 0);
+    FD_ZERO(&fds);
+    SOCKET maxfd = fillFdsetFromArray(&fds, socketIds, length, 0);
     struct timeval tv = new_tv(timeout);
 
-    int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
+    int result;
+    switch (mode)
+    {
+    case 1:
+        result = select((int)(maxfd + 1), &fds, NULL, NULL, &tv);
+        break;
+    case 2:
+        result = select((int)(maxfd + 1), NULL, &fds, NULL, &tv);
+        break;
+    default:
+        return LIBRARY_FUNCTION_ERROR;
+    }
     if (result >= 0) {
         dims = (mint)result;
         libData->MTensor_new(MType_Integer, 1, &dims, &readySockets);
 
-        filterFdsetToTensor(libData, &readfd, socketIds, readySockets, result);
+        filterFdsetToTensor(libData, &fds, socketIds, readySockets, result);
         free(socketIds);
 
         MArgument_setMTensor(Res, readySockets);
@@ -358,47 +370,6 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
     }
 }
 
-/*socketsSelectForWrite[{sockets}, length, timeout] -> {readySockets}*/
-DLLEXPORT int socketsSelectForWrite(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    MTensor sockets = MArgument_getMTensor(Args[0]); // list of sockets
-    mint *socketArray = libData->MTensor_getIntegerData(sockets);
-    mint length = MArgument_getInteger(Args[1]); // number of sockets
-    mint timeout = MArgument_getInteger(Args[2]); // timeout in microseconds
-
-    int err;
-    SOCKET socketId;
-    fd_set writefd;
-    MTensor readySockets;
-    mint dims;
-
-    SOCKET *socketIds = malloc(sizeof(SOCKET) * length);
-    if (!socketIds) {
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    for (mint i = 0; i < length; i++) {
-        socketIds[i] = (SOCKET)socketArray[i];
-    }
-
-    FD_ZERO(&writefd);
-    SOCKET maxfd = fillFdsetFromArray(&writefd, socketIds, length, 0);
-    struct timeval tv = new_tv(timeout);
-
-    int result = select((int)(maxfd + 1), NULL, &writefd, NULL, &tv);
-    if (result >= 0) {
-        dims = (mint)result;
-        libData->MTensor_new(MType_Integer, 1, &dims, &readySockets);
-
-        filterFdsetToTensor(libData, &writefd, socketIds, readySockets, result);
-        free(socketIds);
-
-        MArgument_setMTensor(Res, readySockets);
-        return LIBRARY_NO_ERROR;
-    } else {
-        free(socketIds);
-        return LIBRARY_FUNCTION_ERROR;
-    }
-}
 
 DLLEXPORT int socketsPoll(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     MTensor socketsTensor = MArgument_getMTensor(Args[0]);
