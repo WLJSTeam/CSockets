@@ -402,7 +402,11 @@ DLLEXPORT int socketsPoll(WolframLibraryData libData, mint Argc, MArgument *Args
         fds[i].revents = 0;
     }
 
-    int result = POLL_FUNCTION(fds, (nfds_t)length, timeout_ms);
+    #ifdef _WIN32
+        int result = WSAPoll(fds, (int)length, timeout_ms);
+    #else
+        int result = poll(fds, (nfds_t)length, timeout_ms);
+    #endif
 
     if (result < 0) {
         free(fds);

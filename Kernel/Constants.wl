@@ -1,8 +1,8 @@
-BeginPackage["KirillBelov`CSockets`Constants`"];
+BeginPackage["WLJS`CSockets`Constants`"];
 
 (* Protocol levels *)
-SOCKET`IPPROTOIP::usage = "IPPROTO_IP - IPv4 protocol level";
-SOCKET`IPPROTOIP = 0;
+SOCKET`IPPROTOAUTO::usage = "IPPROTOAUTO - auto protocol level";
+SOCKET`IPPROTOAUTO = 0;
 
 
 SOCKET`IPPROTOTCP::usage = "IPPROTO_TCP - TCP protocol level";

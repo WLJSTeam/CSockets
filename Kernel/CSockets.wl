@@ -46,7 +46,12 @@ With[{
 ];
 
 
-CSocketConnect[host_String: "localhost", port_Integer, protocol: "TCP" | "UDP": "TCP", wait: True | False: False] :=
+Options[CSocketConnect] = {
+    "Wait" -> False
+};
+
+
+CSocketConnect[host_String: "localhost", port_Integer, protocol: "TCP" | "UDP": "TCP", OptionsPattern[]] :=
 With[{
     addressInfo = socketAddressInfoCreate[host, ToString[port],
         SOCKET`AFINET,
@@ -57,17 +62,30 @@ With[{
         SOCKET`AFINET,
         protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
         SOCKET`IPPROTOIP
-    ]
+    ],
+    wait = OptionValue["Wait"]
 },
-    socketConnect[socketId, addressInfo, wait];
-    If[protocol == "TCP", socketListen[socketId, SOCKET`SOMAXCONN]];
+    If[!wait,
+        socketSetBlockingMode[socketId, False]
+    ];
+
+    socketConnect[socketId, addressInfo];
+
+    If[!wait,
+        socketSetBlockingMode[socketId, True]
+    ];
 
     (*Return*)
     CSocketObject[socketId]
 ];
 
 
-CSocketClose
+CSocketClose[CSocketObject[socketId_Integer]] :=
+socketClose[socketId];
+
+
+CSocketObject /: WriteString[CSocketObject[socketId_Integer], message_String] :=
+socketWriteString
 
 
 End[];
