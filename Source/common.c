@@ -87,17 +87,23 @@ void cleanupWSA() {
     #endif
 }
 
-int setBlockingMode(SOCKET socketId, bool blockingMode) {
+void setBlockingMode(SOCKET socketId) {
     #ifdef _WIN32
-    u_long mode = blockingMode ? 0 : 1; // 0 for blocking, 1 for non-blocking
-    return ioctlsocket(socketId, FIONBIO, &mode);
+    u_long mode = 0;
+    ioctlsocket(socketId, FIONBIO, &mode);
     #else
     int flags = fcntl(socketId, F_GETFL, 0);
-    if (blockingMode) {
-        return fcntl(socketId, F_SETFL, flags & ~O_NONBLOCK);
-    } else {
-        return fcntl(socketId, F_SETFL, flags | O_NONBLOCK);
-    }
+    fcntl(socketId, F_SETFL, flags & ~O_NONBLOCK);
+    #endif
+}
+
+void setNonBlockingMode(SOCKET socketId) {
+    #ifdef _WIN32
+    u_long mode = 1;
+    ioctlsocket(socketId, FIONBIO, &mode);
+    #else
+    int flags = fcntl(socketId, F_GETFL, 0);
+    fcntl(socketId, F_SETFL, flags | O_NONBLOCK);
     #endif
 }
 
@@ -105,10 +111,10 @@ bool blockingModeQ(SOCKET socketId) {
     #ifdef _WIN32
     u_long mode;
     ioctlsocket(socketId, FIONBIO, &mode);
-    return (mode == 0); // 0 - blocking, 1 - non blocking
+    return mode; // True - blocking, False - non blocking
     #else
     int flags = fcntl(socketId, F_GETFL, 0);
-    return !(flags & O_NONBLOCK);
+    return (flags & O_NONBLOCK);
     #endif
 }
 

@@ -47,7 +47,8 @@ With[{
 
 
 Options[CSocketConnect] = {
-    "Wait" -> False
+    "Wait" -> False,
+    "Blocking" -> True
 };
 
 
@@ -63,16 +64,19 @@ With[{
         protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
         SOCKET`IPPROTOIP
     ],
-    wait = OptionValue["Wait"]
+    wait = OptionValue["Wait"],
+    blocking = OptionValue["Blocking"]
 },
-    If[!wait,
-        socketSetBlockingMode[socketId, False]
+    socketBind[socketId, addressInfo];
+
+    If[Not[wait] && blocking,
+        socketSetNonBlockingMode[socketId]
     ];
 
     socketConnect[socketId, addressInfo];
 
-    If[!wait,
-        socketSetBlockingMode[socketId, True]
+    If[Not[wait] && blocking,
+        socketSetBlockingMode[socketId]
     ];
 
     (*Return*)
@@ -80,12 +84,16 @@ With[{
 ];
 
 
-CSocketClose[CSocketObject[socketId_Integer]] :=
+CSocketObject /: Close[CSocketObject[socketId_Integer]] :=
 socketClose[socketId];
 
 
 CSocketObject /: WriteString[CSocketObject[socketId_Integer], message_String] :=
-socketWriteString
+socketSendString[socketId, message, StringLength[message]];
+
+
+CSocketObject /: BinaryWrite[CSocketObject[socketId_Integer], byteArray_ByteArray] :=
+socketSendString[socketId, byteArray, Length[byteArray]];
 
 
 End[];

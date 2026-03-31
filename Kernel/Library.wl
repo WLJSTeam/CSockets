@@ -38,8 +38,11 @@ socketGetOpt::usage =
 
 
 socketSetBlockingMode::usage =
-"socketSetBlockingMode[socketId, blockingMode] returns success state.
-- blockingMode: blocking == True | non-blocking == False";
+"socketSetBlockingMode[socketId]";
+
+
+socketSetNonBlockingMode::usage =
+"socketSetNonBlockingMode[socketId]";
 
 
 socketListen::usage =
@@ -168,7 +171,11 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketGetOpt", {Integer, Integer, Integer
 
 
 socketSetBlockingMode =
-LibraryFunctionLoad[$CSocketsLibrary, "socketSetBlockingMode", {Integer, Integer}, "Boolean"];
+LibraryFunctionLoad[$CSocketsLibrary, "socketSetBlockingMode", {Integer}, "Void"];
+
+
+socketSetNonBlockingMode =
+LibraryFunctionLoad[$CSocketsLibrary, "socketSetNonBlockingMode", {Integer}, "Void"];
 
 
 socketListen =

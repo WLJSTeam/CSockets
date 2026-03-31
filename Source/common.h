@@ -105,7 +105,9 @@ void initWSA();
 
 void cleanupWSA();
 
-int setBlockingMode(SOCKET socketId, bool blockingMode);
+void setBlockingMode(SOCKET socketId);
+
+void setNonBlockingMode(SOCKET socketId);
 
 bool blockingModeQ(SOCKET socketId);
 
