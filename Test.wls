@@ -13,8 +13,8 @@ Print["socket id: ", socketId];
 
 
 host = "localhost" (*server host here*)
-port = "4578" (*port host here*)
-gateway = "" (*port host here "169.0.0.1"*)
+port = "4578" (*port here*)
+gateway = "" (*"169.0.0.1"*)
 
 
 addressInfo = WLJS`CSockets`Library`socketAddressInfoCreate[host, port, SOCKET`AFINET, SOCKET`SOCKSTREAM, SOCKET`IPPROTOAUTO, gateway];
