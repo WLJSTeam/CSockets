@@ -119,4 +119,22 @@ SOCKET`SOEXCLUSIVEADDRUSE::usage = "SO_EXCLUSIVEADDRUSE - exclusive address bind
 SOCKET`SOEXCLUSIVEADDRUSE = If[$OperatingSystem === "Windows", 16^^0001, -5];
 
 
+(*unified sockes_poll flags*)
+
+
+SOCKET`POLLIN   = 16^^0001;
+
+
+SOCKET`POLLOUT  = 16^^0002;
+
+
+SOCKET`POLLERR  = 16^^0004;
+
+
+SOCKET`POLLHUP  = 16^^0008;
+
+
+SOCKET`POLLNVAL = 16^^0010;
+
+
 EndPackage[];
