@@ -93,8 +93,9 @@ socketsSelect::usage =
 
 
 socketsPoll::usage =
-"socketsPoll[sockets, length, timeout] returns list of ready socket ids.
-- sockets: built-in List with socket ids.";
+"socketsPoll[sockets, length, timeout, flags] returns list of ready socket ids.
+- sockets: built-in List with socket ids.
+- flags: bit or: 1 read | 2 write | 4 err | 8 close | 16 invalid";
 
 
 socketAddressInfoCreate::usage =
@@ -219,7 +220,7 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketsSelect", {{Integer, 1}, Integer, I
 
 
 socketsPoll =
-LibraryFunctionLoad[$CSocketsLibrary, "socketsPoll", {{Integer, 1}, Integer, Integer, Integer}, {Integer, 1}];
+LibraryFunctionLoad[$CSocketsLibrary, "socketsPoll", {{Integer, 1}, Integer, Integer, Integer}, {Integer, 2}];
 
 
 socketAddressInfoCreate =
