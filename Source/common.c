@@ -197,3 +197,63 @@ void copyTensorToSocketArray(WolframLibraryData libData, MTensor tensor, SOCKET 
         result[i] = (SOCKET)data[i];
     }
 }
+
+int sockets_poll(POLL_FD *fds, mint length, mint timeout_us) {
+    int timeout_ms;
+    if (timeout_us == -1) {
+        timeout_ms = -1;
+    } else {
+        timeout_ms = (int)(timeout_us / 1000);
+        if (timeout_us > 0 && timeout_ms == 0) {
+            timeout_ms = 1;  // 1 is min for poll
+        }
+    }
+
+    #ifdef _WIN32
+        int result = WSAPoll(fds, (int)length, timeout_ms);
+    #else
+        int result = poll(fds, (nfds_t)length, timeout_ms);
+    #endif
+
+    return result;
+}
+
+int convert_wl_to_native_events(mint wl_events) {
+    int native = 0;
+
+    #ifdef _WIN32
+        if (wl_events & WL_POLLIN)   native |= POLLRDNORM;
+        if (wl_events & WL_POLLOUT)  native |= POLLWRNORM;
+        if (wl_events & WL_POLLERR)  native |= POLLERR;
+        if (wl_events & WL_POLLHUP)  native |= POLLHUP;
+        if (wl_events & WL_POLLNVAL) native |= POLLNVAL;
+    #else
+        if (wl_events & WL_POLLIN)   native |= POLLIN;
+        if (wl_events & WL_POLLOUT)  native |= POLLOUT;
+        if (wl_events & WL_POLLERR)  native |= POLLERR;
+        if (wl_events & WL_POLLHUP)  native |= POLLHUP;
+        if (wl_events & WL_POLLNVAL) native |= POLLNVAL;
+    #endif
+
+    return native;
+}
+
+mint convert_native_to_wl_events(int native_revents) {
+    mint wl = 0;
+
+    #ifdef _WIN32
+        if (native_revents & POLLRDNORM) wl |= WL_POLLIN;
+        if (native_revents & POLLWRNORM) wl |= WL_POLLOUT;
+        if (native_revents & POLLERR)    wl |= WL_POLLERR;
+        if (native_revents & POLLHUP)    wl |= WL_POLLHUP;
+        if (native_revents & POLLNVAL)   wl |= WL_POLLNVAL;
+    #else
+        if (native_revents & POLLIN)     wl |= WL_POLLIN;
+        if (native_revents & POLLOUT)    wl |= WL_POLLOUT;
+        if (native_revents & POLLERR)    wl |= WL_POLLERR;
+        if (native_revents & POLLHUP)    wl |= WL_POLLHUP;
+        if (native_revents & POLLNVAL)   wl |= WL_POLLNVAL;
+    #endif
+
+    return wl;
+}

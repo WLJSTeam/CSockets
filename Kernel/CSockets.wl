@@ -96,6 +96,10 @@ CSocketObject /: BinaryWrite[CSocketObject[socketId_Integer], byteArray_ByteArra
 socketSendString[socketId, byteArray, Length[byteArray]];
 
 
+CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer]] :=
+socketsPoll[]
+
+
 End[];
 
 

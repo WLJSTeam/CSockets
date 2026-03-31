@@ -370,26 +370,24 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
     }
 }
 
-
+/* socketsPoll[sockets, length, timeout_us, eventsMask] -> {{socket, events}, ...} */
 DLLEXPORT int socketsPoll(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     MTensor socketsTensor = MArgument_getMTensor(Args[0]);
     mint length = MArgument_getInteger(Args[1]);
     mint timeout_us = MArgument_getInteger(Args[2]);
+    mint eventsMask = MArgument_getInteger(Args[3]);
 
     mint *socketArray = libData->MTensor_getIntegerData(socketsTensor);
-    if (!socketArray) {
-        return LIBRARY_FUNCTION_ERROR;
+
+    if (length == 0) {
+        MTensor emptyTensor;
+        mint dims = 0;
+        libData->MTensor_new(MType_Integer, 1, &dims, &emptyTensor);
+        MArgument_setMTensor(Res, emptyTensor);
+        return LIBRARY_NO_ERROR;
     }
 
-    int timeout_ms;
-    if (timeout_us == -1) {
-        timeout_ms = -1;
-    } else {
-        timeout_ms = (int)(timeout_us / 1000);
-        if (timeout_us > 0 && timeout_ms == 0) {
-            timeout_ms = 1;  // минимум 1 мс для poll
-        }
-    }
+    int nativeEvents = convert_wl_to_native_events(eventsMask);
 
     POLL_FD *fds = (POLL_FD*)malloc(sizeof(POLL_FD) * length);
     if (!fds) {
@@ -398,15 +396,11 @@ DLLEXPORT int socketsPoll(WolframLibraryData libData, mint Argc, MArgument *Args
 
     for (mint i = 0; i < length; i++) {
         fds[i].fd = (SOCKET)socketArray[i];
-        fds[i].events = POLLIN_FLAG;
+        fds[i].events = nativeEvents;
         fds[i].revents = 0;
     }
 
-    #ifdef _WIN32
-        int result = WSAPoll(fds, (int)length, timeout_ms);
-    #else
-        int result = poll(fds, (nfds_t)length, timeout_ms);
-    #endif
+    int result = sockets_poll(fds, length, timeout_us);
 
     if (result < 0) {
         free(fds);
@@ -422,32 +416,21 @@ DLLEXPORT int socketsPoll(WolframLibraryData libData, mint Argc, MArgument *Args
         return LIBRARY_NO_ERROR;
     }
 
-    mint *readyArray = (mint*)malloc(sizeof(mint) * result);
-    if (!readyArray) {
-        free(fds);
-        return LIBRARY_FUNCTION_ERROR;
-    }
+    mint dims[2] = {result, 2};
+    MTensor resultTensor;
+    libData->MTensor_new(MType_Integer, 2, dims, &resultTensor);
+    mint *resultData = libData->MTensor_getIntegerData(resultTensor);
 
-    int readyCount = 0;
-    for (mint i = 0; i < length; i++) {
-        if (fds[i].revents & POLLIN_FLAG) {
-            readyArray[readyCount++] = (mint)fds[i].fd;
-        } else if (fds[i].revents & POLLERR_FLAG) {
-            readyArray[readyCount++] = (mint)fds[i].fd;
+    int idx = 0;
+    for (mint i = 0; i < length && idx < result; i++) {
+        if (fds[i].revents != 0) {
+            resultData[idx * 2 + 0] = (mint)fds[i].fd;
+            resultData[idx * 2 + 1] = convert_native_to_wl_events(fds[i].revents);
+            idx++;
         }
     }
 
     free(fds);
-
-    MTensor resultTensor;
-    mint dims[1] = {readyCount};
-    libData->MTensor_new(MType_Integer, 1, dims, &resultTensor);
-
-    mint *resultData = libData->MTensor_getIntegerData(resultTensor);
-    memcpy(resultData, readyArray, sizeof(mint) * readyCount);
-
-    free(readyArray);
     MArgument_setMTensor(Res, resultTensor);
-
     return LIBRARY_NO_ERROR;
 }

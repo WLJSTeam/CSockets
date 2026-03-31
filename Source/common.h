@@ -74,6 +74,12 @@
     #define POLLERR_FLAG POLLERR
 #endif
 
+#define WL_POLLIN   0x0001   // 1  - ready to read
+#define WL_POLLOUT  0x0002   // 2  - ready to write
+#define WL_POLLERR  0x0004   // 4  - error
+#define WL_POLLHUP  0x0008   // 8  - socket closed
+#define WL_POLLNVAL 0x0010   // 16 - invalid socket
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -122,5 +128,11 @@ size_t filterFdsetToTensor(WolframLibraryData libData, fd_set *set, SOCKET *inpu
 SOCKET fillFdsetFromArray(fd_set *set, SOCKET *sockets, size_t length, SOCKET initmaxfd);
 
 void copyTensorToSocketArray(WolframLibraryData libData, MTensor tensor, SOCKET *result, size_t length);
+
+int sockets_poll(POLL_FD *fds, mint length, mint timeout_us);
+
+int convert_wl_to_native_events(mint wl_events);
+
+mint convert_native_to_wl_events(int native_revents);
 
 #endif
