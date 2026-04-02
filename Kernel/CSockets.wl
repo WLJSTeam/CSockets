@@ -67,6 +67,10 @@ With[{
     wait = OptionValue["Wait"],
     blocking = OptionValue["Blocking"]
 },
+    If[!blocking,
+        socketSetNonBlockingMode[socketId]
+    ];
+
     socketBind[socketId, addressInfo];
 
     If[Not[wait] && blocking,
@@ -84,8 +88,16 @@ With[{
 ];
 
 
-CSocketObject /: Close[CSocketObject[socketId_Integer]] :=
+CSocketClose[CSocketObject[socketId_Integer]] :=
 socketClose[socketId];
+
+
+CSocketObject /: Close[socketObject_CSocketObject] :=
+CSocketClose[socketObject];
+
+
+CSocketSend[SocketObject[socketId_Integer], byteArray_ByteArray] :=
+socketSend[socket];
 
 
 CSocketObject /: WriteString[CSocketObject[socketId_Integer], message_String] :=
@@ -97,7 +109,7 @@ socketSendString[socketId, byteArray, Length[byteArray]];
 
 
 CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer]] :=
-socketsPoll[]
+socketsPoll[];
 
 
 End[];
