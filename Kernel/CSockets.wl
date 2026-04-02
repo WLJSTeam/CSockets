@@ -109,7 +109,11 @@ socketSendString[socketId, byteArray, Length[byteArray]];
 
 
 CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer]] :=
+<<<<<<< HEAD
 socketsPoll[];
+=======
+socketsPoll[{socketId}, 1, 10^6, BitOr[SOCKET`POLLIN, SOCKET`POLLERR, SOCKET`POLLHUP, SOCKET`POLLNVAL]];
+>>>>>>> 78d265b7f5d8802eccf5f3b6515edcda8ac2f34a
 
 
 End[];
