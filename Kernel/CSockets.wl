@@ -26,16 +26,16 @@ Begin["`Private`"];
 
 
 CSocketOpen[host_String: "localhost", port_Integer, protocol: "TCP" | "UDP": "TCP"] :=
-With[{
+Module[{
     addressInfo = socketAddressInfoCreate[host, ToString[port],
         SOCKET`AFINET,
         protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
-        SOCKET`IPPROTOIP
+        SOCKET`IPPROTOAUTO, ""
     ],
     socketId = socketCreate[
         SOCKET`AFINET,
         protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
-        SOCKET`IPPROTOIP
+        SOCKET`IPPROTOAUTO
     ]
 },
     socketBind[socketId, addressInfo];
@@ -57,12 +57,12 @@ With[{
     addressInfo = socketAddressInfoCreate[host, ToString[port],
         SOCKET`AFINET,
         protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
-        SOCKET`IPPROTOIP
+        SOCKET`IPPROTOAUTO
     ],
     socketId = socketCreate[
         SOCKET`AFINET,
         protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
-        SOCKET`IPPROTOIP
+        SOCKET`IPPROTOAUTO
     ],
     wait = OptionValue["Wait"],
     blocking = OptionValue["Blocking"]
@@ -109,11 +109,7 @@ socketSendString[socketId, byteArray, Length[byteArray]];
 
 
 CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer]] :=
-<<<<<<< HEAD
-socketsPoll[];
-=======
 socketsPoll[{socketId}, 1, 10^6, BitOr[SOCKET`POLLIN, SOCKET`POLLERR, SOCKET`POLLHUP, SOCKET`POLLNVAL]];
->>>>>>> 78d265b7f5d8802eccf5f3b6515edcda8ac2f34a
 
 
 End[];
