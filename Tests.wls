@@ -39,3 +39,15 @@ WLJS`CSockets`Library`socketListen[socketId, 1024];
 
 
 Echo["Listening on socket..."];
+
+
+SocketListen[CSocketObject[socketId], Print];
+
+
+Echo["Socket is ready to accept..."];
+
+
+While[True,
+    Pause[10];
+    Echo["Waiting for client connection..."];
+];

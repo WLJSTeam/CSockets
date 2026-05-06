@@ -132,6 +132,31 @@ socketAddressInfoListRemove::usage =
 "socketAddressInfoListRemove[addressInfoListPtr] free memory.";
 
 
+createSocketsSelectLoop::usage =
+"createSocketsSelectLoop[socketList, length] creates a thread where waits for sockets to be ready.
+- socketList: dynamic c-struct with socket ids.";
+
+
+socketListCreate::usage =
+"socketListCreate[socketIdList, length] creates internal array of socket ids.";
+
+
+socketListAdd::usage =
+"socketListAdd[socketListPtr, socketId] adds socket id to dynamic c-struct.";
+
+
+socketListClear::usage =
+"socketListClear[socketListPtr] clear dynamic c-struct.";
+
+
+socketListRemove::usage =
+"socketListRemove[socketListPtr, socketId] removes socket id from dynamic c-struct.";
+
+
+socketListGetAll::usage =
+"socketListGetAll[socketListPtr] returns list of socket ids from dynamic c-struct.";
+
+
 Begin["`Private`"];
 
 
@@ -241,6 +266,30 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketAddressInfoRemove", {Integer}, "Voi
 
 socketsSelectAsync =
 LibraryFunctionLoad[$CSocketsLibrary, "socketsSelectAsync", {{Integer, 1}, Integer, Integer}, Integer];
+
+
+createSocketsSelectLoop =
+LibraryFunctionLoad[$CSocketsLibrary, "createSocketsSelectLoop", {Integer, Integer}, Integer];
+
+
+socketListCreate =
+LibraryFunctionLoad[$CSocketsLibrary, "socketListCreate", {{Integer, 1}, Integer}, Integer];
+
+
+socketListAdd =
+LibraryFunctionLoad[$CSocketsLibrary, "socketListAdd", {Integer, Integer}, "Void"];
+
+
+socketListClear =
+LibraryFunctionLoad[$CSocketsLibrary, "socketListClear", {Integer}, "Void"];
+
+
+socketListRemove =
+LibraryFunctionLoad[$CSocketsLibrary, "socketListRemove", {Integer}, "Void"];
+
+
+socketListGetAll =
+LibraryFunctionLoad[$CSocketsLibrary, "socketListGetAll", {Integer}, {Integer, 1}];
 
 
 End[];

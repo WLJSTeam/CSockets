@@ -3,6 +3,7 @@
 DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     MTensor sockets = MArgument_getMTensor(Args[0]);
     mint* socketsData = libData->MTensor_getIntegerData(sockets);
+    
     size_t length = (size_t)MArgument_getInteger(Args[1]);
 
     if (length < 0) {
@@ -43,15 +44,13 @@ DLLEXPORT int socketListRemove(WolframLibraryData libData, mint Argc, MArgument 
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     free(socketList->sockets);
     free(socketList);
-    MArgument_setInteger(Res, 0);
     return LIBRARY_NO_ERROR;
 }
 
 DLLEXPORT int socketListAdd(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[1]);
-    slistAdd(socketList, socketId);
-    MArgument_setInteger(Res, 0);
+    socket_list_add(socketList, socketId);
     return LIBRARY_NO_ERROR;
 }
 
@@ -74,20 +73,36 @@ DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument 
 
 DLLEXPORT int socketListClear(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
-    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[1]);
-    slistClear(socketList);
-    MArgument_setInteger(Res, 0);
+    socket_list_clear(socketList);
     return LIBRARY_NO_ERROR;
 }
 
-void slistAdd(SocketList socketList, SOCKET socketId) {
+void socket_list_add(SocketList socketList, SOCKET socketId) {
+    socketList->sockets[socketList->length++] = socketId;
     if (socketList->length == socketList->capacity) {
         socketList->capacity *= 2;
         socketList->sockets = realloc(socketList->sockets, sizeof(SOCKET) * socketList->capacity);
     }
-    socketList->sockets[socketList->length++] = socketId;
 }
 
-void slistClear(SocketList socketList) {
-
+void socket_list_clear(SocketList socketList) {
+    size_t writeIndex = 0;
+    
+    for (size_t i = 0; i < socketList->length; i++) {
+        SOCKET socketId = socketList->sockets[i];
+        
+        if (socketValidQ(socketId)) {
+            if (writeIndex != i) {
+                socketList->sockets[writeIndex] = socketId;
+            }
+            writeIndex++;
+        }
+    }
+    
+    socketList->length = writeIndex;
+    while (socketList->capacity > socketList->length * 2)
+    {
+        socketList->capacity /= 2;
+    }
+    socketList->sockets = realloc(socketList->sockets, sizeof(SOCKET) * socketList->capacity);
 }

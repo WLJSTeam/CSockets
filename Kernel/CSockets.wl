@@ -112,6 +112,55 @@ CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer]] :=
 socketsPoll[{socketId}, 1, 10^6, BitOr[SOCKET`POLLIN, SOCKET`POLLERR, SOCKET`POLLHUP, SOCKET`POLLNVAL]];
 
 
+CSocketObject /: SocketListen[CSocketObject[socketId_Integer], handler_] :=
+Module[{
+    backlog = 1024, 
+    socketList = CSocketList[{socketId}], 
+    usecInterval = 60 * 10^6, 
+    bufferSize = 1024},{
+    buffer = socketBufferCreate[bufferSize]
+}, 
+    socketListen[socketId, backlog];
+    
+    Echo @ Internal`CreateAsynchronousTask[
+    	createSocketsSelectLoop,
+		{socketList[[1]], usecInterval}, 
+		socketsSelectLoopHandler[handler, socketId, socketList, buffer, bufferSize]
+	];
+];
+
+
+CSocketList[initialSockets : {__Integer}] :=
+Module[{socketListId = socketListCreate[initialSockets, Length[initialSockets]]},
+    CSocketList[socketListId]
+];
+
+
+socketsSelectLoopHandler[handler_, socketId_Integer, CSocketList[socketListId_Integer], buffer_Integer, bufferSize_Integer] :=
+Function[
+    Module[{accepted},
+        With[{task = #1, eventName = #2, readySockets = Flatten[{#3}]}, 
+            Echo[task];
+            Echo[readySockets];
+
+            Table[
+                If[s === socketId,
+                    accepted = socketAccept[s];
+                    socketListAdd[socketListId, accepted];
+                    Echo["Accepting new connection... " <> ToString[accepted]];,
+                (*Else*)
+                    Echo @ ByteArrayToString[socketRecv[s, buffer, bufferSize]];
+                ];, 
+                {s, readySockets}
+            ];
+
+            Echo["Select loop triggered..."];
+            Quit[];
+        ]
+    ]
+];
+
+
 End[];
 
 

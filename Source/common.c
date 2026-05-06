@@ -125,10 +125,15 @@ bool socketValidQ(SOCKET socketId) {
 
     #ifdef _WIN32
     int opt = 0;
-    int len = sizeof(opt);
+    socklen_t len = sizeof(opt);
     int result = getsockopt(socketId, SOL_SOCKET, SO_TYPE, (char*)&opt, &len);
 
     if (result == 0) {
+        int error = 0;
+        len = sizeof(error);
+        if (getsockopt(socketId, SOL_SOCKET, SO_ERROR, (char*)&error, &len) == 0) {
+            return error == 0;
+        }
         return true;
     }
 
@@ -136,8 +141,17 @@ bool socketValidQ(SOCKET socketId) {
     return err != WSAENOTSOCK;
 
     #else
-    int result = fcntl(socketId, F_GETFL);
-    return result >= 0 || errno != EBADF;
+    int flags = fcntl(socketId, F_GETFL);
+    if (flags >= 0) {
+        int error = 0;
+        socklen_t len = sizeof(error);
+        if (getsockopt(socketId, SOL_SOCKET, SO_ERROR, (char*)&error, &len) == 0) {
+            return error == 0;
+        }
+        return true;
+    }
+    
+    return errno != EBADF;
     #endif
 }
 

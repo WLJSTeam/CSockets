@@ -29,8 +29,8 @@ DLLEXPORT int socketAddressInfoListCreate(WolframLibraryData libData, mint Argc,
 
 DLLEXPORT int socketAddressInfoListRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
 
-void slistAdd(SocketList slist, SOCKET socketId);
+void socket_list_add(SocketList slist, SOCKET socketId);
 
-void slistClear(SocketList slist);
+void socket_list_clear(SocketList slist);
 
 #endif

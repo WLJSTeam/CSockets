@@ -176,7 +176,7 @@ void serverLoop(mint taskId, void *taskArgs) {
                 socketId = sockets[i];
                 if (FD_ISSET(socketId, &readfd)) {
                     clientId = accept(socketId, NULL, NULL);
-                    slistAdd(recvSockets, clientId);
+                    socket_list_add(recvSockets, clientId);
                     dataStore = libData->ioLibraryFunctions->createDataStore();
                     libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)clientId);
                     libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accept", dataStore);
