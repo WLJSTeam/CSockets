@@ -117,8 +117,8 @@ Module[{
     backlog = 1024, 
     socketList = CSocketList[{socketId}], 
     usecInterval = 60 * 10^6, 
-    bufferSize = 1024},{
-    buffer = socketBufferCreate[bufferSize]
+    bufferSize = 1024,
+    buffer = socketBufferCreate[1024]
 }, 
     socketListen[socketId, backlog];
     
@@ -139,7 +139,11 @@ Module[{socketListId = socketListCreate[initialSockets, Length[initialSockets]]}
 socketsSelectLoopHandler[handler_, socketId_Integer, CSocketList[socketListId_Integer], buffer_Integer, bufferSize_Integer] :=
 Function[
     Module[{accepted},
-        With[{task = #1, eventName = #2, readySockets = Flatten[{#3}]}, 
+        With[{
+            task = #1, 
+            eventName = #2, 
+            readySockets = Flatten[{#3}]
+        }, 
             Echo[task];
             Echo[readySockets];
 
