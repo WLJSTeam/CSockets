@@ -113,13 +113,12 @@ DLLEXPORT int socketListen(WolframLibraryData libData, mint Argc, MArgument *Arg
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     int backlog = (int)MArgument_getInteger(Args[1]);
 
-    /*wait clients*/
+    /*start waiting for clients*/
     int iResult = listen(socketId, backlog);
     if (iResult == SOCKET_ERROR) {
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    MArgument_setInteger(Res, 0);
     return LIBRARY_NO_ERROR;
 }
 
