@@ -92,6 +92,7 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
             dataStore = libData->ioLibraryFunctions->createDataStore();
             libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readyTensor);
             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReadySockets", dataStore);
+            printf("raiseAsyncEvent completed\n");
         }
     }
 
@@ -214,7 +215,6 @@ void serverLoop(mint taskId, void *taskArgs) {
                         BYTE *numericArrayData = libData->numericarrayLibraryFunctions->MNumericArray_getData(numericArray);
                         memcpy(numericArrayData, buffer, result);
                         libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, numericArray);
-                        libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)clientId);
                         libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "RecvFrom", dataStore);
                     }
                 }

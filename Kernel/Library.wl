@@ -157,6 +157,10 @@ socketListGetAll::usage =
 "socketListGetAll[socketListPtr] returns list of socket ids from dynamic c-struct.";
 
 
+createServerLoop::usage =
+"createServerLoop[acceptSockets, recvSockets, recvFromSockets, recvFromAddrInfos, interrupter, buffer, bufferSize, timeout] creates a thread where waits for sockets to be ready.";
+
+
 Begin["`Private`"];
 
 
@@ -290,6 +294,10 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketListRemove", {Integer}, "Void"];
 
 socketListGetAll =
 LibraryFunctionLoad[$CSocketsLibrary, "socketListGetAll", {Integer}, {Integer, 1}];
+
+
+createServerLoop =
+LibraryFunctionLoad[$CSocketsLibrary, "createServerLoop", {Integer, Integer, Integer, Integer, Integer, Integer, Integer, Integer}, Integer];
 
 
 End[];

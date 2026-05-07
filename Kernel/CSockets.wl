@@ -138,7 +138,7 @@ Module[{socketListId = socketListCreate[initialSockets, Length[initialSockets]]}
 
 socketsSelectLoopHandler[handler_, socketId_Integer, CSocketList[socketListId_Integer], buffer_Integer, bufferSize_Integer] :=
 Function[
-    Module[{accepted},
+    PreemptProtect @ Module[{accepted},
         With[{
             task = #1, 
             eventName = #2, 
@@ -147,19 +147,20 @@ Function[
             Echo[task];
             Echo[readySockets];
 
+            Echo[socketListGetAll[socketListId]];
+
             Table[
                 If[s === socketId,
                     accepted = socketAccept[s];
                     socketListAdd[socketListId, accepted];
                     Echo["Accepting new connection... " <> ToString[accepted]];,
                 (*Else*)
-                    Echo @ ByteArrayToString[socketRecv[s, buffer, bufferSize]];
+                    Echo[socketRecv[s, buffer, bufferSize]];
                 ];, 
                 {s, readySockets}
             ];
 
             Echo["Select loop triggered..."];
-            Quit[];
         ]
     ]
 ];
