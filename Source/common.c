@@ -261,3 +261,13 @@ mint convert_native_to_wl_events(int native_revents) {
 
     return wl;
 }
+
+DLLEXPORT int socketsMutexLock(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    lock_global_mutex();
+    return LIBRARY_NO_ERROR;
+}
+
+DLLEXPORT int socketsMutexUnlock(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    unlock_global_mutex();
+    return LIBRARY_NO_ERROR;
+}

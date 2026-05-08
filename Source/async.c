@@ -92,7 +92,7 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
             dataStore = libData->ioLibraryFunctions->createDataStore();
             libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readyTensor);
             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReadySockets", dataStore);
-            printf("raiseAsyncEvent completed\n");
+            lock_global_mutex();
         }
     }
 

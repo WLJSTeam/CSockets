@@ -95,8 +95,11 @@
 #include "WolframRawArrayLibrary.h"
 #include "WolframImageLibrary.h"
 
-char* get_current_time();
+DLLEXPORT int socketsMutexLock(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
 
+DLLEXPORT int socketsMutexUnlock(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
+
+char* get_current_time();
 
 void init_global_mutex();
 
