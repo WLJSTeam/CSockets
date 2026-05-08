@@ -115,6 +115,8 @@ DLLEXPORT int createSocketsSelectLoop(WolframLibraryData libData, mint Argc, MAr
     return LIBRARY_NO_ERROR;
 }
 
+
+
 void serverLoop(mint taskId, void *taskArgs) {
     ServerLoopArgs args = (ServerLoopArgs)taskArgs;
 
@@ -156,9 +158,9 @@ void serverLoop(mint taskId, void *taskArgs) {
         maxfd = interrupter;
         FD_SET(interrupter, &readfd);
 
-        maxfd = fillFdsetFromArray(&readfd, acceptSockets->sockets, acceptSockets->length, maxfd);
-        maxfd = fillFdsetFromArray(&readfd, recvSockets->sockets, recvSockets->length, maxfd);
-        maxfd = fillFdsetFromArray(&readfd, recvFromSockets->sockets, recvFromSockets->length, maxfd);
+        maxfd = fill_fd_set_from_array(&readfd, acceptSockets->sockets, acceptSockets->length, maxfd);
+        maxfd = fill_fd_set_from_array(&readfd, recvSockets->sockets, recvSockets->length, maxfd);
+        maxfd = fill_fd_set_from_array(&readfd, recvFromSockets->sockets, recvFromSockets->length, maxfd);
 
         int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
         if (result >= 0) {

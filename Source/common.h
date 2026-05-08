@@ -95,39 +95,38 @@
 #include "WolframRawArrayLibrary.h"
 #include "WolframImageLibrary.h"
 
-char* getCurrentTime();
+char* get_current_time();
 
-void* getFuncByName(const char *funcName);
 
-void initGlobalMutex();
+void init_global_mutex();
 
-void closeGlobalMutex();
+void close_global_mutex();
 
-void lockGlobalMutex();
+void lock_global_mutex();
 
-void unlockGlobalMutex();
+void unlock_global_mutex();
 
-void initWSA();
+void init_wsa();
 
-void cleanupWSA();
+void cleanup_wsa();
 
-void setBlockingMode(SOCKET socketId);
+void set_blocking_mode(SOCKET socketId);
 
-void setNonBlockingMode(SOCKET socketId);
+void set_non_blocking_mode(SOCKET socketId);
 
-bool blockingModeQ(SOCKET socketId);
+bool is_non_blocking_mode(SOCKET socketId);
 
-bool socketValidQ(SOCKET socketId);
+bool is_valid_socket(SOCKET socketId);
 
 struct timeval new_tv(long long usec);
 
-size_t filterFdsetToArray(fd_set *set, SOCKET *input, SOCKET *result, size_t length);
+size_t filter_fd_set_to_array(fd_set *set, SOCKET *input, SOCKET *result, size_t length);
 
-size_t filterFdsetToTensor(WolframLibraryData libData, fd_set *set, SOCKET *input, MTensor result, size_t length);
+size_t filter_fd_set_to_tensor(WolframLibraryData libData, fd_set *set, SOCKET *input, MTensor result, size_t length);
 
-SOCKET fillFdsetFromArray(fd_set *set, SOCKET *sockets, size_t length, SOCKET initmaxfd);
+SOCKET fill_fd_set_from_array(fd_set *set, SOCKET *sockets, size_t length, SOCKET initmaxfd);
 
-void copyTensorToSocketArray(WolframLibraryData libData, MTensor tensor, SOCKET *result, size_t length);
+void copy_tensor_to_socket_array(WolframLibraryData libData, MTensor tensor, SOCKET *result, size_t length);
 
 int sockets_poll(POLL_FD *fds, mint length, mint timeout_us);
 

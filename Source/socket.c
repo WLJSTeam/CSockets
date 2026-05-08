@@ -22,9 +22,9 @@ DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args
     mint result = true;
 
     if (socketId > 0) {
-        lockGlobalMutex();
+        lock_global_mutex();
         result = CLOSESOCKET(socketId);
-        unlockGlobalMutex();
+        unlock_global_mutex();
     }
 
     if (result == SOCKET_ERROR) {
@@ -140,9 +140,9 @@ DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Ar
 DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
 
-    lockGlobalMutex();
+    lock_global_mutex();
     SOCKET client = accept(socketId, NULL, NULL);
-    unlockGlobalMutex();
+    unlock_global_mutex();
 
     if (client == INVALID_SOCKET) {
         return LIBRARY_FUNCTION_ERROR;
@@ -158,9 +158,9 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
     BYTE *buffer = (BYTE *)(uintptr_t)MArgument_getInteger(Args[1]);
     size_t bufferSize = (size_t)MArgument_getInteger(Args[2]);
 
-    lockGlobalMutex();
+    lock_global_mutex();
     int result = recv(client, buffer, bufferSize, 0);
-    unlockGlobalMutex();
+    unlock_global_mutex();
 
     if (result > 0) {
         mint len = (mint)result;
@@ -191,9 +191,9 @@ DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *A
     BYTE *buffer = (BYTE *)MArgument_getInteger(Args[2]);
     mint bufferSize = (mint)MArgument_getInteger(Args[3]);
 
-    lockGlobalMutex();
+    lock_global_mutex();
     int result = recvfrom(client, buffer, bufferSize, 0, addressInfo->ai_addr, &(addressInfo->ai_addrlen));
-    unlockGlobalMutex();
+    unlock_global_mutex();
 
     if (result > 0) {
         mint dims = (mint)result;
@@ -218,9 +218,9 @@ DLLEXPORT int socketSend(WolframLibraryData libData, mint Argc, MArgument *Args,
     int result;
     BYTE *data = (BYTE*)libData->numericarrayLibraryFunctions->MNumericArray_getData(mArr);
 
-    lockGlobalMutex();
+    lock_global_mutex();
     result = send(socketId, (char*)data, dataLength, 0);
-    unlockGlobalMutex();
+    unlock_global_mutex();
     if (result > 0) {
         libData->numericarrayLibraryFunctions->MNumericArray_disown(mArr);
         MArgument_setInteger(Res, result);
@@ -238,9 +238,9 @@ DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument 
     int dataLength = MArgument_getInteger(Args[2]); // positive integer
     int result;
 
-    lockGlobalMutex();
+    lock_global_mutex();
     result = send(socketId, dataString, dataLength, 0);
-    unlockGlobalMutex();
+    unlock_global_mutex();
 
     if (result > 0) {
         libData->UTF8String_disown(dataString);
@@ -270,9 +270,9 @@ DLLEXPORT int socketSendTo(WolframLibraryData libData, mint Argc, MArgument *Arg
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    lockGlobalMutex();
+    lock_global_mutex();
     int result = sendto(socketId, (const char*)data, dataLength, 0, addressInfo->ai_addr, addressInfo->ai_addrlen);
-    unlockGlobalMutex();
+    unlock_global_mutex();
 
     if (result > 0) {
         MArgument_setInteger(Res, result);
@@ -339,7 +339,7 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
     }
 
     FD_ZERO(&fds);
-    SOCKET maxfd = fillFdsetFromArray(&fds, socketIds, length, 0);
+    SOCKET maxfd = fill_fd_set_from_array(&fds, socketIds, length, 0);
     struct timeval tv = new_tv(timeout);
 
     int result;
@@ -358,7 +358,7 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
         dims = (mint)result;
         libData->MTensor_new(MType_Integer, 1, &dims, &readySockets);
 
-        filterFdsetToTensor(libData, &fds, socketIds, readySockets, result);
+        filter_fd_set_to_tensor(libData, &fds, socketIds, readySockets, result);
         free(socketIds);
 
         MArgument_setMTensor(Res, readySockets);

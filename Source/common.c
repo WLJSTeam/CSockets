@@ -2,7 +2,7 @@
 
 Mutex globalMutex = MUTEX_INITIALIZER;
 
-char* getCurrentTime() {
+char* get_current_time() {
     static char time_buffer[64];
     time_t rawtime;
     struct tm* timeinfo;
@@ -29,17 +29,7 @@ char* getCurrentTime() {
     return time_buffer;
 }
 
-void* getFuncByName(const char *funcName) {
-    #ifdef _WIN32
-        HMODULE hModule = GetModuleHandle(NULL);
-        return (void*)GetProcAddress(hModule, funcName);
-    #else
-        void* handle = RTLD_DEFAULT;
-        return dlsym(handle, funcName);
-    #endif
-}
-
-void initGlobalMutex() {
+void init_global_mutex() {
     #if defined(_WIN32)
         globalMutex = CreateMutex(NULL, FALSE, NULL);
     #else
@@ -47,7 +37,7 @@ void initGlobalMutex() {
     #endif
 }
 
-void closeGlobalMutex() {
+void close_global_mutex() {
     #if defined(_WIN32)
     CloseHandle(globalMutex);
     #else
@@ -55,7 +45,7 @@ void closeGlobalMutex() {
     #endif
 }
 
-void lockGlobalMutex() {
+void lock_global_mutex() {
     #if defined(_WIN32)
         WaitForSingleObject(globalMutex, INFINITE);
     #else
@@ -63,7 +53,7 @@ void lockGlobalMutex() {
     #endif
 }
 
-void unlockGlobalMutex() {
+void unlock_global_mutex() {
     #if defined(_WIN32) || defined(_WIN64)
         ReleaseMutex(globalMutex);
     #else
@@ -71,7 +61,7 @@ void unlockGlobalMutex() {
     #endif
 }
 
-void initWSA() {
+void init_wsa() {
     #ifdef _WIN32
     int iResult;
     WSADATA wsaData;
@@ -79,7 +69,7 @@ void initWSA() {
     #endif
 }
 
-void cleanupWSA() {
+void cleanup_wsa() {
     #ifdef _WIN32
     WSACleanup();
     #else
@@ -87,7 +77,7 @@ void cleanupWSA() {
     #endif
 }
 
-void setBlockingMode(SOCKET socketId) {
+void set_blocking_mode(SOCKET socketId) {
     #ifdef _WIN32
     u_long mode = 0;
     ioctlsocket(socketId, FIONBIO, &mode);
@@ -97,7 +87,7 @@ void setBlockingMode(SOCKET socketId) {
     #endif
 }
 
-void setNonBlockingMode(SOCKET socketId) {
+void set_non_blocking_mode(SOCKET socketId) {
     #ifdef _WIN32
     u_long mode = 1;
     ioctlsocket(socketId, FIONBIO, &mode);
@@ -107,7 +97,7 @@ void setNonBlockingMode(SOCKET socketId) {
     #endif
 }
 
-bool blockingModeQ(SOCKET socketId) {
+bool is_non_blocking_mode(SOCKET socketId) {
     #ifdef _WIN32
     u_long mode;
     ioctlsocket(socketId, FIONBIO, &mode);
@@ -118,7 +108,7 @@ bool blockingModeQ(SOCKET socketId) {
     #endif
 }
 
-bool socketValidQ(SOCKET socketId) {
+bool is_valid_socket(SOCKET socketId) {
     if (socketId == INVALID_SOCKET) {
         return false;
     }
@@ -163,7 +153,7 @@ struct timeval new_tv(long long usec) {
     return tv;
 }
 
-size_t filterFdsetToArray(fd_set *set, SOCKET *input, SOCKET *result, size_t length) {
+size_t filter_fd_set_to_array(fd_set *set, SOCKET *input, SOCKET *result, size_t length) {
     SOCKET socketId;
     size_t j = 0;
     for (size_t i = 0; i < length; i++) {
@@ -176,7 +166,7 @@ size_t filterFdsetToArray(fd_set *set, SOCKET *input, SOCKET *result, size_t len
     return j;
 }
 
-size_t filterFdsetToTensor(WolframLibraryData libData, fd_set *set, SOCKET *input, MTensor result, size_t length) {
+size_t filter_fd_set_to_tensor(WolframLibraryData libData, fd_set *set, SOCKET *input, MTensor result, size_t length) {
     mint *data = libData->MTensor_getIntegerData(result);
     SOCKET socketId;
     size_t j = 0;
@@ -190,7 +180,7 @@ size_t filterFdsetToTensor(WolframLibraryData libData, fd_set *set, SOCKET *inpu
     return j;
 }
 
-SOCKET fillFdsetFromArray(fd_set *set, SOCKET *sockets, size_t length, SOCKET initmaxfd) {
+SOCKET fill_fd_set_from_array(fd_set *set, SOCKET *sockets, size_t length, SOCKET initmaxfd) {
     SOCKET maxfd = initmaxfd;
     SOCKET socketId;
 
@@ -205,7 +195,7 @@ SOCKET fillFdsetFromArray(fd_set *set, SOCKET *sockets, size_t length, SOCKET in
     return maxfd;
 }
 
-void copyTensorToSocketArray(WolframLibraryData libData, MTensor tensor, SOCKET *result, size_t length) {
+void copy_tensor_to_socket_array(WolframLibraryData libData, MTensor tensor, SOCKET *result, size_t length) {
     mint *data = libData->MTensor_getIntegerData(tensor);
     for (size_t i = 0; i < length; i++) {
         result[i] = (SOCKET)data[i];
