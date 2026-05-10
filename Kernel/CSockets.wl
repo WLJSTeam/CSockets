@@ -153,7 +153,7 @@ Function[
                 (*Else*)
                     Print["BYTES FROM SOCKET " <> ToString[s] <> ": "];
                     bytes = socketRecv[s, buffer, bufferSize];
-                    If[Head[bytes] === LibraryFunctionError, Quit[]];
+                    If[Head[bytes] === LibraryFunctionError, socketListClear[socketListId]];
                     Print[ByteArrayToString[bytes]];
                     Print["---------------------------------------------------------"];
                 ];, 

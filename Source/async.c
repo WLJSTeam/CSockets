@@ -104,6 +104,7 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
             wait_event(event);
         } else {
             printf("result = %d\n", result);
+            socket_list_clear(socketList);
         }
     }
 
