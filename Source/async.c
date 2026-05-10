@@ -73,6 +73,7 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
     struct timeval tv;
     mint dims;
     DataStore dataStore;
+    int err;
 
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
     {
@@ -86,25 +87,25 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
 
         tv = new_tv(timeout);
 
+        dataStore = libData->ioLibraryFunctions->createDataStore();
+
         result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
 
-        if (result >= 0) {
+        if (result > 0) {
             dims = (mint)result;
-
             libData->MTensor_new(MType_Integer, 1, &dims, &readyTensor);
-
             filter_fd_set_to_tensor(libData, &readfd, sockets, readyTensor, length);
-
-            dataStore = libData->ioLibraryFunctions->createDataStore();
-
             libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readyTensor);
-
             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReadySockets", dataStore);
 
             wait_event(event);
+        } else if (result == 0) {
+            // Timeout occurred
         } else {
-            printf("result = %d\n", result);
-            socket_list_clear(socketList);
+            err = GETSOCKETERRNO();
+            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, err);
+            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "SelectError", dataStore);
+            wait_event(event);
         }
     }
 

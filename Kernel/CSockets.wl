@@ -139,26 +139,35 @@ Module[{socketListId = socketListCreate[initialSockets, Length[initialSockets]]}
 
 socketsSelectLoopHandler[handler_, socketId_Integer, CSocketList[socketListId_Integer], buffer_Integer, bufferSize_Integer, event_Integer] :=
 Function[
-    PreemptProtect @ Module[{accepted},
-        With[{
+    Module[{accepted},
+        PreemptProtect @ With[{
             task = #1, 
             eventName = #2, 
             readySockets = Flatten[{#3}]
-        }, 
-            Table[
-                If[s === socketId,
-                    accepted = socketAccept[s];
-                    socketListAdd[socketListId, accepted];
-                    Print["NEW CONNECTION: " <> ToString[accepted]];,
-                (*Else*)
-                    Print["BYTES FROM SOCKET " <> ToString[s] <> ": "];
-                    bytes = socketRecv[s, buffer, bufferSize];
-                    If[Head[bytes] === LibraryFunctionError, socketListClear[socketListId]];
-                    Print[ByteArrayToString[bytes]];
-                    Print["---------------------------------------------------------"];
-                ];, 
-                {s, readySockets}
-            ];
+        },
+            If[eventName === "ReadySockets",
+                Table[
+                    If[s === socketId,
+                        accepted = socketAccept[s];
+                        socketListAdd[socketListId, accepted];
+                        Print["NEW CONNECTION: " <> ToString[accepted]];,
+                    (*Else*)
+                        Print["BYTES FROM SOCKET " <> ToString[s] <> ": "];
+                        bytes = socketRecv[s, buffer, bufferSize];
+                        If[Head[bytes] === LibraryFunctionError, 
+                            socketClose[s];
+                            socketListClear[socketListId];
+                            Print["CONNECTION CLOSED: " <> ToString[s]];,
+                        (*Else*)
+                            Print[ByteArrayToString[bytes]];
+                        ];
+                        Print["---------------------------------------------------------"];
+                    ];, 
+                    {s, readySockets}
+                ];,
+                socketListClear[socketListId];
+                Print["SELECT ERROR: " <> ToString[#3]];
+            ]
 
             signalEvent[event];
         ]
