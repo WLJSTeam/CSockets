@@ -16,9 +16,6 @@ addressInfo = WLJS`CSockets`Library`socketAddressInfoCreate[
 ];
 
 
-Echo[addressInfo];
-
-
 socketId = WLJS`CSockets`Library`socketCreate[
     SOCKET`AFINET,
     SOCKET`SOCKSTREAM,
@@ -26,25 +23,12 @@ socketId = WLJS`CSockets`Library`socketCreate[
 ];
 
 
-Echo[socketId];
-
-
 WLJS`CSockets`Library`socketBind[socketId, addressInfo];
-
-
-Echo["Socket bound to address..."]l
 
 
 WLJS`CSockets`Library`socketListen[socketId, 1024];
 
-
-Echo["Listening on socket..."];
-
-
 SocketListen[CSocketObject[socketId], Print];
-
-
-Echo["Socket is ready to accept..."];
 
 
 While[True,

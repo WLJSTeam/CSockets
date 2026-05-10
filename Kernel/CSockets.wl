@@ -118,15 +118,16 @@ Module[{
     socketList = CSocketList[{socketId}], 
     usecInterval = 60 * 10^6, 
     bufferSize = 1024,
-    buffer = socketBufferCreate[1024]
+    buffer = socketBufferCreate[1024],
+    event = createEvent[]
 }, 
     socketListen[socketId, backlog];
     
-    Echo @ Internal`CreateAsynchronousTask[
-    	createSocketsSelectLoop,
-		{socketList[[1]], usecInterval}, 
-		socketsSelectLoopHandler[handler, socketId, socketList, buffer, bufferSize]
-	];
+    Internal`CreateAsynchronousTask[
+        createSocketsSelectLoop,
+        {socketList[[1]], usecInterval, event}, 
+        socketsSelectLoopHandler[handler, socketId, socketList, buffer, bufferSize, event]
+    ]
 ];
 
 
@@ -136,7 +137,7 @@ Module[{socketListId = socketListCreate[initialSockets, Length[initialSockets]]}
 ];
 
 
-socketsSelectLoopHandler[handler_, socketId_Integer, CSocketList[socketListId_Integer], buffer_Integer, bufferSize_Integer] :=
+socketsSelectLoopHandler[handler_, socketId_Integer, CSocketList[socketListId_Integer], buffer_Integer, bufferSize_Integer, event_Integer] :=
 Function[
     PreemptProtect @ Module[{accepted},
         With[{
@@ -144,23 +145,22 @@ Function[
             eventName = #2, 
             readySockets = Flatten[{#3}]
         }, 
-            Echo[task];
-            Echo[readySockets];
-
-            Echo[socketListGetAll[socketListId]];
-
             Table[
                 If[s === socketId,
                     accepted = socketAccept[s];
                     socketListAdd[socketListId, accepted];
-                    Echo["Accepting new connection... " <> ToString[accepted]];,
+                    Print["NEW CONNECTION: " <> ToString[accepted]];,
                 (*Else*)
-                    Echo[socketRecv[s, buffer, bufferSize]];
+                    Print["BYTES FROM SOCKET " <> ToString[s] <> ": "];
+                    bytes = socketRecv[s, buffer, bufferSize];
+                    If[Head[bytes] === LibraryFunctionError, Quit[]];
+                    Print[ByteArrayToString[bytes]];
+                    Print["---------------------------------------------------------"];
                 ];, 
                 {s, readySockets}
             ];
 
-            Echo["Select loop triggered..."];
+            signalEvent[event];
         ]
     ]
 ];

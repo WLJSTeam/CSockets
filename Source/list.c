@@ -91,7 +91,7 @@ void socket_list_clear(SocketList socketList) {
     for (size_t i = 0; i < socketList->length; i++) {
         SOCKET socketId = socketList->sockets[i];
         
-        if (socketValidQ(socketId)) {
+        if (is_valid_socket(socketId)) {
             if (writeIndex != i) {
                 socketList->sockets[writeIndex] = socketId;
             }

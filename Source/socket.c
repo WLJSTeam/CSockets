@@ -97,14 +97,14 @@ DLLEXPORT int socketGetOpt(WolframLibraryData libData, mint Argc, MArgument *Arg
 /*socketSetBlockingMode[socketId]*/
 DLLEXPORT int socketSetBlockingMode(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
-    setBlockingMode(socketId);
+    set_blocking_mode(socketId);
     return LIBRARY_NO_ERROR;
 }
 
 /*socketSetNonBlockingMode[socketId]*/
 DLLEXPORT int socketSetNonBlockingMode(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
-    setNonBlockingMode(socketId);
+    set_non_blocking_mode(socketId);
     return LIBRARY_NO_ERROR;
 }
 
@@ -297,7 +297,7 @@ DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Arg
     for (size_t i = 0; i < length; i++) {
         socketId = sockets[i];
 
-        if (socketValidQ(socketId)) {
+        if (is_valid_socket(socketId)) {
             sockets[validCount] = socketId;
             validCount++;
         }

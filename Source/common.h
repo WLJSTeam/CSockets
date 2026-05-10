@@ -95,9 +95,16 @@
 #include "WolframRawArrayLibrary.h"
 #include "WolframImageLibrary.h"
 
-DLLEXPORT int socketsMutexLock(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
-
-DLLEXPORT int socketsMutexUnlock(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
+typedef struct {
+    #ifdef _WIN32
+        volatile LONG signaled;
+        HANDLE event;
+    #else
+        volatile int signaled;
+        pthread_mutex_t mutex;
+        pthread_cond_t cond;
+    #endif
+} FastEvent;
 
 char* get_current_time();
 
@@ -136,5 +143,13 @@ int sockets_poll(POLL_FD *fds, mint length, mint timeout_us);
 int convert_wl_to_native_events(mint wl_events);
 
 mint convert_native_to_wl_events(int native_revents);
+
+FastEvent* create_event();
+
+void destroy_event(FastEvent* event);
+
+void wait_event(FastEvent* event);
+
+void signal_event(FastEvent* event);
 
 #endif

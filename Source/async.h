@@ -4,8 +4,7 @@
 #include "common.h"
 #include "list.h"
 
-typedef struct SocketsSelectArgs_st
-{
+typedef struct SocketsSelectArgs_st {
     WolframLibraryData libData;
     SOCKET *sockets;
     size_t length;
@@ -20,14 +19,14 @@ typedef struct SocketsSelectLoopArgs_st {
     WolframLibraryData libData;
     SocketList socketList;
     mint timeout;
+    FastEvent* event;
 } *SocketsSelectLoopArgs;
 
 void socketsSelectLoop(mint taskId, void *taskArgs);
 
 DLLEXPORT int createSocketsSelectLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
 
-typedef struct ServerLoopArgs_st
-{
+typedef struct ServerLoopArgs_st {
     WolframLibraryData libData;
     SocketList acceptSockets;
     SocketList recvSockets;

@@ -133,7 +133,7 @@ socketAddressInfoListRemove::usage =
 
 
 createSocketsSelectLoop::usage =
-"createSocketsSelectLoop[socketList, length] creates a thread where waits for sockets to be ready.
+"createSocketsSelectLoop[socketList, length, event] creates a thread where waits for sockets to be ready.
 - socketList: dynamic c-struct with socket ids.";
 
 
@@ -159,6 +159,18 @@ socketListGetAll::usage =
 
 createServerLoop::usage =
 "createServerLoop[acceptSockets, recvSockets, recvFromSockets, recvFromAddrInfos, interrupter, buffer, bufferSize, timeout] creates a thread where waits for sockets to be ready.";
+
+
+createEvent::usage =
+"createEvent[] creates an event and returns its id.";
+
+
+destroyEvent::usage =
+"destroyEvent[eventId] destroys the event.";
+
+
+signalEvent::usage =
+"signalEvent[eventId] signals the event.";
 
 
 Begin["`Private`"];
@@ -273,7 +285,7 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketsSelectAsync", {{Integer, 1}, Integ
 
 
 createSocketsSelectLoop =
-LibraryFunctionLoad[$CSocketsLibrary, "createSocketsSelectLoop", {Integer, Integer}, Integer];
+LibraryFunctionLoad[$CSocketsLibrary, "createSocketsSelectLoop", {Integer, Integer, Integer}, Integer];
 
 
 socketListCreate =
@@ -298,6 +310,18 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketListGetAll", {Integer}, {Integer, 1
 
 createServerLoop =
 LibraryFunctionLoad[$CSocketsLibrary, "createServerLoop", {Integer, Integer, Integer, Integer, Integer, Integer, Integer, Integer}, Integer];
+
+
+createEvent = 
+LibraryFunctionLoad[$CSocketsLibrary, "createEvent", {}, Integer];
+
+
+destroyEvent = 
+LibraryFunctionLoad[$CSocketsLibrary, "destroyEvent", {Integer}, "Void"];
+
+
+signalEvent = 
+LibraryFunctionLoad[$CSocketsLibrary, "signalEvent", {Integer}, "Void"];
 
 
 End[];

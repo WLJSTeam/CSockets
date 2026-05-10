@@ -262,12 +262,80 @@ mint convert_native_to_wl_events(int native_revents) {
     return wl;
 }
 
-DLLEXPORT int socketsMutexLock(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    lock_global_mutex();
-    return LIBRARY_NO_ERROR;
+FastEvent* create_event() {
+    FastEvent* event = (FastEvent*)malloc(sizeof(FastEvent));
+    if (!event) return NULL;
+    
+    #ifdef _WIN32
+        event->signaled = 0;
+        event->event = CreateEvent(NULL, FALSE, FALSE, NULL);
+        if (!event->event) {
+            free(event);
+            return NULL;
+        }
+    #else
+        event->signaled = 0;
+        pthread_mutex_init(&event->mutex, NULL);
+        pthread_cond_init(&event->cond, NULL);
+    #endif
+    
+    return event;
 }
 
-DLLEXPORT int socketsMutexUnlock(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    unlock_global_mutex();
-    return LIBRARY_NO_ERROR;
+void destroy_event(FastEvent* event) {
+    if (!event) return;
+    
+    #ifdef _WIN32
+        if (event->event) {
+            CloseHandle(event->event);
+        }
+    #else
+        pthread_mutex_destroy(&event->mutex);
+        pthread_cond_destroy(&event->cond);
+    #endif
+    
+    free(event);
+}
+
+void wait_event(FastEvent* event) {
+    if (!event) return;
+    
+    #ifdef _WIN32
+        // Быстрый путь: проверяем без системного вызова
+        if (InterlockedCompareExchange(&event->signaled, 0, 1) == 1) {
+            return;  // Сигнал уже был, сбросили
+        }
+        // Медленный путь: ждем
+        WaitForSingleObject(event->event, INFINITE);
+        event->signaled = 0;
+    #else
+        // Быстрый путь
+        if (__sync_bool_compare_and_swap(&event->signaled, 1, 0)) {
+            return;  // Сигнал уже был
+        }
+        // Медленный путь
+        pthread_mutex_lock(&event->mutex);
+        while (!event->signaled) {
+            pthread_cond_wait(&event->cond, &event->mutex);
+        }
+        event->signaled = 0;
+        pthread_mutex_unlock(&event->mutex);
+    #endif
+}
+
+void signal_event(FastEvent* event) {
+    if (!event) return;
+    
+    #ifdef _WIN32
+        if (InterlockedExchange(&event->signaled, 1) == 0) {
+            SetEvent(event->event);
+        }
+    #else
+        pthread_mutex_lock(&event->mutex);
+        if (!event->signaled) {
+            event->signaled = 1;
+            pthread_cond_signal(&event->cond);
+        }
+        pthread_mutex_unlock(&event->mutex);
+    #endif
 }
