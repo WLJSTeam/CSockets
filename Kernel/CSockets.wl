@@ -137,6 +137,9 @@ Module[{socketListId = socketListCreate[initialSockets, Length[initialSockets]]}
 ];
 
 
+response = "HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, World!";
+
+
 socketsSelectLoopHandler[handler_, socketId_Integer, CSocketList[socketListId_Integer], buffer_Integer, bufferSize_Integer, event_Integer] :=
 Function[
     Module[{accepted},
@@ -149,25 +152,21 @@ Function[
                 Table[
                     If[s === socketId,
                         accepted = socketAccept[s];
-                        socketListAdd[socketListId, accepted];
-                        Print["NEW CONNECTION: " <> ToString[accepted]];,
+                        socketListAdd[socketListId, accepted];,
                     (*Else*)
-                        Print["BYTES FROM SOCKET " <> ToString[s] <> ": "];
                         bytes = socketRecv[s, buffer, bufferSize];
-                        If[Head[bytes] === LibraryFunctionError, 
+                        If[Head[bytes] === LibraryFunctionError,
                             socketClose[s];
-                            socketListClear[socketListId];
-                            Print["CONNECTION CLOSED: " <> ToString[s]];,
+                            socketListClear[socketListId];,
                         (*Else*)
-                            Print[ByteArrayToString[bytes]];
+                            handler[s, bytes];
+                            socketSendString[s, response, StringLength[response]];
                         ];
-                        Print["---------------------------------------------------------"];
                     ];, 
                     {s, readySockets}
                 ];,
                 socketListClear[socketListId];
-                Print["SELECT ERROR: " <> ToString[#3]];
-            ]
+            ];
 
             signalEvent[event];
         ]
