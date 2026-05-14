@@ -6,7 +6,7 @@
 wolframscript -f Build.wls
 ```
 
-## Examples
+## Nano Demo
 
 ```shell
 wolframscript -f Example.wls
