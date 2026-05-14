@@ -11,3 +11,5 @@ wolframscript -f Build.wls
 ```shell
 wolframscript -f Example.wls
 ```
+
+and go to http://localhost:8080
