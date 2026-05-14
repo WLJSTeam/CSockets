@@ -16,6 +16,7 @@ PacletObject[
         "Root" -> "Kernel",
         "Context" -> {
           {"WLJS`CSockets`", "CSockets.wl"},
+          {"WLJS`CSockets`Sockets`", "Sockets.wl"},
           {"WLJS`CSockets`Constants`", "Constants.wl"},
           {"WLJS`CSockets`Library`", "Library.wl"},
           {"WLJS`CSockets`Handler`", "Handler.wl"}

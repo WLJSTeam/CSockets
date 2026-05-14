@@ -80,70 +80,38 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
 
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
     {
-        print("length = socketList->length; // length == %d\n", socketList->length);
         length = socketList->length;
-
-        print("sockets = socketList->sockets;\n");
         sockets = socketList->sockets;
-
-        print("FD_ZERO(&readfd);\n");
         FD_ZERO(&readfd);
-
-        print("maxfd = fill_fd_set_from_array(&readfd, sockets, length, 0);\n");
         maxfd = fill_fd_set_from_array(&readfd, sockets, length, 0);
-
-        print("tv = new_tv(timeout);\n");
         tv = new_tv(timeout);
 
-        print("result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);\n");
         result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
 
         if (result > 0) {
-            print("result > 0 // result == %d\n", result);
             dims = (mint)result;
-
-            print("libData->MTensor_new(MType_Integer, 1, &dims, &readyTensor);\n");
             libData->MTensor_new(MType_Integer, 1, &dims, &readyTensor);
 
-            print("filter_fd_set_to_tensor(libData, &readfd, sockets, readyTensor, length);\n");
             filter_fd_set_to_tensor(libData, &readfd, sockets, readyTensor, length);
 
-            print("dataStore = libData->ioLibraryFunctions->createDataStore();\n");
             dataStore = libData->ioLibraryFunctions->createDataStore();
-
-            print("libData->ioLibraryFunctions->DataStore_addInteger(dataStore, loopEvent);\n");
             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, loopEvent);
-
-            print("libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readyTensor);\n");
             libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readyTensor);
-
-            print("libData->ioLibraryFunctions->raiseAsyncEvent(taskId, \"Selected\", dataStore);\n");
             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Selected", dataStore);
 
-            print("wait_event(loopEvent);\n");
             wait_event(loopEvent);
         } else if (result < 0) {
-            print("err = GETSOCKETERRNO();\n");
             err = GETSOCKETERRNO();
 
-            print("dataStore = libData->ioLibraryFunctions->createDataStore();\n");
             dataStore = libData->ioLibraryFunctions->createDataStore();
-
-            print("libData->ioLibraryFunctions->DataStore_addInteger(dataStore, loopEvent);\n");
             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, loopEvent);
-
-            print("libData->ioLibraryFunctions->DataStore_addInteger(dataStore, err);\n");
             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, err);
-
-            print("libData->ioLibraryFunctions->raiseAsyncEvent(taskId, \"SelectError\", dataStore);\n");
             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "SelectError", dataStore);
 
-            print("wait_event(loopEvent);\n");
             wait_event(loopEvent);
         }
     }
 
-    print("free(taskArgs);\n");
     free(taskArgs);
 }
 

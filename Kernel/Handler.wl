@@ -19,8 +19,9 @@ Options[CSocketHandler] = {
     "DefaultAccumulator" :> Function[Length[#DataByteArray]],
     "Handler" :> <||>,
     "DefaultHandler" :> Function[Null],
-    "AcceptHandler" :> Function[Null],
-    "CloseHandler" :> Function[Null]
+    "AcceptHandler" :> Function[Append[#Data, #SourceSocket]],
+    "CloseHandler" :> Function[Close[#SourceSocket]; DeleteMissing[#Data]],
+    "ErrorHandler" :> Function[DeleteMissing[#SourceSocket]]
 };
 
 
@@ -101,18 +102,13 @@ Module[{extendedPacket, result, extraPacket, extraPacketDataLength},
         ];,
 
         packet["Event"] === "Accepted",
-            Append[packet["Data"], packet["SourceSocket"]];
             handler["AcceptHandler"][packet],
 
         packet["Event"] === "Closed",
-            Echo[packet, "CLOSED: "];
-            Close[packet["SourceSocket"]];
-            DeleteMissing[packet["Data"]];
             handler["CloseHandler"][packet],
 
         packet["Event"] === "SelectError",
-            Echo[packet, "SELECT ERROR: "];
-            DeleteMissing[packet["SourceSocket"]]
+            handler["ErrorHandler"][packet]
     ];
 ];
 
@@ -190,12 +186,9 @@ CSocketHandler::cntsnd =
 
 sendResponse[handler_, packet_, result: _ByteArray | _String | Null] :=
 With[{client = packet["SourceSocket"]},
-    Echo[packet, "PACKET: "];
     Switch[result,
         _String,
-            Echo["Sending response to the client: ", result];
-            Echo @ WriteString[client, result];
-            Echo["Response sent. Closing connection."];,
+            WriteString[client, result],
 
         _ByteArray,
             BinaryWrite[client, result],

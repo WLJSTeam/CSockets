@@ -4,7 +4,6 @@ PacletDirectoryLoad[DirectoryName[$InputFileName]];
 
 
 Get["WLJS`CSockets`"];
-Get["WLJS`CSockets`Handler`"];
 
 
 server = CSocketOpen[8080];
