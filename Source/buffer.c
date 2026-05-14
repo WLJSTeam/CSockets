@@ -1,5 +1,6 @@
 #include "buffer.h"
 
+
 /*socketBufferCreate[bufferSize] -> bufferPtr*/
 DLLEXPORT int socketBufferCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     mint bufferSize = (mint)MArgument_getInteger(Args[0]);
@@ -16,6 +17,7 @@ DLLEXPORT int socketBufferCreate(WolframLibraryData libData, mint Argc, MArgumen
     MArgument_setInteger(Res, bufferPtr);
     return LIBRARY_NO_ERROR;
 }
+
 
 /*socketBufferRemove[bufferPtr] -> successStatus*/
 DLLEXPORT int socketBufferRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {

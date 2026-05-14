@@ -64,8 +64,8 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
     WolframLibraryData libData = args->libData;
     SocketList socketList = args->socketList;
     mint timeout = args->timeout;
-    FastEvent* event = args->event;
 
+    FastEvent *loopEvent = create_event();
     fd_set readfd;
     SOCKET *sockets;
     SOCKET maxfd;
@@ -80,79 +80,83 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
 
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
     {
-        printf("length = socketList->length;\n");
+        print("length = socketList->length; // length == %d\n", socketList->length);
         length = socketList->length;
 
-        printf("sockets = socketList->sockets;\n");
+        print("sockets = socketList->sockets;\n");
         sockets = socketList->sockets;
 
-        printf("FD_ZERO(&readfd);\n");
+        print("FD_ZERO(&readfd);\n");
         FD_ZERO(&readfd);
 
-        printf("maxfd = fill_fd_set_from_array(&readfd, sockets, length, 0);\n");
+        print("maxfd = fill_fd_set_from_array(&readfd, sockets, length, 0);\n");
         maxfd = fill_fd_set_from_array(&readfd, sockets, length, 0);
 
-        printf("tv = new_tv(timeout);\n");
+        print("tv = new_tv(timeout);\n");
         tv = new_tv(timeout);
 
-        printf("dataStore = libData->ioLibraryFunctions->createDataStore();\n");
-        dataStore = libData->ioLibraryFunctions->createDataStore();
-
-        printf("result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);\n");
+        print("result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);\n");
         result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
 
         if (result > 0) {
-            printf("result > 0\n");
+            print("result > 0 // result == %d\n", result);
             dims = (mint)result;
 
-            printf("libData->MTensor_new(MType_Integer, 1, &dims, &readyTensor);\n");
+            print("libData->MTensor_new(MType_Integer, 1, &dims, &readyTensor);\n");
             libData->MTensor_new(MType_Integer, 1, &dims, &readyTensor);
 
-            printf("filter_fd_set_to_tensor(libData, &readfd, sockets, readyTensor, length);\n");
+            print("filter_fd_set_to_tensor(libData, &readfd, sockets, readyTensor, length);\n");
             filter_fd_set_to_tensor(libData, &readfd, sockets, readyTensor, length);
 
-            printf("libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readyTensor);\n");
+            print("dataStore = libData->ioLibraryFunctions->createDataStore();\n");
+            dataStore = libData->ioLibraryFunctions->createDataStore();
+
+            print("libData->ioLibraryFunctions->DataStore_addInteger(dataStore, loopEvent);\n");
+            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, loopEvent);
+
+            print("libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readyTensor);\n");
             libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readyTensor);
 
-            printf("libData->ioLibraryFunctions->raiseAsyncEvent(taskId, \"ReadySockets\", dataStore);\n");
+            print("libData->ioLibraryFunctions->raiseAsyncEvent(taskId, \"ReadySockets\", dataStore);\n");
             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReadySockets", dataStore);
 
-            printf("wait_event(event);\n");
-            wait_event(event);
-        } else if (result == 0) {
-            printf("libData->ioLibraryFunctions->deleteDataStore(dataStore);\n");
-            libData->ioLibraryFunctions->deleteDataStore(dataStore);
-        } else {
-            printf("err = GETSOCKETERRNO();\n");
+            print("wait_event(loopEvent);\n");
+            wait_event(loopEvent);
+        } else if (result < 0) {
+            print("err = GETSOCKETERRNO();\n");
             err = GETSOCKETERRNO();
 
-            printf("libData->ioLibraryFunctions->DataStore_addInteger(dataStore, err);\n");
+            print("dataStore = libData->ioLibraryFunctions->createDataStore();\n");
+            dataStore = libData->ioLibraryFunctions->createDataStore();
+
+            print("libData->ioLibraryFunctions->DataStore_addInteger(dataStore, loopEvent);\n");
+            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, loopEvent);
+
+            print("libData->ioLibraryFunctions->DataStore_addInteger(dataStore, err);\n");
             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, err);
 
-            printf("libData->ioLibraryFunctions->raiseAsyncEvent(taskId, \"SelectError\", dataStore);\n");
+            print("libData->ioLibraryFunctions->raiseAsyncEvent(taskId, \"SelectError\", dataStore);\n");
             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "SelectError", dataStore);
 
-            printf("wait_event(event);\n");
-            wait_event(event);
+            print("wait_event(loopEvent);\n");
+            wait_event(loopEvent);
         }
     }
 
-    printf("free(taskArgs);\n");
+    print("free(taskArgs);\n");
     free(taskArgs);
 }
 
 
 DLLEXPORT int createSocketsSelectLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    SocketList socketList = (SocketList)MArgument_getInteger(Args[0]); // socket list struct
+    SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     mint timeout = MArgument_getInteger(Args[1]);
-    FastEvent*event = (FastEvent*)MArgument_getInteger(Args[2]);
 
     SocketsSelectLoopArgs taskArgs = malloc(sizeof(struct SocketsSelectLoopArgs_st));
 
     taskArgs->libData = libData;
     taskArgs->socketList = socketList;
     taskArgs->timeout = timeout;
-    taskArgs->event = event;
 
     mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketsSelectLoop, (void *)taskArgs);
 
@@ -268,6 +272,7 @@ void serverLoop(mint taskId, void *taskArgs) {
         }
     }
 }
+
 
 DLLEXPORT int createServerLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SocketList acceptSockets = (SocketList)MArgument_getInteger(Args[0]);

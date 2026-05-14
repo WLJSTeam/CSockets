@@ -118,15 +118,14 @@ Module[{
     socketList = CSocketList[{socketId}], 
     usecInterval = 60 * 10^6, 
     bufferSize = 1024,
-    buffer = socketBufferCreate[1024],
-    event = createEvent[]
+    buffer = socketBufferCreate[1024]
 }, 
     socketListen[socketId, backlog];
     
     Internal`CreateAsynchronousTask[
         createSocketsSelectLoop,
-        {socketList[[1]], usecInterval, event}, 
-        socketsSelectLoopHandler[handler, socketId, socketList, buffer, bufferSize, event]
+        {socketList[[1]], usecInterval}, 
+        socketsSelectLoopHandler[handler, socketId, socketList, buffer, bufferSize]
     ]
 ];
 
@@ -140,30 +139,30 @@ Module[{socketListId = socketListCreate[initialSockets, Length[initialSockets]]}
 response = "HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, World!";
 
 
-socketsSelectLoopHandler[handler_, socketId_Integer, CSocketList[socketListId_Integer], buffer_Integer, bufferSize_Integer, event_Integer] :=
+socketsSelectLoopHandler[handler_, serverSocketId_Integer, CSocketList[socketListId_Integer], buffer_Integer, bufferSize_Integer] :=
 Function[
-    Module[{accepted},
+    Module[{acceptedSocketId, bytes},
         PreemptProtect @ With[{
             task = #1, 
             eventName = #2, 
-            readySockets = Flatten[{#3}]
+            event = #3[[1]],
+            readySockets = #3[[2]]
         },
             If[eventName === "ReadySockets",
                 Table[
-                    If[s === socketId,
-                        accepted = socketAccept[s];
-                        socketListAdd[socketListId, accepted];,
+                    If[socketId === serverSocketId,
+                        acceptedSocketId = socketAccept[socketId];
+                        socketListAdd[socketListId, acceptedSocketId];,
                     (*Else*)
-                        bytes = socketRecv[s, buffer, bufferSize];
+                        bytes = socketRecv[socketId, buffer, bufferSize];
                         If[Head[bytes] === LibraryFunctionError,
-                            socketClose[s];
+                            socketClose[socketId];
                             socketListClear[socketListId];,
                         (*Else*)
-                            handler[s, bytes];
-                            socketSendString[s, response, StringLength[response]];
+                            socketSendString[socketId, response, StringLength[response]];
                         ];
                     ];, 
-                    {s, readySockets}
+                    {socketId, readySockets}
                 ];,
                 socketListClear[socketListId];
             ];

@@ -285,7 +285,7 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketsSelectAsync", {{Integer, 1}, Integ
 
 
 createSocketsSelectLoop =
-LibraryFunctionLoad[$CSocketsLibrary, "createSocketsSelectLoop", {Integer, Integer, Integer}, Integer];
+LibraryFunctionLoad[$CSocketsLibrary, "createSocketsSelectLoop", {Integer, Integer}, Integer];
 
 
 socketListCreate =

@@ -1,6 +1,22 @@
 #include "common.h"
 
+
 Mutex globalMutex = MUTEX_INITIALIZER;
+
+
+void print(const char* format, ...)
+{
+    #ifdef _DEBUG
+        fprintf(stderr, "[%s] ", get_current_time());
+    va_list args;
+    va_start(args, format);
+
+    vprintf(format, args);
+
+    va_end(args);
+    #endif
+}
+
 
 char* get_current_time() {
     static char time_buffer[64];
@@ -29,6 +45,7 @@ char* get_current_time() {
     return time_buffer;
 }
 
+
 void init_global_mutex() {
     #if defined(_WIN32)
         globalMutex = CreateMutex(NULL, FALSE, NULL);
@@ -36,6 +53,7 @@ void init_global_mutex() {
         pthread_mutex_init(&globalMutex, NULL);
     #endif
 }
+
 
 void close_global_mutex() {
     #if defined(_WIN32)
@@ -45,6 +63,7 @@ void close_global_mutex() {
     #endif
 }
 
+
 void lock_global_mutex() {
     #if defined(_WIN32)
         WaitForSingleObject(globalMutex, INFINITE);
@@ -52,6 +71,7 @@ void lock_global_mutex() {
         pthread_mutex_lock(&globalMutex);
     #endif
 }
+
 
 void unlock_global_mutex() {
     #if defined(_WIN32) || defined(_WIN64)
@@ -61,6 +81,7 @@ void unlock_global_mutex() {
     #endif
 }
 
+
 void init_wsa() {
     #ifdef _WIN32
     int iResult;
@@ -69,6 +90,7 @@ void init_wsa() {
     #endif
 }
 
+
 void cleanup_wsa() {
     #ifdef _WIN32
     WSACleanup();
@@ -76,6 +98,7 @@ void cleanup_wsa() {
     sleep(1);
     #endif
 }
+
 
 void set_blocking_mode(SOCKET socketId) {
     #ifdef _WIN32
@@ -87,6 +110,7 @@ void set_blocking_mode(SOCKET socketId) {
     #endif
 }
 
+
 void set_non_blocking_mode(SOCKET socketId) {
     #ifdef _WIN32
     u_long mode = 1;
@@ -96,6 +120,7 @@ void set_non_blocking_mode(SOCKET socketId) {
     fcntl(socketId, F_SETFL, flags | O_NONBLOCK);
     #endif
 }
+
 
 bool is_non_blocking_mode(SOCKET socketId) {
     #ifdef _WIN32
@@ -107,6 +132,7 @@ bool is_non_blocking_mode(SOCKET socketId) {
     return (flags & O_NONBLOCK);
     #endif
 }
+
 
 bool is_valid_socket(SOCKET socketId) {
     if (socketId == INVALID_SOCKET) {
@@ -145,6 +171,7 @@ bool is_valid_socket(SOCKET socketId) {
     #endif
 }
 
+
 struct timeval new_tv(long long usec) {
     struct timeval tv = {
         .tv_sec = usec / USEC_PER_SEC,
@@ -152,6 +179,7 @@ struct timeval new_tv(long long usec) {
     };
     return tv;
 }
+
 
 size_t filter_fd_set_to_array(fd_set *set, SOCKET *input, SOCKET *result, size_t length) {
     SOCKET socketId;
@@ -166,6 +194,7 @@ size_t filter_fd_set_to_array(fd_set *set, SOCKET *input, SOCKET *result, size_t
     return j;
 }
 
+
 size_t filter_fd_set_to_tensor(WolframLibraryData libData, fd_set *set, SOCKET *input, MTensor result, size_t length) {
     mint *data = libData->MTensor_getIntegerData(result);
     SOCKET socketId;
@@ -179,6 +208,7 @@ size_t filter_fd_set_to_tensor(WolframLibraryData libData, fd_set *set, SOCKET *
     }
     return j;
 }
+
 
 SOCKET fill_fd_set_from_array(fd_set *set, SOCKET *sockets, size_t length, SOCKET initmaxfd) {
     SOCKET maxfd = initmaxfd;
@@ -195,12 +225,14 @@ SOCKET fill_fd_set_from_array(fd_set *set, SOCKET *sockets, size_t length, SOCKE
     return maxfd;
 }
 
+
 void copy_tensor_to_socket_array(WolframLibraryData libData, MTensor tensor, SOCKET *result, size_t length) {
     mint *data = libData->MTensor_getIntegerData(tensor);
     for (size_t i = 0; i < length; i++) {
         result[i] = (SOCKET)data[i];
     }
 }
+
 
 int sockets_poll(POLL_FD *fds, mint length, mint timeout_us) {
     int timeout_ms;
@@ -222,6 +254,7 @@ int sockets_poll(POLL_FD *fds, mint length, mint timeout_us) {
     return result;
 }
 
+
 int convert_wl_to_native_events(mint wl_events) {
     int native = 0;
 
@@ -241,6 +274,7 @@ int convert_wl_to_native_events(mint wl_events) {
 
     return native;
 }
+
 
 mint convert_native_to_wl_events(int native_revents) {
     mint wl = 0;
@@ -262,6 +296,7 @@ mint convert_native_to_wl_events(int native_revents) {
     return wl;
 }
 
+
 FastEvent* create_event() {
     FastEvent* event = (FastEvent*)malloc(sizeof(FastEvent));
     if (!event) return NULL;
@@ -282,6 +317,7 @@ FastEvent* create_event() {
     return event;
 }
 
+
 void destroy_event(FastEvent* event) {
     if (!event) return;
     
@@ -296,6 +332,7 @@ void destroy_event(FastEvent* event) {
     
     free(event);
 }
+
 
 void wait_event(FastEvent* event) {
     if (!event) return;
@@ -322,6 +359,7 @@ void wait_event(FastEvent* event) {
         pthread_mutex_unlock(&event->mutex);
     #endif
 }
+
 
 void signal_event(FastEvent* event) {
     if (!event) return;

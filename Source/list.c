@@ -1,5 +1,6 @@
 #include "list.h"
 
+
 DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     MTensor sockets = MArgument_getMTensor(Args[0]);
     mint* socketsData = libData->MTensor_getIntegerData(sockets);
@@ -40,6 +41,7 @@ DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument 
     return LIBRARY_NO_ERROR;
 }
 
+
 DLLEXPORT int socketListRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     free(socketList->sockets);
@@ -47,12 +49,14 @@ DLLEXPORT int socketListRemove(WolframLibraryData libData, mint Argc, MArgument 
     return LIBRARY_NO_ERROR;
 }
 
+
 DLLEXPORT int socketListAdd(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[1]);
     socket_list_add(socketList, socketId);
     return LIBRARY_NO_ERROR;
 }
+
 
 DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
@@ -71,11 +75,13 @@ DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument 
     return LIBRARY_NO_ERROR;
 }
 
+
 DLLEXPORT int socketListClear(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     socket_list_clear(socketList);
     return LIBRARY_NO_ERROR;
 }
+
 
 void socket_list_add(SocketList socketList, SOCKET socketId) {
     socketList->sockets[socketList->length++] = socketId;
@@ -84,6 +90,7 @@ void socket_list_add(SocketList socketList, SOCKET socketId) {
         socketList->sockets = realloc(socketList->sockets, sizeof(SOCKET) * socketList->capacity);
     }
 }
+
 
 void socket_list_clear(SocketList socketList) {
     size_t writeIndex = 0;

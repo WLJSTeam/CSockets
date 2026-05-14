@@ -1,5 +1,6 @@
 #include "address.h"
 
+
 /* socketAddressInfoCreate["host", "port", family, socktype, protocol, localIP] -> addressInfoPtr */
 /*
    Creates addrinfo structure for socket operations.
@@ -80,6 +81,7 @@ DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MAr
     return LIBRARY_NO_ERROR;
 }
 
+
 /*socketAddressInfoRemove[addressPtr]*/
 DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[0]); // address pointer as integer
@@ -92,6 +94,7 @@ DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MAr
     freeaddrinfo(address);
     return LIBRARY_NO_ERROR;
 }
+
 
 DLLEXPORT int socketAddressInfoListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     if (Argc != 2) return LIBRARY_FUNCTION_ERROR;
@@ -112,6 +115,7 @@ DLLEXPORT int socketAddressInfoListCreate(WolframLibraryData libData, mint Argc,
     MArgument_setInteger(Res, (mint)(uintptr_t)addresInfoArray);
     return LIBRARY_NO_ERROR;
 }
+
 
 DLLEXPORT int socketAddressInfoListRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     if (Argc != 1) return LIBRARY_FUNCTION_ERROR;
