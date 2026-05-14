@@ -247,9 +247,10 @@ DLLEXPORT int socketSend(WolframLibraryData libData, mint Argc, MArgument *Args,
 
 /*socketSendString[socketid, text, length] -> sentLength*/
 DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    SOCKET socketId = MArgument_getInteger(Args[0]); // positive integer
-    char *dataString = MArgument_getUTF8String(Args[1]);
-    int dataLength = MArgument_getInteger(Args[2]); // positive integer
+    SOCKET socketId = MArgument_getInteger(Args[0]);     // positive integer
+    char *dataString = MArgument_getUTF8String(Args[1]); // text string
+    int dataLength = MArgument_getInteger(Args[2]);      // positive integer
+
     int result;
 
     lock_global_mutex();

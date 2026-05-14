@@ -117,8 +117,8 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
             print("libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readyTensor);\n");
             libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readyTensor);
 
-            print("libData->ioLibraryFunctions->raiseAsyncEvent(taskId, \"ReadySockets\", dataStore);\n");
-            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReadySockets", dataStore);
+            print("libData->ioLibraryFunctions->raiseAsyncEvent(taskId, \"Selected\", dataStore);\n");
+            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Selected", dataStore);
 
             print("wait_event(loopEvent);\n");
             wait_event(loopEvent);

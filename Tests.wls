@@ -4,36 +4,22 @@ PacletDirectoryLoad[DirectoryName[$InputFileName]];
 
 
 Get["WLJS`CSockets`"];
+Get["WLJS`CSockets`Handler`"];
 
 
-addressInfo = WLJS`CSockets`Library`socketAddressInfoCreate[
-    "localhost",
-    "8080",
-    SOCKET`AFINET,
-    SOCKET`SOCKSTREAM,
-    SOCKET`IPPROTOAUTO,
-    ""
+server = CSocketOpen[8080];
+
+
+handler = CSocketHandler[]
+
+
+handler["DefaultHandler"] = Function[
+    Echo[#Data];
+    "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nHello, World!"
 ];
 
 
-socketId = WLJS`CSockets`Library`socketCreate[
-    SOCKET`AFINET,
-    SOCKET`SOCKSTREAM,
-    SOCKET`IPPROTOAUTO
-];
-
-
-WLJS`CSockets`Library`socketBind[socketId, addressInfo];
-
-
-WLJS`CSockets`Library`socketListen[socketId, 1024];
-
-
-SocketListen[CSocketObject[socketId], FileProvider];
-
-
-FileProvider[assoc_Association] :=
-Echo[assoc];
+SocketListen[server, handler];
 
 
 While[True,
