@@ -100,34 +100,20 @@ CSocketSend[SocketObject[socketId_Integer], byteArray_ByteArray] :=
 socketSend[socket];
 
 
-CSocketObject /: WriteString[CSocketObject[socketId_Integer], message_String] :=
-socketSendString[socketId, message, StringLength[message]];
+CSocketSendString[SocketObject[socketId_Integer], message_String] :=
+socketSend[socket];
 
 
-CSocketObject /: BinaryWrite[CSocketObject[socketId_Integer], byteArray_ByteArray] :=
-socketSendString[socketId, byteArray, Length[byteArray]];
+CSocketObject /: WriteString[socket_CSocketObject, message_String] :=
+CSocketSendString[socketId, message, StringLength[message]];
+
+
+CSocketObject /: BinaryWrite[socket_CSocketObject, byteArray_ByteArray] :=
+CSocketSend[socket, byteArray, Length[byteArray]];
 
 
 CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer]] :=
 socketsPoll[{socketId}, 1, 10^6, BitOr[SOCKET`POLLIN, SOCKET`POLLERR, SOCKET`POLLHUP, SOCKET`POLLNVAL]];
-
-
-CSocketObject /: SocketListen[CSocketObject[socketId_Integer], handler_] :=
-Module[{
-    backlog = 1024, 
-    socketList = CSocketList[{socketId}], 
-    usecInterval = 60 * 10^6, 
-    bufferSize = 1024,
-    buffer = socketBufferCreate[1024]
-}, 
-    socketListen[socketId, backlog];
-    
-    Internal`CreateAsynchronousTask[
-        createSocketsSelectLoop,
-        {socketList[[1]], usecInterval}, 
-        socketsSelectLoopHandler[handler, socketId, socketList, buffer, bufferSize]
-    ]
-];
 
 
 CSocketList[initialSockets : {__Integer}] :=
@@ -136,39 +122,92 @@ Module[{socketListId = socketListCreate[initialSockets, Length[initialSockets]]}
 ];
 
 
-response = "HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, World!";
+CSocketObject /: SocketListen[serverSocket: CSocketObject[serverSocketId_Integer], handler_] :=
+Module[{
+    backlog = SOCKET`SOMAXCONN,
+    socketList = CSocketList[{serverSocketId}],
+    usecInterval = 10 * 10^6,
+    bufferSize = 64 * 1024,
+    buffer = socketBufferCreate[64 * 1024]
+},
+    socketListen[serverSocketId, backlog];
+
+    Internal`CreateAsynchronousTask[
+        createSocketsSelectLoop,
+        {socketList[[1]], usecInterval},
+        socketsSelectLoopHandler[handler, serverSocket, socketList, buffer, bufferSize]
+    ]
+];
 
 
-socketsSelectLoopHandler[handler_, serverSocketId_Integer, CSocketList[socketListId_Integer], buffer_Integer, bufferSize_Integer] :=
+socketsSelectLoopHandler[
+    handler_,
+    serverSocket: CSocketObject[serverSocketId_Integer],
+    socketList: CSocketList[socketListId_Integer],
+    buffer_Integer,
+    bufferSize_Integer] :=
 Function[
-    Module[{acceptedSocketId, bytes},
-        PreemptProtect @ With[{
-            task = #1, 
-            eventName = #2, 
-            event = #3[[1]],
-            readySockets = #3[[2]]
-        },
-            If[eventName === "ReadySockets",
+    PreemptProtect @ With[{
+        task = #1,
+        eventName = #2,
+        event = #3[[1]],
+        data = #3[[2]]
+    },
+        Switch[eventName,
+            "ReadySockets",
                 Table[
                     If[socketId === serverSocketId,
-                        acceptedSocketId = socketAccept[socketId];
-                        socketListAdd[socketListId, acceptedSocketId];,
-                    (*Else*)
-                        bytes = socketRecv[socketId, buffer, bufferSize];
-                        If[Head[bytes] === LibraryFunctionError,
-                            socketClose[socketId];
-                            socketListClear[socketListId];,
-                        (*Else*)
-                            socketSendString[socketId, response, StringLength[response]];
-                        ];
-                    ];, 
-                    {socketId, readySockets}
-                ];,
-                socketListClear[socketListId];
-            ];
+                        With[{time = Now, acceptedSocketId = socketAccept[socketId]},
+                            socketListAdd[socketListId, acceptedSocketId];
 
-            signalEvent[event];
-        ]
+                            handler @ <|
+                                "Event" :> "Accepted",
+                                "Timestamp" :> time,
+                                "Socket" :> serverSocket,
+                                "SourceSocket" :> CSocketObject[acceptedSocketId],
+                                "Data" :> socketList
+                            |>
+                        ],
+                    (*Else*)
+                        With[{byteArray = socketRecv[socketId, buffer, bufferSize], time = Now},
+                            If[Head[byteArray] === LibraryFunctionError,
+                                    handler @ <|
+                                    "Event" :> "ReceivingError",
+                                    "Timestamp" :> time,
+                                    "Socket" :> serverSocket,
+                                    "SourceSocket" :> CSocketObject[socketId],
+                                    "Data" :> socketList
+                                |>,
+                            (*Else*)
+                                handler @ <|
+                                    "Event" :> "Received",
+                                    "Timestamp" :> time,
+                                    "Socket" :> serverSocket,
+                                    "SourceSocket" :> CSocketObject[socketId],
+                                    "Data" :> ByteArrayToString[byteArray],
+                                    "DataByteArray" :> byteArray,
+                                    "Bytes" :> Normal[byteArray],
+                                    "MultipartComplete" :> True
+                                |>
+                            ]
+                        ]
+                    ],
+                    {socketId, data}
+                ],
+
+            "SelectError",
+                With[{time = Now},
+                    handler @ <|
+                    "Event" :> "SelectError",
+                    "Timestamp" :> time,
+                    "Socket" :> serverSocket,
+                    "SourceSocket" :> socketList,
+                    "Data" :> data
+                |>
+            ]
+        ];
+
+        signalEvent[event];
     ]
 ];
 
