@@ -8,17 +8,15 @@ $libraryLinkVersion =
 LibraryVersionInformation[FindLibrary["demo"]]["WolframLibraryVersion"];
 
 
-build[lib_String, prot_: Automatic] := Block[{$directory, $libSrc, $libDir, $linkerOptions},
+build[lib_String, prot_: Automatic] := Block[{$directory, $libSrcs, $libSrcDir, $libDir, $linkerOptions},
     $directory = DirectoryName[If[$InputFileName == "",
         NotebookFileName[],
         $InputFileName
     ], 1];
 
-    $libSrc = File[FileNameJoin[{
-        $directory,
-        "Source",
-        lib <> ".c"
-    }]]; 
+    $libSrcDir = FileNameJoin[{$directory, "Source"}];
+
+    $libSrcs = FileNames["*.c", {$libSrcDir}]; 
 
     $libDir = FileNameJoin[{
         $directory, 
@@ -28,13 +26,14 @@ build[lib_String, prot_: Automatic] := Block[{$directory, $libSrc, $libDir, $lin
 
     If[!FileExistsQ[$libDir], CreateDirectory[]];
 
-    CreateLibrary @@ {$libSrc, lib,
+    CreateLibrary @@ {$libSrcs, lib,
         "TargetDirectory" -> $libDir,
         "Debug" -> True,
         If[prot === Automatic, Nothing, "TransferProtocolLibrary" -> "WSTP"],
         "ShellCommandFunction" -> Print,
         "ShellOutputFunction" -> Print,
-        "SystemCompileOptions" -> "/Ox /GL"
+        "SystemCompileOptions" -> "/Ox /GL", 
+        "IncludeDirectories" -> {$libSrcDir}
     }
 ];
 

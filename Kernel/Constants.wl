@@ -1,107 +1,140 @@
-BeginPackage["KirillBelov`CSockets`Constatns`"];
+BeginPackage["WLJS`CSockets`Constants`"];
+
+(* Protocol levels *)
+SOCKET`IPPROTOAUTO::usage = "IPPROTOAUTO - auto protocol level";
+SOCKET`IPPROTOAUTO = 0;
 
 
-optLevel::usage = "optLevel[name] returns the socket option's level.";
+SOCKET`IPPROTOTCP::usage = "IPPROTO_TCP - TCP protocol level";
+SOCKET`IPPROTOTCP = 6;
 
 
-optValue::usage = "optValue[name] returns {level value, option value}.";
+SOCKET`IPPROTOUDP::usage = "IPPROTO_UDP - UDP protocol level";
+SOCKET`IPPROTOUDP = 17;
 
 
-Begin["`Private`"];
+SOCKET`IPPROTOIPV6::usage = "IPPROTO_IPV6 - IPv6 protocol level";
+SOCKET`IPPROTOIPV6 = If[$OperatingSystem === "Windows", 41, 16^^0029];
 
 
-(* ============================== *)
-(*         Constants              *)
-(* ============================== *)
+(* Socket level - platform dependent *)
+SOCKET`SOL::usage = "SOL_SOCKET - socket-level options";
+SOCKET`SOL = If[$OperatingSystem === "Windows", 16^^FFFF, 1];
 
 
-$socketConstants = <|
-  "SOMAXCONN"   :> 16^^7FFFFFFF,
-  "AF_INET"     :> 16^^0002,
-  "AF_INET6"    :> 16^^000A,
-  "SOCK_STREAM" :> 16^^0001,
-  "SOCK_DGRAM"  :> 16^^0002
-|>;
+(* Socket options (SOL_SOCKET level) *)
+SOCKET`SOKEEPALIVE::usage = "SO_KEEPALIVE - enable keep-alive packets";
+SOCKET`SOKEEPALIVE = 16^^0008;
 
 
-$socketOpts = <|
-  "SOL_SOCKET" :> <|
-    "Value" :> If[$OperatingSystem === "Windows", 16^^FFFF, 1],
-    "Options" :> <|
-      "SO_KEEPALIVE"        :> 16^^0008,
-      "SO_RCVBUF"           :> 16^^1002,
-      "SO_SNDBUF"           :> 16^^1001,
-      "SO_REUSEADDR"        :> If[$OperatingSystem === "Windows", 4, 16^^0002],
-      "SO_EXCLUSIVEADDRUSE" :> -5,
-      "SO_LINGER"           :> 16^^0080,
-      "SO_BROADCAST"        :> 16^^0020,
-      "SO_ERROR"            :> 16^^1007,
-      "SO_TYPE"             :> If[$OperatingSystem === "Windows", 3, 16^^1008],
-      "SO_ACCEPTCONN"       :> 16^^0002
-    |>
-  |>,
-  "IPPROTO_TCP" :> <|
-    "Value" :> 6,
-    "Options" :> <|
-      "TCP_NODELAY"   :> 16^^0001,
-      "TCP_KEEPIDLE"  :> 16^^0004,
-      "TCP_KEEPINTVL" :> 16^^0005,
-      "TCP_KEEPCNT"   :> 16^^0006
-    |>
-  |>,
-  "IPPROTO_IP" :> <|
-    "Value" :> 0,
-    "Options" :> <|
-      "IP_TTL"          :> 16^^0004,
-      "IP_TOS"          :> 16^^0001,
-      "IP_MTU_DISCOVER" :> 16^^000A
-    |>
-  |>,
-  "IPPROTO_IPV6" :> <|
-    "Value" :> If[$OperatingSystem === "Windows", 41, 16^^0029],
-    "Options" :> <|
-      "IPV6_V6ONLY" :> If[$OperatingSystem === "Windows", 27, 16^^001A]
-    |>
-  |>
-|>;
+SOCKET`SORCVBUF::usage = "SO_RCVBUF - receive buffer size";
+SOCKET`SORCVBUF = 16^^1002;
 
 
-(* ============================== *)
-(*     Option Access Helpers     *)
-(* ============================== *)
+SOCKET`SOSNDBUF::usage = "SO_SNDBUF - send buffer size";
+SOCKET`SOSNDBUF = 16^^1001;
 
 
-optLevel[name_String] :=
-  KeySelect[$socketOpts,
-    Function[level,
-      KeyExistsQ[$socketOpts[level]["Options"], name]
-    ]
-  ] // Keys // First;
+SOCKET`SOLINGER::usage = "SO_LINGER - linger on close";
+SOCKET`SOLINGER = 16^^0080;
 
 
-optValue[name_String] := Module[{lvl},
-  lvl = optLevel[name];
-  {
-    $socketOpts[lvl]["Value"],
-    $socketOpts[lvl]["Options"][name]
-  }
-];
+SOCKET`SOBROADCAST::usage = "SO_BROADCAST - permit broadcast messages";
+SOCKET`SOBROADCAST = 16^^0020;
 
 
-$socketOptionNames = 
-Keys @ Apply[Join] @ Values @ Query[All, "Options"] @ $socketOpts;
-
-(*
-addCompletion := FE`Evaluate[FEPrivate`AddSpecialArgCompletion[#]]&;
+SOCKET`SOERROR::usage = "SO_ERROR - get pending socket error";
+SOCKET`SOERROR = 16^^1007;
 
 
-addCompletion["optLevel" -> $socketOptionNames]; 
+SOCKET`SOMAXCONN::usage = "SOMAXCONN - maximum backlog for listen()";
+SOCKET`SOMAXCONN = 16^^7FFFFFFF;
 
 
-addCompletion["optValue" -> $socketOptionNames];
-*)
+SOCKET`SOTYPE::usage = "SO_TYPE - get socket type (STREAM/DGRAM)";
+SOCKET`SOTYPE = 16^^1008;
 
-End[]; (* `Private` *)
+
+SOCKET`SOACCEPTCONN::usage = "SO_ACCEPTCONN - non-zero if socket is listening";
+SOCKET`SOACCEPTCONN = 16^^0002;
+
+
+SOCKET`SOREUSEADDR::usage = "SO_REUSEADDR - reuse local address";
+SOCKET`SOREUSEADDR = If[$OperatingSystem === "Windows", 4, 16^^0002];
+
+
+(* TCP options (IPPROTO_TCP level) *)
+SOCKET`TCPNODELAY::usage = "TCP_NODELAY - disable Nagle algorithm";
+SOCKET`TCPNODELAY = 16^^0001;
+
+
+SOCKET`TCPKEEPIDLE::usage = "TCP_KEEPIDLE - idle time before keep-alive probes";
+SOCKET`TCPKEEPIDLE = If[$OperatingSystem === "MacOSX", 16^^0010, 16^^0004];
+
+SOCKET`TCPKEEPINTVL::usage = "TCP_KEEPINTVL - interval between keep-alive probes";
+SOCKET`TCPKEEPINTVL = If[$OperatingSystem === "MacOSX", 16^^0011, 16^^0005];
+
+SOCKET`TCPKEEPCNT::usage = "TCP_KEEPCNT - number of keep-alive probes before drop";
+SOCKET`TCPKEEPCNT = If[$OperatingSystem === "MacOSX", 16^^0012, 16^^0006];
+
+
+(* IPv4 options (IPPROTO_IP level) *)
+SOCKET`IPTTL::usage = "IP_TTL - time-to-live for packets";
+SOCKET`IPTTL = 16^^0004;
+
+
+SOCKET`IPTOS::usage = "IP_TOS - type of service / DSCP";
+SOCKET`IPTOS = 16^^0001;
+
+
+SOCKET`IPMTUDISCOVER::usage = "IP_MTU_DISCOVER - path MTU discovery";
+SOCKET`IPMTUDISCOVER = 16^^000A;
+
+
+(* IPv6 options (IPPROTO_IPV6 level) *)
+SOCKET`IPV6V6ONLY::usage = "IPV6_V6ONLY - restrict socket to IPv6 only";
+SOCKET`IPV6V6ONLY = If[$OperatingSystem === "Windows", 27, 16^^001A];
+
+
+(* Address families *)
+SOCKET`AFINET::usage = "AF_INET - IPv4 address family";
+SOCKET`AFINET = 16^^0002;
+
+
+SOCKET`AFINET6::usage = "AF_INET6 - IPv6 address family";
+SOCKET`AFINET6 = 16^^000A;
+
+
+(* Socket types *)
+SOCKET`SOCKSTREAM::usage = "SOCK_STREAM - reliable stream socket (TCP)";
+SOCKET`SOCKSTREAM = 16^^0001;
+
+
+SOCKET`SOCKDGRAM::usage = "SOCK_DGRAM - datagram socket (UDP)";
+SOCKET`SOCKDGRAM = 16^^0002;
+
+
+(* Windows-specific *)
+SOCKET`SOEXCLUSIVEADDRUSE::usage = "SO_EXCLUSIVEADDRUSE - exclusive address binding (Windows only)";
+SOCKET`SOEXCLUSIVEADDRUSE = If[$OperatingSystem === "Windows", 16^^0001, -5];
+
+
+(*unified sockes_poll flags*)
+
+
+SOCKET`POLLIN   = 16^^0001;
+
+
+SOCKET`POLLOUT  = 16^^0002;
+
+
+SOCKET`POLLERR  = 16^^0004;
+
+
+SOCKET`POLLHUP  = 16^^0008;
+
+
+SOCKET`POLLNVAL = 16^^0010;
 
 
 EndPackage[];

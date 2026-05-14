@@ -2,31 +2,26 @@
 
 PacletObject[
   <|
-    "Name" -> "KirillBelov/CSockets",
+    "Name" -> "WLJS/CSockets",
     "Description" -> "Sockets powered by pure C",
-    "Creator" -> "Kirill Belov",
+    "Creator" -> "Kirill",
     "License" -> "MIT",
-    "PublisherID" -> "KirillBelov",
+    "PublisherID" -> "WLJS",
     "Version" -> "1.0.26",
     "WolframVersion" -> "13.3+",
-    "PrimaryContext" -> "KirillBelov`CSockets`",
+    "PrimaryContext" -> "WLJS`CSockets`",
     "Extensions" -> {
       {
         "Kernel",
         "Root" -> "Kernel",
         "Context" -> {
-          {"KirillBelov`CSockets`", "CSockets.wl"}, 
-          {"KirillBelov`CSockets`TCP`", "TCP.wl"}, 
-          {"KirillBelov`CSockets`Constants`", "Constants.wl"}, 
-          {"KirillBelov`CSockets`Handler`", "Handler.wl"}
+          {"WLJS`CSockets`", "CSockets.wl"},
+          {"WLJS`CSockets`Sockets`", "Sockets.wl"},
+          {"WLJS`CSockets`Constants`", "Constants.wl"},
+          {"WLJS`CSockets`Library`", "Library.wl"},
+          {"WLJS`CSockets`Handler`", "Handler.wl"}
         },
-        "Symbols" -> {
-          "KirillBelov`CSockets`CSocketObject",
-          "KirillBelov`CSockets`CSocketListener",
-          "KirillBelov`CSockets`CSocketOpen",
-          "KirillBelov`CSockets`CSocketConnect",
-          "KirillBelov`CSockets`CSocketHandler"
-        }
+        "Symbols" -> {}
       },
       {"Documentation", "Language" -> "English"},
       {"LibraryLink", "Root" -> "LibraryResources"},

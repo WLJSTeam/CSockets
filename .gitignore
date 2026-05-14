@@ -2,3 +2,4 @@
 /.vscode
 /LibraryResources
 .DS_Store
+*.exe
