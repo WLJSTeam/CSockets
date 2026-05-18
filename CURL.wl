@@ -9,6 +9,12 @@ Get["WLJS`CSockets`"];
 buffer = socketBufferCreate[4096];
 
 
+HTTPRequestEvaluate::invalidURL = "The URL `1` is invalid or not supported.";
+
+
+HTTPRequestEvaluate::timeout = "The request to `1` timed out.";
+
+
 HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
     host, port, message = ExportString[httpRequest, "HTTPRequest"], parsedURL, response,
     absolutePath = httpRequest["AbsolutePath"], socketId, addressInfo
