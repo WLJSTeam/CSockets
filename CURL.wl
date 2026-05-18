@@ -6,6 +6,9 @@ PacletDirectoryLoad[Directory[]];
 Get["WLJS`CSockets`"];
 
 
+buffer = socketBufferCreate[4096];
+
+
 HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
     host, port, message = ExportString[httpRequest, "HTTPRequest"], parsedURL, response,
     absolutePath = httpRequest["AbsolutePath"], socketId, addressInfo
@@ -38,8 +41,6 @@ HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
         Return[$Failed];
     ];
 
-    buffer = socketBufferCreate[4096];
-
     response = ByteArray[{}];
 
     While[socketsSelect[{socketId}, 1, 0, 1] === {socketId},
@@ -47,6 +48,7 @@ HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
     ];
 
     socketClose[socketId];
+    socketAddressInfoRemove[addressInfo];
 
     (*Return*)
     ImportByteArray[response, "HTTPResponse"]
