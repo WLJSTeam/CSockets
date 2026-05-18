@@ -49,7 +49,7 @@ HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
 
     response = ByteArray[{}];
 
-    While[socketsSelect[{socketId}, 1, 0, 1] === {socketId},
+    While[socketsSelect[{socketId}, 1, 1, 1] === {socketId},
         response = Join[response, socketRecv[socketId, buffer, 4096]];
     ];
 
