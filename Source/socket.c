@@ -17,9 +17,9 @@ DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Arg
 }
 
 
-/*socketClose[socketId] -> successStatus*/
+/*socketClose[socketId]*/
 DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    SOCKET socketId = MArgument_getInteger(Args[0]); // positive integer
+    SOCKET socketId = MArgument_getInteger(Args[0]);
 
     mint result = true;
 
@@ -33,18 +33,15 @@ DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    MArgument_setInteger(Res, result);
     return LIBRARY_NO_ERROR;
 }
 
 
-/*socketBind[socketId, addressInfoPtr] -> successStatus*/
+/*socketBind[socketId, addressInfoPtr]*/
 DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]); // socket for binding
     uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
     struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
-
-    bool successState = 0;
 
     if (addressInfo == NULL) {
         return LIBRARY_FUNCTION_ERROR;
@@ -59,12 +56,11 @@ DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args,
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    MArgument_setInteger(Res, successState); // success = 0
     return LIBRARY_NO_ERROR;
 }
 
 
-/*socketSetOpt[socketId, level, optName, optVal] -> successStatus*/
+/*socketSetOpt[socketId, level, optName, optVal]*/
 DLLEXPORT int socketSetOpt(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]); // socket
     int level = (int)MArgument_getInteger(Args[1]);
@@ -76,7 +72,6 @@ DLLEXPORT int socketSetOpt(WolframLibraryData libData, mint Argc, MArgument *Arg
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    MArgument_setInteger(Res, 0); // success
     return LIBRARY_NO_ERROR;
 }
 
@@ -116,7 +111,7 @@ DLLEXPORT int socketSetNonBlockingMode(WolframLibraryData libData, mint Argc, MA
 }
 
 
-/*socketListen[socketId, backlog] -> successStatus*/
+/*socketListen[socketId, backlog]*/
 DLLEXPORT int socketListen(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     int backlog = (int)MArgument_getInteger(Args[1]);
@@ -289,6 +284,33 @@ DLLEXPORT int socketSendTo(WolframLibraryData libData, mint Argc, MArgument *Arg
     lock_global_mutex();
     int result = sendto(socketId, (const char*)data, dataLength, 0, addressInfo->ai_addr, addressInfo->ai_addrlen);
     unlock_global_mutex();
+
+    if (result > 0) {
+        MArgument_setInteger(Res, result);
+        return LIBRARY_NO_ERROR;
+    }
+
+    return LIBRARY_FUNCTION_ERROR;
+}
+
+
+DLLEXPORT int socketSendStringTo(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
+    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]);
+    struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
+
+    char *dataString = MArgument_getUTF8String(Args[2]);
+    mint dataLength = MArgument_getInteger(Args[3]);
+
+    if (addressInfo == NULL || dataLength <= 0) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    lock_global_mutex();
+    int result = sendto(socketId, (const char*)dataString, dataLength, 0, addressInfo->ai_addr, addressInfo->ai_addrlen);
+    unlock_global_mutex();
+
+    libData->UTF8String_disown(dataString);
 
     if (result > 0) {
         MArgument_setInteger(Res, result);

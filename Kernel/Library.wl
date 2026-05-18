@@ -17,7 +17,7 @@ socketCreate::usage = "socketCreate[family, socktype, protocol] returns unbound 
 
 
 socketClose::usage =
-"socketClose[socketId] returns success state == 1.";
+"socketClose[socketId]";
 
 
 socketBind::usage =
@@ -197,15 +197,15 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketCreate", {Integer, Integer, Integer
 
 
 socketClose =
-LibraryFunctionLoad[$CSocketsLibrary, "socketClose", {Integer}, "Boolean"];
+LibraryFunctionLoad[$CSocketsLibrary, "socketClose", {Integer}, "Void"];
 
 
 socketBind =
-LibraryFunctionLoad[$CSocketsLibrary, "socketBind", {Integer, Integer}, "Boolean"];
+LibraryFunctionLoad[$CSocketsLibrary, "socketBind", {Integer, Integer}, "Void"];
 
 
 socketSetOpt =
-LibraryFunctionLoad[$CSocketsLibrary, "socketSetOpt", {Integer, Integer, Integer, Integer}, "Boolean"];
+LibraryFunctionLoad[$CSocketsLibrary, "socketSetOpt", {Integer, Integer, Integer, Integer}, "Void"];
 
 
 socketGetOpt =
@@ -250,6 +250,10 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketSendString", {Integer, String, Inte
 
 socketSendTo =
 LibraryFunctionLoad[$CSocketsLibrary, "socketSendTo", {Integer, Integer, "ByteArray", Integer}, Integer];
+
+
+socketSendStringTo =
+LibraryFunctionLoad[$CSocketsLibrary, "socketSendStringTo", {Integer, Integer, String, Integer}, Integer];
 
 
 socketsCheck =
@@ -312,15 +316,15 @@ createServerLoop =
 LibraryFunctionLoad[$CSocketsLibrary, "createServerLoop", {Integer, Integer, Integer, Integer, Integer, Integer, Integer, Integer}, Integer];
 
 
-createEvent = 
+createEvent =
 LibraryFunctionLoad[$CSocketsLibrary, "createEvent", {}, Integer];
 
 
-destroyEvent = 
+destroyEvent =
 LibraryFunctionLoad[$CSocketsLibrary, "destroyEvent", {Integer}, "Void"];
 
 
-signalEvent = 
+signalEvent =
 LibraryFunctionLoad[$CSocketsLibrary, "signalEvent", {Integer}, "Void"];
 
 
