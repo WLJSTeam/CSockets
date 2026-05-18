@@ -33,7 +33,7 @@ HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
     addressInfo = socketAddressInfoCreate[host, ToString[port], 2, 1, 0, ""]; (* AF_INET, SOCK_STREAM, AUTO *)
     socketConnect[socketId, addressInfo];
 
-    If[socketsSelect[{socketId}, 1, 5 * 10^6, 2] =!= {socketId},
+    If[socketsSelect[{socketId}, 1, 10^5, 2] =!= {socketId},
         Message[HTTPRequestEvaluate::timeout, absolutePath];
         socketClose[socketId];
         Return[$Failed];
