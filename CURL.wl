@@ -57,7 +57,9 @@ HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
     socketAddressInfoRemove[addressInfo];
 
     (*Return*)
-    ImportByteArray[response, "HTTPResponse"]
+    result = AbsoluteTiming[ImportByteArray[response, "HTTPResponse"]];
+    Echo[result[[1]], "IMPORTTIME"];
+    result[[2]]
 ];
 
 
