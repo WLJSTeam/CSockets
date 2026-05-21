@@ -61,7 +61,8 @@ With[{
     addressInfo = socketAddressInfoCreate[host, ToString[port],
         SOCKET`AFINET,
         protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
-        SOCKET`IPPROTOAUTO
+        SOCKET`IPPROTOAUTO,
+        ""
     ],
     socketId = socketCreate[
         SOCKET`AFINET,
@@ -104,7 +105,7 @@ CSocketObject /: WriteString[CSocketObject[socketId_Integer], message_String] :=
 socketSendString[socketId, message, StringLength[message]];
 
 CSocketObject /: BinaryWrite[CSocketObject[socketId_Integer], byteArray_ByteArray] :=
-socketSend[socketId, byteArray, Length[byteArray]];
+(Echo["START SEND"]; socketSend[socketId, byteArray, Length[byteArray]]; Echo["END SEND"]; );
 
 
 CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer]] :=

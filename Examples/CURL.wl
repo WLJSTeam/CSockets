@@ -1,6 +1,6 @@
 (* ::Package:: *)
 
-PacletDirectoryLoad[Directory[]];
+PacletDirectoryLoad[DirectoryName[$InputFileName, 2]];
 
 
 Get["WLJS`CSockets`"];
@@ -60,21 +60,4 @@ HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
     ImportByteArray[response, "HTTPResponse"]
 ];
 
-memoryAvailable = MemoryAvailable[];
 
-
-downloaded = 0;
-
-
-Do[
-    Pause[0.1];
-    result = ExportString[HTTPRequestEvaluate[HTTPRequest["http://jsfiddle.net/echo/jsonp/?name=fred&callback=callbackName"]], "HTTPResponse"];
-    downloaded += StringLength[result];
-    Print[result];,
-    {1000}
-];
-
-Echo[MemoryAvailable[] - memoryAvailable, "Memory change: "];
-
-
-Echo[downloaded, "Downloaded   : "];

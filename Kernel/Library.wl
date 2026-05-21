@@ -241,7 +241,7 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketRecvFrom", {Integer, Integer, Integ
 
 
 socketSend =
-LibraryFunctionLoad[$CSocketsLibrary, "socketSend", {Integer, "ByteArray", Integer}, Integer];
+LibraryFunctionLoad[$CSocketsLibrary, "socketSend", {Integer, {"ByteArray", "Shared"}, Integer}, Integer];
 
 
 socketSendString =
@@ -249,7 +249,7 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketSendString", {Integer, String, Inte
 
 
 socketSendTo =
-LibraryFunctionLoad[$CSocketsLibrary, "socketSendTo", {Integer, Integer, "ByteArray", Integer}, Integer];
+LibraryFunctionLoad[$CSocketsLibrary, "socketSendTo", {Integer, Integer, {"ByteArray", "Shared"}, Integer}, Integer];
 
 
 socketSendStringTo =
@@ -257,7 +257,7 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketSendStringTo", {Integer, Integer, S
 
 
 socketsCheck =
-LibraryFunctionLoad[$CSocketsLibrary, "socketsCheck", {Integer}, {Integer, 1}];
+LibraryFunctionLoad[$CSocketsLibrary, "socketsCheck", {{Integer, 1}, Integer}, {Integer, 1}];
 
 
 socketsSelect =
