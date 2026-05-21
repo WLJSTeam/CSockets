@@ -15,11 +15,13 @@ With[{handler = CSocketHandler["DefaultHandler" -> evaluate]},
 evaluate[assoc_Association?AssociationQ] :=
 BinarySerialize @
 ReleaseHold @
-Echo @
+Echo[#, "CODE TO EVALUATE:"]& @
 BinaryDeserialize @
 #DataByteArray& @
-Echo @
 assoc;
+
+
+SetAttributes[RemoteKernelEvaluate, HoldRest];
 
 
 RemoteKernelEvaluate[port_Integer, expr_] :=
@@ -32,18 +34,12 @@ Module[{client},
     BinarySerialize @
     HoldComplete[expr];
 
-    If[socketsSelect[{client[[1]]}, 1, 1000, 1] === {client[[1]]},
-        buffer = socketBufferCreate[1024];
+    buffer = socketBufferCreate[1024];
 
-        Echo @
-        BinaryDeserialize @
-        socketRecv[client[[1]], buffer, 1024],
-        Message[RemoteKernelEvaluate::timeout, port]
-    ];
+    Echo[#, "REMOTE RESULT:"]& @
+    BinaryDeserialize @
+    socketRecv[client[[1]], buffer, 1024]
 ];
-
-
-Echo[$ScriptCommandLine];
 
 
 Switch[$ScriptCommandLine[[-1]],
@@ -51,5 +47,6 @@ Switch[$ScriptCommandLine[[-1]],
         RemoteKernelStart[8000];
         While[True, Pause[1]],
     "client",
-        RemoteKernelEvaluate[8000, Hold[1 + 1]]
+        Echo[$ProcessID, "LOCAL RESULT:"];
+        RemoteKernelEvaluate[8000, $ProcessID]
 ];
