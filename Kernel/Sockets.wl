@@ -105,7 +105,7 @@ CSocketObject /: WriteString[CSocketObject[socketId_Integer], message_String] :=
 socketSendString[socketId, message, StringLength[message]];
 
 CSocketObject /: BinaryWrite[CSocketObject[socketId_Integer], byteArray_ByteArray] :=
-(Echo["START SEND"]; socketSend[socketId, byteArray, Length[byteArray]]; Echo["END SEND"]; );
+socketSend[socketId, byteArray, Length[byteArray]];
 
 
 CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer]] :=

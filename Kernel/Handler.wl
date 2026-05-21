@@ -191,8 +191,6 @@ With[{client = packet["SourceSocket"]},
             WriteString[client, result],
 
         _ByteArray,
-            Echo[client, "CLIENT:"];
-            Echo[result, "RESULT:"];
             BinaryWrite[client, result],
 
         Null,
