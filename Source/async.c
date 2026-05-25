@@ -28,7 +28,7 @@ void socketsSelectTask(mint taskId, void *taskArgs) {
         DataStore dataStore;
         libData->ioLibraryFunctions->createDataStore();
         libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readySockets);
-        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReadySockets", dataStore);
+        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Selected", dataStore);
         libData->MTensor_free(readySockets);
     }
 
@@ -87,27 +87,23 @@ void socketsSelectLoop(mint taskId, void *taskArgs) {
         tv = new_tv(timeout);
 
         result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
-
         if (result > 0) {
             dims = (mint)result;
             libData->MTensor_new(MType_Integer, 1, &dims, &readyTensor);
-
             filter_fd_set_to_tensor(libData, &readfd, sockets, readyTensor, length);
-
             dataStore = libData->ioLibraryFunctions->createDataStore();
             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, loopEvent);
+            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)(uintptr_t)socketList);
             libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readyTensor);
             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Selected", dataStore);
-
             wait_event(loopEvent);
         } else if (result < 0) {
             err = GETSOCKETERRNO();
-
             dataStore = libData->ioLibraryFunctions->createDataStore();
             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, loopEvent);
+            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)(uintptr_t)socketList);
             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, err);
-            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "SelectError", dataStore);
-
+            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Error", dataStore);
             wait_event(loopEvent);
         }
     }
@@ -211,7 +207,7 @@ void serverLoop(mint taskId, void *taskArgs) {
                     if (result > 0) {
                         dataStore = libData->ioLibraryFunctions->createDataStore();
                         libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)clientId);
-                        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Recv", dataStore);
+                        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Received", dataStore);
                     }
                 }
             }
@@ -233,7 +229,7 @@ void serverLoop(mint taskId, void *taskArgs) {
                         BYTE *numericArrayData = libData->numericarrayLibraryFunctions->MNumericArray_getData(numericArray);
                         memcpy(numericArrayData, buffer, result);
                         libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, numericArray);
-                        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "RecvFrom", dataStore);
+                        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReceivedFrom", dataStore);
                     }
                 }
             }

@@ -15,7 +15,7 @@ CSocketClose::usage =
 
 
 CSocketConnect::usage =
-"CSocketOpen[host, port, protocol]";
+"CSocketConnect[host, port, protocol, options]";
 
 
 CSocketObject::usage =
@@ -130,79 +130,35 @@ CSocketObject /: SocketListen[serverSocket: CSocketObject[serverSocketId_Integer
 Module[{
     backlog = SOCKET`SOMAXCONN,
     socketList = CSocketList[{serverSocketId}],
-    usecInterval = 10 * 10^6,
-    bufferSize = 64 * 1024,
-    buffer = socketBufferCreate[64 * 1024]
+    usecInterval = 10 * 10^6
 },
     socketListen[serverSocketId, backlog];
 
     Internal`CreateAsynchronousTask[
         createSocketsSelectLoop,
         {socketList[[1]], usecInterval},
-        handleSelectLoopEvent[handler, serverSocket, socketList, buffer, bufferSize]
+        handleSelectLoopEvent[handler, serverSocket]
     ]
 ];
 
 
-handleSelectLoopEvent[
-    handler_,
-    serverSocket: CSocketObject[serverSocketId_Integer],
-    socketList: CSocketList[socketListId_Integer],
-    buffer_Integer,
-    bufferSize_Integer] :=
-Function[With[{task = #1, eventName = #2, event = #3[[1]], data = #3[[2]]},
-    PreemptProtect @ Switch[eventName,
-        "Selected", Table[
-            If[socketId === serverSocketId,
-                With[{acceptedSocketId = socketAccept[socketId], time = Now},
-                    handler @ <|
-                        "Event" :> "Accepted",
-                        "Timestamp" :> time,
-                        "Socket" :> serverSocket,
-                        "SourceSocket" :> CSocketObject[acceptedSocketId],
-                        "Data" :> socketList
-                    |>
-                ],
-            (*Else*)
-                With[{byteArray = socketRecv[socketId, buffer, bufferSize], time = Now, sourceSocket = socketId},
-                    If[Head[byteArray] === LibraryFunctionError,
-                        handler @ <|
-                            "Event" :> "Closed",
-                            "Timestamp" :> time,
-                            "Socket" :> serverSocket,
-                            "SourceSocket" :> CSocketObject[sourceSocket],
-                            "Data" :> socketList
-                        |>,
-                    (*Else*)
-                        handler @ <|
-                            "Event" :> "Received",
-                            "Timestamp" :> time,
-                            "Socket" :> serverSocket,
-                            "SourceSocket" :> CSocketObject[sourceSocket],
-                            "Data" :> ByteArrayToString[byteArray],
-                            "DataByteArray" :> byteArray,
-                            "Bytes" :> Normal[byteArray],
-                            "MultipartComplete" :> True
-                        |>
-                    ]
-                ]
-            ],
-            {socketId, data}
-        ],
+handleSelectLoopEvent[handler_, serverSocket_CSocketObject] :=
+Function[With[{task = #1, eventName = #2, eventToken = #3[[1]], socketList = SocketList[#3[[2]]], data = #3[[3]], timestamp = Now},
+    PreemptProtect @
+    Check[
+        handler @ <|
+            "Event" :> eventName,
+            "Handler" :> handler,
+            "Token" :> eventToken,
+            "Socket" :> serverSocket,
+            "SocketList" :> socketList,
+            "Timestamp" :> timestamp,
+            "Data" :> data
+        |>,
 
-        "SelectError", With[{time = Now},
-            handler @ <|
-                "Event" :> "SelectError",
-                "Timestamp" :> time,
-                "Socket" :> serverSocket,
-                "SourceSocket" :> socketList,
-                "Data" :> data
-            |>
-        ]
-    ];
-
-    (*Unfreeze select loop on the c-side*)
-    signalEvent[event]]
+        (*Unfreeze select loop on the c-side*)
+        signalEvent[eventToken]]
+    ]
 ];
 
 
