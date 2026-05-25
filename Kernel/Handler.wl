@@ -7,6 +7,10 @@ CSocketHandler::usage =
 "CSocketHandler[] mutable handler object.";
 
 
+CSocketPacketBuffer::usage =
+"CSocketPacketBuffer[] packet buffer.";
+
+
 Begin["`Private`"];
 
 
@@ -21,10 +25,10 @@ Options[CSocketHandler] = {
 
 With[{store = Language`NewExpressionStore["CSocketHandler"]},
 
-    CSocketHandler[OptionsPattern[]] :=
+    CSocketHandler[opts: OptionsPattern[{}]] :=
     With[{handler = CSocketHandler[Null]},
-        Map[store["put"[handler, #, OptionValue[#]]]&] @ Keys[Options[CSocketHandler]];
-
+        Map[store["put"[handler, #, OptionValue[CSocketHandler, Flatten[{opts}], #]]]&] @ Keys[Options[CSocketHandler]];
+        Map[store["put"[handler, #, OptionValue[Flatten[{opts}], #]]]&] @ DeleteCases[Keys[Flatten[{opts}]], Apply[Alternatives] @ Keys[Options[CSocketHandler]]];
         handler
     ];
 
