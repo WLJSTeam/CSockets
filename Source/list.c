@@ -4,7 +4,7 @@
 DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     MTensor sockets = MArgument_getMTensor(Args[0]);
     mint* socketsData = libData->MTensor_getIntegerData(sockets);
-    
+
     size_t length = (size_t)MArgument_getInteger(Args[1]);
 
     if (length < 0) {
@@ -38,6 +38,20 @@ DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument 
 
     mint socketListPtr = (mint)(uintptr_t)socketList;
     MArgument_setInteger(Res, socketListPtr);
+    return LIBRARY_NO_ERROR;
+}
+
+
+DLLEXPORT int socketListDelete(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
+    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[1]);
+
+    for (mint i = 0; i++; i < socketList->length) {
+        if (socketId == socketList->sockets[i]) {
+            socketList->sockets[i] = INVALID_SOCKET;
+        }
+    }
+
     return LIBRARY_NO_ERROR;
 }
 
@@ -94,10 +108,10 @@ void socket_list_add(SocketList socketList, SOCKET socketId) {
 
 void socket_list_clear(SocketList socketList) {
     size_t writeIndex = 0;
-    
+
     for (size_t i = 0; i < socketList->length; i++) {
         SOCKET socketId = socketList->sockets[i];
-        
+
         if (is_valid_socket(socketId)) {
             if (writeIndex != i) {
                 socketList->sockets[writeIndex] = socketId;
@@ -105,7 +119,7 @@ void socket_list_clear(SocketList socketList) {
             writeIndex++;
         }
     }
-    
+
     socketList->length = writeIndex;
     while (socketList->capacity > socketList->length * 2)
     {

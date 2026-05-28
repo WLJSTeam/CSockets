@@ -164,27 +164,29 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
     BYTE *buffer = (BYTE *)(uintptr_t)MArgument_getInteger(Args[1]);
     size_t bufferSize = (size_t)MArgument_getInteger(Args[2]);
 
+    printf(">> RECV");
+    printf(">> RECV: %d\n", client);
     lock_global_mutex();
     int result = recv(client, buffer, bufferSize, 0);
     unlock_global_mutex();
+    printf(">> END RECV: %d\n", result);
 
-    if (result > 0) {
+    if (result >= 0) {
         mint len = (mint)result;
         MNumericArray byteArray;
         libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &len, &byteArray);
-        BYTE *array = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
-        memcpy(array, buffer, result);
+
+        if (result > 0) {
+            BYTE *array = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
+            memcpy(array, buffer, result);
+        }
+
         MArgument_setMNumericArray(Res, byteArray);
         return LIBRARY_NO_ERROR;
     }
 
-    if (result == 0) {
-        libData->Message("socketrecvclose");
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
     char errorMsg[32];
-    snprintf(errorMsg, sizeof(errorMsg), "socketrecv%d", GETSOCKETERRNO());
+    snprintf(errorMsg, sizeof(errorMsg), "socketrecverror:%d", GETSOCKETERRNO());
     libData->Message(errorMsg);
     return LIBRARY_FUNCTION_ERROR;
 }
@@ -202,17 +204,23 @@ DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *A
     int result = recvfrom(client, buffer, bufferSize, 0, addressInfo->ai_addr, &(addressInfo->ai_addrlen));
     unlock_global_mutex();
 
-    if (result > 0) {
-        mint dims = (mint)result;
+    if (result >= 0) {
+        mint len = (mint)result;
         MNumericArray byteArray;
-        libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &dims, &byteArray);
-        BYTE *array = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
-        memcpy(array, buffer, result);
+        libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &len, &byteArray);
+
+        if (len > 0) {
+            BYTE *array = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
+            memcpy(array, buffer, result);
+        }
 
         MArgument_setMNumericArray(Res, byteArray);
         return LIBRARY_NO_ERROR;
     }
 
+    char errorMsg[32];
+    snprintf(errorMsg, sizeof(errorMsg), "socketrecvfromerror:%d", GETSOCKETERRNO());
+    libData->Message(errorMsg);
     return LIBRARY_FUNCTION_ERROR;
 }
 

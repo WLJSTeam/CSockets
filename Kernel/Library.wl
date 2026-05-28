@@ -149,8 +149,12 @@ socketListClear::usage =
 "socketListClear[socketListPtr] clear dynamic c-struct.";
 
 
-socketListRemove::usage =
+socketListDelete::usage =
 "socketListRemove[socketListPtr, socketId] removes socket id from dynamic c-struct.";
+
+
+socketListRemove::usage =
+"socketListRemove[socketListPtr] removes socket list.";
 
 
 socketListGetAll::usage =
@@ -302,6 +306,10 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketListAdd", {Integer, Integer}, "Void
 
 socketListClear =
 LibraryFunctionLoad[$CSocketsLibrary, "socketListClear", {Integer}, "Void"];
+
+
+socketListDelete =
+LibraryFunctionLoad[$CSocketsLibrary, "socketListDelete", {Integer, Integer}, "Void"];
 
 
 socketListRemove =
