@@ -17,39 +17,16 @@ typedef struct SocketsSelectArgs_st {
 void socketsSelectTask(mint taskId, void *taskArgs);
 
 
-DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
-
-
-typedef struct SocketsSelectLoopArgs_st {
-    WolframLibraryData libData;
-    SocketList socketList;
-    mint timeout;
-} *SocketsSelectLoopArgs;
-
-
-void socketsSelectLoop(mint taskId, void *taskArgs);
-
-
-DLLEXPORT int createSocketsSelectLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
-
-
 typedef struct ServerLoopArgs_st {
     WolframLibraryData libData;
-    SocketList acceptSockets;
-    SocketList recvSockets;
-    SocketList recvFromSockets;
-    AddressInfoList recvFromAddrInfos;
-    BYTE *buffer;
+    SocketList socketList;
     mint bufferSize;
     mint timeout;
-    SOCKET interrupter;
+    mint eventsMask;
 } *ServerLoopArgs;
 
 
-void serverLoop(mint taskId, void *taskArgs);
-
-
-DLLEXPORT int createServerLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
+void socketsPollLoop(mint taskId, void *taskArgs);
 
 
 #endif

@@ -28,7 +28,7 @@ void socketsSelectTask(mint taskId, void *taskArgs) {
         DataStore dataStore;
         libData->ioLibraryFunctions->createDataStore();
         libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readySockets);
-        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReadySockets", dataStore);
+        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Selected", dataStore);
         libData->MTensor_free(readySockets);
     }
 
@@ -58,182 +58,69 @@ DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgumen
 }
 
 
-void socketsSelectLoop(mint taskId, void *taskArgs) {
-    SocketsSelectLoopArgs args = (SocketsSelectLoopArgs)taskArgs;
-
-    WolframLibraryData libData = args->libData;
-    SocketList socketList = args->socketList;
-    mint timeout = args->timeout;
-
-    FastEvent *loopEvent = create_event();
-    fd_set readfd;
-    SOCKET *sockets;
-    SOCKET maxfd;
-    SOCKET socketId;
-    int length;
-    int result;
-    MTensor readyTensor;
-    struct timeval tv;
-    mint dims;
-    DataStore dataStore;
-    int err;
-
-    while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
-    {
-        length = socketList->length;
-        sockets = socketList->sockets;
-        FD_ZERO(&readfd);
-        maxfd = fill_fd_set_from_array(&readfd, sockets, length, 0);
-        tv = new_tv(timeout);
-
-        result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
-
-        if (result > 0) {
-            dims = (mint)result;
-            libData->MTensor_new(MType_Integer, 1, &dims, &readyTensor);
-
-            filter_fd_set_to_tensor(libData, &readfd, sockets, readyTensor, length);
-
-            dataStore = libData->ioLibraryFunctions->createDataStore();
-            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, loopEvent);
-            libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readyTensor);
-            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Selected", dataStore);
-
-            wait_event(loopEvent);
-        } else if (result < 0) {
-            err = GETSOCKETERRNO();
-
-            dataStore = libData->ioLibraryFunctions->createDataStore();
-            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, loopEvent);
-            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, err);
-            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "SelectError", dataStore);
-
-            wait_event(loopEvent);
-        }
-    }
-
-    free(taskArgs);
-}
-
-
-DLLEXPORT int createSocketsSelectLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
-    mint timeout = MArgument_getInteger(Args[1]);
-
-    SocketsSelectLoopArgs taskArgs = malloc(sizeof(struct SocketsSelectLoopArgs_st));
-
-    taskArgs->libData = libData;
-    taskArgs->socketList = socketList;
-    taskArgs->timeout = timeout;
-
-    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketsSelectLoop, (void *)taskArgs);
-
-    MArgument_setInteger(Res, taskId);
-    return LIBRARY_NO_ERROR;
-}
-
-
-void serverLoop(mint taskId, void *taskArgs) {
+void socketsPollLoop(mint taskId, void *taskArgs) {
     ServerLoopArgs args = (ServerLoopArgs)taskArgs;
 
+    SocketList socketList = args->socketList;
+
     WolframLibraryData libData = args->libData;
-
-    SocketList acceptSockets = args->acceptSockets;
-    SocketList recvSockets = args->recvSockets;
-
-    SocketList recvFromSockets = args->recvFromSockets;
-    AddressInfoList recvFromAddrInfos = args->recvFromAddrInfos;
-
-    SOCKET interrupter = args->interrupter;
-
-    BYTE *buffer = args->buffer;
     mint bufferSize = args->bufferSize;
-
+    BYTE *buffer = malloc(bufferSize);
     mint timeout = args->timeout;
+    mint eventsMask = args->eventsMask;
+    int nativeEvents = convert_wl_to_native_events(eventsMask);
 
-    fd_set readfd;
-    SOCKET *sockets;
-    mint length;
-    SOCKET maxfd;
-    SOCKET socketId;
-    SOCKET clientId;
-    mint *readySockets;
-    size_t j;
-    MTensor readySocketsTensor;
-    struct timeval tv;
-    mint len;
-    DataStore dataStore;
     int result;
-    struct addrinfo *addressInfo;
+    mint dims;
+    int recvResult;
+    SOCKET acceptedSocketId;
+    MNumericArray byteArray;
 
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
     {
-        tv = new_tv(timeout);
+        size_t length = socketList->length;
 
-        FD_ZERO(&readfd);
-        maxfd = interrupter;
-        FD_SET(interrupter, &readfd);
+        POLL_FD *pollfds = socketList->pollfds;
+        result = sockets_poll(pollfds, length, timeout, nativeEvents);
+        if (result > 0) {
+            for (size_t i = 0; i < length; i++) {
+                if (pollfds[i].revents != 0) {
+                    SOCKET socketId = pollfds[i].fd;
+                    SOCKET_TYPE socketType = socketList->sockettypes[i];
 
-        maxfd = fill_fd_set_from_array(&readfd, acceptSockets->sockets, acceptSockets->length, maxfd);
-        maxfd = fill_fd_set_from_array(&readfd, recvSockets->sockets, recvSockets->length, maxfd);
-        maxfd = fill_fd_set_from_array(&readfd, recvFromSockets->sockets, recvFromSockets->length, maxfd);
+                    DataStore dataStore;
+                    libData->ioLibraryFunctions->createDataStore();
+                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
+                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketType);
 
-        int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
-        if (result >= 0) {
-            if (FD_ISSET(interrupter, &readfd)) {
-                result = recv(interrupter, (char *)buffer, bufferSize, 0);
-                if (result > 0) {
-
-                } else {
-
-                }
-            }
-
-            length = acceptSockets->length;
-            sockets = acceptSockets->sockets;
-            for (mint i = 0; i < length; i++) {
-                socketId = sockets[i];
-                if (FD_ISSET(socketId, &readfd)) {
-                    clientId = accept(socketId, NULL, NULL);
-                    socket_list_add(recvSockets, clientId);
-                    dataStore = libData->ioLibraryFunctions->createDataStore();
-                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)clientId);
-                    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accept", dataStore);
-                }
-            }
-
-            length = recvSockets->length;
-            sockets = recvSockets->sockets;
-            for (mint i = 0; i < length; i++) {
-                socketId = sockets[i];
-                if (FD_ISSET(socketId, &readfd)) {
-                    result = recv(socketId, buffer,bufferSize, 0);
-                    if (result > 0) {
-                        dataStore = libData->ioLibraryFunctions->createDataStore();
-                        libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)clientId);
-                        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Recv", dataStore);
+                    if (socketType == TCP_SERVER) {
+                        acceptedSocketId = accept(socketId, NULL, NULL);
+                        socket_list_add(socketList, acceptedSocketId, TCP_CLIENT);
+                        libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)acceptedSocketId);
+                        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accept", dataStore);
+                        pollfds[i].revents = 0;
                     }
-                }
-            }
 
-            length = recvFromSockets->length;
-            sockets = recvFromSockets->sockets;
-            for (mint i = 0; i < length; i++) {
-                socketId = sockets[i];
-                if (FD_ISSET(socketId, &readfd)) {
-                    addressInfo = recvFromAddrInfos->adrrinfos[i];
-                    result = recvfrom(socketId, buffer, bufferSize, 0, addressInfo->ai_addr, &addressInfo->ai_addrlen);
-                    if (result > 0) {
-                        mint dims = (mint)result;
-                        dataStore = libData->ioLibraryFunctions->createDataStore();
-                        libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)clientId);
-                        libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)(uintptr_t)addressInfo);
-                        MNumericArray numericArray;
-                        libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &dims, &numericArray);
-                        BYTE *numericArrayData = libData->numericarrayLibraryFunctions->MNumericArray_getData(numericArray);
-                        memcpy(numericArrayData, buffer, result);
-                        libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, numericArray);
-                        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "RecvFrom", dataStore);
+                    if (socketType == TCP_CLIENT) {
+                        int recvResult = recv(socketId, buffer, bufferSize, 0);
+                        if (recvResult > 0) {
+                            dims = (mint)recvResult;
+                            libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &dims, &byteArray);
+
+                            BYTE *array = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
+                            memcpy(array, buffer, recvResult);
+
+                            libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, byteArray);
+                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Received", dataStore);
+                            pollfds[i].revents = 0;
+                        } else if (recvResult == 0) {
+                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
+                            socket_list_prune(socketList);
+                        } else {
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, GETSOCKETERRNO());
+                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Error", dataStore);
+                            socket_list_prune(socketList);
+                        }
                     }
                 }
             }
@@ -244,26 +131,18 @@ void serverLoop(mint taskId, void *taskArgs) {
 
 DLLEXPORT int createServerLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SocketList acceptSockets = (SocketList)MArgument_getInteger(Args[0]);
-    SocketList recvSockets = (SocketList)MArgument_getInteger(Args[1]);
-    SocketList recvFromSockets = (SocketList)MArgument_getInteger(Args[2]);
-    AddressInfoList recvFromAddrInfos = (AddressInfoList)MArgument_getInteger(Args[3]);
-    SOCKET interrupter = (SOCKET)MArgument_getInteger(Args[4]);
-    BYTE *buffer = (BYTE *)MArgument_getInteger(Args[5]);
     mint bufferSize = MArgument_getInteger(Args[6]);
     mint timeout = MArgument_getInteger(Args[7]);
+    mint eventsMask = MArgument_getInteger(Args[8]);
 
     ServerLoopArgs serverLoopArgs = malloc(sizeof(struct ServerLoopArgs_st));
     serverLoopArgs->libData = libData;
-    serverLoopArgs->acceptSockets = acceptSockets;
-    serverLoopArgs->recvSockets = recvSockets;
-    serverLoopArgs->recvFromSockets = recvFromSockets;
-    serverLoopArgs->recvFromAddrInfos = recvFromAddrInfos;
-    serverLoopArgs->interrupter = interrupter;
-    serverLoopArgs->buffer = buffer;
+    serverLoopArgs->socketList = acceptSockets;
     serverLoopArgs->bufferSize = bufferSize;
     serverLoopArgs->timeout = timeout;
+    serverLoopArgs->eventsMask = eventsMask;
 
-    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(serverLoop, (void *)serverLoopArgs);
+    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketsPollLoop, (void *)serverLoopArgs);
 
     MArgument_setInteger(Res, taskId);
     return LIBRARY_NO_ERROR;

@@ -5,45 +5,35 @@
 #include "common.h"
 
 
+typedef enum {
+    INTERUPTER,
+    TCP_SERVER,
+    UDP_SERVER,
+    TCP_CLIENT,
+    UDP_CLIENT
+} SOCKET_TYPE;
+
+
 typedef struct SocketList_st {
-    SOCKET *sockets;
+    POLL_FD *pollfds;
+    struct addrinfo **addrinfos;
+    SOCKET_TYPE *sockettypes;
+
     mint capacity;
     mint length;
 } *SocketList;
 
 
-typedef struct AddressInfoList_st {
-    struct addrinfo **adrrinfos;
-    mint length;
-    mint capacity;
-} *AddressInfoList;
+SocketList socket_list_create(mint *sockets, mint *types, size_t length);
 
 
-DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
+void socket_list_add(SocketList socketList, SOCKET socketId, SOCKET_TYPE socketType);
 
 
-DLLEXPORT int socketListRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
+void socket_list_prune(SocketList socketList);
 
 
-DLLEXPORT int socketListAdd(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
-
-
-DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
-
-
-DLLEXPORT int socketListClear(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
-
-
-DLLEXPORT int socketAddressInfoListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
-
-
-DLLEXPORT int socketAddressInfoListRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res);
-
-
-void socket_list_add(SocketList slist, SOCKET socketId);
-
-
-void socket_list_clear(SocketList slist);
+void socket_list_free(SocketList socketList);
 
 
 #endif

@@ -24,9 +24,7 @@ DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args
     mint result = true;
 
     if (socketId > 0) {
-        lock_global_mutex();
         result = CLOSESOCKET(socketId);
-        unlock_global_mutex();
     }
 
     if (result == SOCKET_ERROR) {
@@ -39,7 +37,7 @@ DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args
 
 /*socketBind[socketId, addressInfoPtr]*/
 DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]); // socket for binding
+    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);             // socket for binding
     uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
     struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
 
@@ -62,7 +60,7 @@ DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args,
 
 /*socketSetOpt[socketId, level, optName, optVal]*/
 DLLEXPORT int socketSetOpt(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]); // socket
+    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     int level = (int)MArgument_getInteger(Args[1]);
     int optname = (int)MArgument_getInteger(Args[2]);
     int optval = (int)MArgument_getInteger(Args[3]);
@@ -78,7 +76,7 @@ DLLEXPORT int socketSetOpt(WolframLibraryData libData, mint Argc, MArgument *Arg
 
 /*socketGetOpt[socketId, level, optName] -> optVal*/
 DLLEXPORT int socketGetOpt(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]); // socket id
+    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     int level = (int)MArgument_getInteger(Args[1]);
     int optname = (int)MArgument_getInteger(Args[2]);
 
@@ -90,7 +88,7 @@ DLLEXPORT int socketGetOpt(WolframLibraryData libData, mint Argc, MArgument *Arg
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    MArgument_setInteger(Res, optval); // return retrieved value
+    MArgument_setInteger(Res, optval);
     return LIBRARY_NO_ERROR;
 }
 
@@ -141,36 +139,28 @@ DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Ar
 }
 
 
-/*socketAccept[socketId] -> clientId*/
+/*socketAccept[socketId] -> acceptedSocketId*/
 DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
 
-    lock_global_mutex();
-    SOCKET client = accept(socketId, NULL, NULL);
-    unlock_global_mutex();
+    SOCKET acceptedSocketId = accept(socketId, NULL, NULL);
 
-    if (client == INVALID_SOCKET) {
+    if (acceptedSocketId == INVALID_SOCKET) {
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    MArgument_setInteger(Res, client);
+    MArgument_setInteger(Res, acceptedSocketId);
     return LIBRARY_NO_ERROR;
 }
 
 
 /*socketRecv[socketId, bufferPtr, bufferLength] -> byteArray*/
 DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    SOCKET client = (SOCKET)MArgument_getInteger(Args[0]);
+    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     BYTE *buffer = (BYTE *)(uintptr_t)MArgument_getInteger(Args[1]);
     size_t bufferSize = (size_t)MArgument_getInteger(Args[2]);
 
-    printf(">> RECV");
-    printf(">> RECV: %d\n", client);
-    lock_global_mutex();
-    int result = recv(client, buffer, bufferSize, 0);
-    unlock_global_mutex();
-    printf(">> END RECV: %d\n", result);
-
+    int result = recv(socketId, buffer, bufferSize, 0);
     if (result >= 0) {
         mint len = (mint)result;
         MNumericArray byteArray;
@@ -186,7 +176,7 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
     }
 
     char errorMsg[32];
-    snprintf(errorMsg, sizeof(errorMsg), "socketrecverror:%d", GETSOCKETERRNO());
+    snprintf(errorMsg, sizeof(errorMsg), "socketrecverror%d", GETSOCKETERRNO());
     libData->Message(errorMsg);
     return LIBRARY_FUNCTION_ERROR;
 }
@@ -200,10 +190,7 @@ DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *A
     BYTE *buffer = (BYTE *)MArgument_getInteger(Args[2]);
     mint bufferSize = (mint)MArgument_getInteger(Args[3]);
 
-    lock_global_mutex();
     int result = recvfrom(client, buffer, bufferSize, 0, addressInfo->ai_addr, &(addressInfo->ai_addrlen));
-    unlock_global_mutex();
-
     if (result >= 0) {
         mint len = (mint)result;
         MNumericArray byteArray;
@@ -225,106 +212,78 @@ DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *A
 }
 
 
-/*socketSend[socketid, byteArray, length] -> sentLength*/
+/*socketSend[socketId, byteArray, length] -> sentLength*/
 DLLEXPORT int socketSend(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    SOCKET socketId = MArgument_getInteger(Args[0]); // positive integer
-    MNumericArray mArr = MArgument_getMNumericArray(Args[1]);
-    int dataLength = MArgument_getInteger(Args[2]); // positive integer
+    SOCKET socketId = MArgument_getInteger(Args[0]);
+    MNumericArray byteArray = MArgument_getMNumericArray(Args[1]);
+    BYTE *data = (BYTE*)libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
+    int length = MArgument_getInteger(Args[2]);
 
-    int result;
-    BYTE *data = (BYTE*)libData->numericarrayLibraryFunctions->MNumericArray_getData(mArr);
-
-    lock_global_mutex();
-    result = send(socketId, (char*)data, dataLength, 0);
-    unlock_global_mutex();
-    if (result > 0) {
-        libData->numericarrayLibraryFunctions->MNumericArray_disown(mArr);
-        MArgument_setInteger(Res, result);
+    int sentLength = send(socketId, (char*)data, length, 0);
+    if (sentLength > 0) {
+        libData->numericarrayLibraryFunctions->MNumericArray_disown(byteArray);
+        MArgument_setInteger(Res, sentLength);
         return LIBRARY_NO_ERROR;
     }
 
-    libData->numericarrayLibraryFunctions->MNumericArray_disown(mArr);
+    libData->numericarrayLibraryFunctions->MNumericArray_disown(byteArray);
     return LIBRARY_FUNCTION_ERROR;
 }
 
 
-/*socketSendString[socketid, text, length] -> sentLength*/
+/*socketSendString[socketId, text, length] -> sentLength*/
 DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    SOCKET socketId = MArgument_getInteger(Args[0]);     // positive integer
-    char *dataString = MArgument_getUTF8String(Args[1]); // text string
-    int dataLength = MArgument_getInteger(Args[2]);      // positive integer
+    SOCKET socketId = MArgument_getInteger(Args[0]);
+    char *text = MArgument_getUTF8String(Args[1]);
+    int length = MArgument_getInteger(Args[2]);
 
-    int result;
-
-    lock_global_mutex();
-    result = send(socketId, dataString, dataLength, 0);
-    unlock_global_mutex();
-
-    if (result > 0) {
-        libData->UTF8String_disown(dataString);
-        MArgument_setInteger(Res, result);
+    int sentLength = send(socketId, text, length, 0);
+    if (sentLength > 0) {
+        libData->UTF8String_disown(text);
+        MArgument_setInteger(Res, sentLength);
         return LIBRARY_NO_ERROR;
     }
 
-    libData->UTF8String_disown(dataString);
-
+    libData->UTF8String_disown(text);
     return LIBRARY_FUNCTION_ERROR;
 }
 
 
+/*socketSendTo[socketId, addressInfo, byteArray, length] -> sentLength*/
 DLLEXPORT int socketSendTo(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
-    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]);
-    struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
+    struct addrinfo *addressInfo = (struct addrinfo*)(uintptr_t)MArgument_getInteger(Args[1]);
+    MNumericArray byteArray = MArgument_getMNumericArray(Args[2]);
+    BYTE *data = (BYTE*)libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
+    mint length = MArgument_getInteger(Args[3]);
 
-    MNumericArray dataByteArray = MArgument_getMNumericArray(Args[2]);
-    mint dataLength = MArgument_getInteger(Args[3]);
-
-    if (addressInfo == NULL || dataLength <= 0) {
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    BYTE *data = (BYTE*)libData->numericarrayLibraryFunctions->MNumericArray_getData(dataByteArray);
-    if (!data) {
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    lock_global_mutex();
-    int result = sendto(socketId, (const char*)data, dataLength, 0, addressInfo->ai_addr, addressInfo->ai_addrlen);
-    unlock_global_mutex();
-
-    if (result > 0) {
-        MArgument_setInteger(Res, result);
+    int sentLength = sendto(socketId, (const char*)data, length, 0, addressInfo->ai_addr, addressInfo->ai_addrlen);
+    if (sentLength > 0) {
+        libData->numericarrayLibraryFunctions->MNumericArray_disown(byteArray);
+        MArgument_setInteger(Res, sentLength);
         return LIBRARY_NO_ERROR;
     }
 
+    libData->numericarrayLibraryFunctions->MNumericArray_disown(byteArray);
     return LIBRARY_FUNCTION_ERROR;
 }
 
 
+/*socketSendStringTo[socketId, addressInfo, text, length] -> sentLength*/
 DLLEXPORT int socketSendStringTo(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
-    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]);
-    struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
+    struct addrinfo *addressInfo = (struct addrinfo*)(uintptr_t)MArgument_getInteger(Args[1]);
+    char *text = MArgument_getUTF8String(Args[2]);
+    mint length = MArgument_getInteger(Args[3]);
 
-    char *dataString = MArgument_getUTF8String(Args[2]);
-    mint dataLength = MArgument_getInteger(Args[3]);
-
-    if (addressInfo == NULL || dataLength <= 0) {
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    lock_global_mutex();
-    int result = sendto(socketId, (const char*)dataString, dataLength, 0, addressInfo->ai_addr, addressInfo->ai_addrlen);
-    unlock_global_mutex();
-
-    libData->UTF8String_disown(dataString);
-
-    if (result > 0) {
-        MArgument_setInteger(Res, result);
+    int sentLength = sendto(socketId, (const char*)text, length, 0, addressInfo->ai_addr, addressInfo->ai_addrlen);
+    if (sentLength > 0) {
+        libData->UTF8String_disown(text);
+        MArgument_setInteger(Res, sentLength);
         return LIBRARY_NO_ERROR;
     }
 
+    libData->UTF8String_disown(text);
     return LIBRARY_FUNCTION_ERROR;
 }
 
@@ -449,7 +408,6 @@ DLLEXPORT int socketsPoll(WolframLibraryData libData, mint Argc, MArgument *Args
     }
 
     int result = sockets_poll(fds, length, timeout_us);
-
     if (result < 0) {
         free(fds);
         return LIBRARY_FUNCTION_ERROR;

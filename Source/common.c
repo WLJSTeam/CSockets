@@ -1,10 +1,7 @@
 #include "common.h"
 
 
-Mutex globalMutex = MUTEX_INITIALIZER;
-
-
-void print(const char* format, ...)
+inline void print(const char* format, ...)
 {
     #ifdef _DEBUG
         fprintf(stderr, "[%s] ", get_current_time());
@@ -43,42 +40,6 @@ char* get_current_time() {
     #endif
 
     return time_buffer;
-}
-
-
-void init_global_mutex() {
-    #if defined(_WIN32)
-        globalMutex = CreateMutex(NULL, FALSE, NULL);
-    #else
-        pthread_mutex_init(&globalMutex, NULL);
-    #endif
-}
-
-
-void close_global_mutex() {
-    #if defined(_WIN32)
-    CloseHandle(globalMutex);
-    #else
-    pthread_mutex_destroy(&globalMutex);
-    #endif
-}
-
-
-void lock_global_mutex() {
-    #if defined(_WIN32)
-        WaitForSingleObject(globalMutex, INFINITE);
-    #else
-        pthread_mutex_lock(&globalMutex);
-    #endif
-}
-
-
-void unlock_global_mutex() {
-    #if defined(_WIN32) || defined(_WIN64)
-        ReleaseMutex(globalMutex);
-    #else
-        pthread_mutex_unlock(&globalMutex);
-    #endif
 }
 
 
@@ -166,7 +127,7 @@ bool is_valid_socket(SOCKET socketId) {
         }
         return true;
     }
-    
+
     return errno != EBADF;
     #endif
 }
@@ -234,6 +195,9 @@ void copy_tensor_to_socket_array(WolframLibraryData libData, MTensor tensor, SOC
 }
 
 
+// Wrapper for poll/WSAPoll to handle timeout conversion and platform differences
+// timeout_us: -1 for infinite, 0 for non-blocking, >0 for timeout in microseconds
+// returns: number of fds with events, 0 for timeout, -1 for error
 int sockets_poll(POLL_FD *fds, mint length, mint timeout_us) {
     int timeout_ms;
     if (timeout_us == -1) {
@@ -294,86 +258,4 @@ mint convert_native_to_wl_events(int native_revents) {
     #endif
 
     return wl;
-}
-
-
-FastEvent* create_event() {
-    FastEvent* event = (FastEvent*)malloc(sizeof(FastEvent));
-    if (!event) return NULL;
-    
-    #ifdef _WIN32
-        event->signaled = 0;
-        event->event = CreateEvent(NULL, FALSE, FALSE, NULL);
-        if (!event->event) {
-            free(event);
-            return NULL;
-        }
-    #else
-        event->signaled = 0;
-        pthread_mutex_init(&event->mutex, NULL);
-        pthread_cond_init(&event->cond, NULL);
-    #endif
-    
-    return event;
-}
-
-
-void destroy_event(FastEvent* event) {
-    if (!event) return;
-    
-    #ifdef _WIN32
-        if (event->event) {
-            CloseHandle(event->event);
-        }
-    #else
-        pthread_mutex_destroy(&event->mutex);
-        pthread_cond_destroy(&event->cond);
-    #endif
-    
-    free(event);
-}
-
-
-void wait_event(FastEvent* event) {
-    if (!event) return;
-    
-    #ifdef _WIN32
-        // Быстрый путь: проверяем без системного вызова
-        if (InterlockedCompareExchange(&event->signaled, 0, 1) == 1) {
-            return;  // Сигнал уже был, сбросили
-        }
-        // Медленный путь: ждем
-        WaitForSingleObject(event->event, INFINITE);
-        event->signaled = 0;
-    #else
-        // Быстрый путь
-        if (__sync_bool_compare_and_swap(&event->signaled, 1, 0)) {
-            return;  // Сигнал уже был
-        }
-        // Медленный путь
-        pthread_mutex_lock(&event->mutex);
-        while (!event->signaled) {
-            pthread_cond_wait(&event->cond, &event->mutex);
-        }
-        event->signaled = 0;
-        pthread_mutex_unlock(&event->mutex);
-    #endif
-}
-
-
-void signal_event(FastEvent* event) {
-    if (!event) return;
-    
-    #ifdef _WIN32
-        if (InterlockedExchange(&event->signaled, 1) == 0) {
-            SetEvent(event->event);
-        }
-    #else
-        pthread_mutex_lock(&event->mutex);
-        if (!event->signaled) {
-            event->signaled = 1;
-            pthread_cond_signal(&event->cond);
-        }
-        pthread_mutex_unlock(&event->mutex);
-    #endif
 }

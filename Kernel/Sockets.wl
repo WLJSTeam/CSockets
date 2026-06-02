@@ -139,12 +139,9 @@ socketListDelete[socketListId, socketId];
 
 CSocketObject /: SocketListen[serverSocket: CSocketObject[serverSocketId_Integer], handler_] :=
 Module[{
-    backlog = SOCKET`SOMAXCONN,
     socketList = CSocketList[{serverSocketId}],
     usecInterval = 10 * 10^6
 },
-    socketListen[serverSocketId, backlog];
-
     Internal`CreateAsynchronousTask[
         createSocketsSelectLoop,
         {socketList[[1]], usecInterval},
@@ -157,7 +154,7 @@ handleEvent[handler_, serverSocket: CSocketObject[serverSocketId_Integer], socke
 Function[With[{task = #1, eventName = #2, token = #3[[1]], data = #3[[2]]},
     Echo[{##}, "SELECTED: "];
     Echo[socketListGetAll[socketListId], "SOCKETLIST: "];
-    PreemptProtect @ Which[
+    Which[
         eventName === "Selected",
             Table[
                 If[socketId === serverSocketId,

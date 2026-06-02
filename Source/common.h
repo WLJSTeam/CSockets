@@ -105,33 +105,10 @@
 #include "WolframImageLibrary.h"
 
 
-typedef struct {
-    #ifdef _WIN32
-        volatile LONG signaled;
-        HANDLE event;
-    #else
-        volatile int signaled;
-        pthread_mutex_t mutex;
-        pthread_cond_t cond;
-    #endif
-} FastEvent;
-
 void print(const char* format, ...);
 
 
 char* get_current_time();
-
-
-void init_global_mutex();
-
-
-void close_global_mutex();
-
-
-void lock_global_mutex();
-
-
-void unlock_global_mutex();
 
 
 void init_wsa();
@@ -174,18 +151,6 @@ int convert_wl_to_native_events(mint wl_events);
 
 
 mint convert_native_to_wl_events(int native_revents);
-
-
-FastEvent* create_event();
-
-
-void destroy_event(FastEvent* event);
-
-
-void wait_event(FastEvent* event);
-
-
-void signal_event(FastEvent* event);
 
 
 #endif
