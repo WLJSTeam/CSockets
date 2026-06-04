@@ -81,7 +81,7 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
         size_t length = socketList->length;
 
         POLL_FD *pollfds = socketList->pollfds;
-        result = sockets_poll(pollfds, length, timeout, nativeEvents);
+        result = sockets_poll(pollfds, length, timeout);
         if (result > 0) {
             for (size_t i = 0; i < length; i++) {
                 if (pollfds[i].revents != 0) {
@@ -129,7 +129,7 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
 }
 
 
-DLLEXPORT int createServerLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int createSocketsPollLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SocketList acceptSockets = (SocketList)MArgument_getInteger(Args[0]);
     mint bufferSize = MArgument_getInteger(Args[6]);
     mint timeout = MArgument_getInteger(Args[7]);

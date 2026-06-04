@@ -46,8 +46,8 @@ DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MAr
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    uintptr_t addressPtr = (uintptr_t)address;
-    MArgument_setInteger(Res, (mint)addressPtr);
+    mint addressPtr = (mint)(uintptr_t)address;
+    MArgument_setInteger(Res, addressPtr);
     return LIBRARY_NO_ERROR;
 }
 

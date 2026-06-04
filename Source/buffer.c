@@ -21,8 +21,7 @@ DLLEXPORT int socketBufferCreate(WolframLibraryData libData, mint Argc, MArgumen
 
 /*socketBufferRemove[bufferPtr] -> successStatus*/
 DLLEXPORT int socketBufferRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    BYTE * buffer = (BYTE *)MArgument_getInteger(Args[0]);
+    BYTE *buffer = (BYTE *)MArgument_getInteger(Args[0]);
     free(buffer);
-    MArgument_setInteger(Res, 0);
     return LIBRARY_NO_ERROR;
 }
