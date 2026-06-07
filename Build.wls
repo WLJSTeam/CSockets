@@ -96,10 +96,21 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
         $resultType = "\"Void\""
     ];
 
-    $resultName = If[$resultType === "\"Void\"", "", " -> " <> StringCases[$resultLines[[-1]], Shortest["MArgument_set" ~~ __ ~~ "(Res, " ~~ name__ ~~ ")"] :> snakeToCamelCase[name]][[1]]];
+    If[$resultType == {Integer, 1},
+        $resultType = {Integer, First[StringCases[definition,
+            Shortest["MTensor_new(MType_Integer," ~~ n__ ~~ ","] :> ToExpression[n]
+        ]]}
+    ];
 
-    StringTemplate["`1`::usage =\n\"`1`[`3`]`6`.\";\n\n\
-`1` =\nLibraryFunctionLoad[$CSocketsLibrary, \"`1`\", `2`, `5`];"][$name, $argTypes, StringRiffle[$argNames, ", "], $argNumbers, $resultType, $resultName]
+    $resultName = If[$resultType === "\"Void\"",
+        "",
+        StringCases[$resultLines[[-1]], Shortest["MArgument_set" ~~ __ ~~ "(Res," ~~ name__ ~~ ")"] :>
+            snakeToCamelCase[StringTrim[name]]][[1]]
+    ];
+
+    StringTemplate["`1`::usage =\n\"`1`[`3`]`6`.\";\n\n\n\
+`1` =\nLibraryFunctionLoad[$CSocketsLibrary, \"`1`\", `2`, `5`];"][
+        $name, $argTypes, StringRiffle[$argNames, ", "], $argNumbers, $resultType, If[# === "", "", " -> " <> #]& @ $resultName]
 ];
 
 

@@ -77,7 +77,7 @@ socketListGetAll::usage =
 
 
 socketListGetAll =
-LibraryFunctionLoad[$CSocketsLibrary, "socketListGetAll", {Integer}, {Integer, 1}];
+LibraryFunctionLoad[$CSocketsLibrary, "socketListGetAll", {Integer}, {Integer, 2}];
 
 
 socketListPrune::usage =
