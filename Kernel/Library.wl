@@ -33,7 +33,7 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketsSelectAsync", {{Integer, 1}, Integ
 
 
 createSocketsPollLoop::usage =
-"createSocketsPollLoop[acceptSockets, bufferSize, timeout, eventsMask] -> taskId.";
+"createSocketsPollLoop[socketList, bufferSize, timeout, eventsMask] -> taskId.";
 
 
 createSocketsPollLoop =

@@ -130,14 +130,14 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
 
 
 DLLEXPORT int createSocketsPollLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    SocketList acceptSockets = (SocketList)MArgument_getInteger(Args[0]);
+    SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     mint bufferSize = MArgument_getInteger(Args[6]);
     mint timeout = MArgument_getInteger(Args[7]);
     mint eventsMask = MArgument_getInteger(Args[8]);
 
     ServerLoopArgs serverLoopArgs = malloc(sizeof(struct ServerLoopArgs_st));
     serverLoopArgs->libData = libData;
-    serverLoopArgs->socketList = acceptSockets;
+    serverLoopArgs->socketList = socketList;
     serverLoopArgs->bufferSize = bufferSize;
     serverLoopArgs->timeout = timeout;
     serverLoopArgs->eventsMask = eventsMask;
