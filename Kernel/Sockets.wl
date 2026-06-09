@@ -10,12 +10,8 @@ CSocketOpen::usage =
 "CSocketOpen[host, port, protocol]";
 
 
-CSocketClose::usage =
-"CSocketClose[socket]";
-
-
 CSocketConnect::usage =
-"CSocketOpen[host, port, protocol]";
+"CSocketConnect[host, port, protocol]";
 
 
 CSocketObject::usage =
@@ -23,14 +19,14 @@ CSocketObject::usage =
 
 
 CSocketList::usage =
-"CSocketList[{socketId1, socketId2, ...}]";
+"CSocketList[{{socketId1, type1}, {socketId2, type2}, ...}]";
 
 
 Begin["`Private`"];
 
 
 CSocketOpen[host_String: "localhost", port_Integer, protocol: "TCP" | "UDP": "TCP"] :=
-Module[{
+Module[{internalType = If[protocol === "TCP", 0, 2],
     addressInfo = socketAddressInfoCreate[host, ToString[port],
         SOCKET`AFINET,
         protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
@@ -43,10 +39,14 @@ Module[{
     ]
 },
     socketBind[socketId, addressInfo];
-    If[protocol == "TCP", socketListen[socketId, SOCKET`SOMAXCONN]];
+
+    If[protocol == "TCP",
+        internalType = 0;
+        socketListen[socketId, SOCKET`SOMAXCONN]
+    ];
 
     (*Return*)
-    CSocketObject[socketId]
+    CSocketObject[socketId, internalType]
 ];
 
 
@@ -58,6 +58,7 @@ Options[CSocketConnect] = {
 
 CSocketConnect[host_String: "localhost", port_Integer, protocol: "TCP" | "UDP": "TCP", OptionsPattern[]] :=
 With[{
+    internalType = If[protocol == "TCP", 1, 3],
     addressInfo = socketAddressInfoCreate[host, ToString[port],
         SOCKET`AFINET,
         protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
@@ -89,32 +90,28 @@ With[{
     ];
 
     (*Return*)
-    CSocketObject[socketId]
+    CSocketObject[socketId, internalType]
 ];
 
 
-CSocketClose[CSocketObject[socketId_Integer]] :=
+CSocketObject /: Close[CSocketObject[socketId_Integer, internalType_Integer]] :=
 socketClose[socketId];
 
 
-CSocketObject /: Close[socketObject_CSocketObject] :=
-CSocketClose[socketObject];
-
-
-CSocketObject /: WriteString[CSocketObject[socketId_Integer], message_String] :=
+CSocketObject /: WriteString[CSocketObject[socketId_Integer, internalType_Integer], message_String] :=
 socketSendString[socketId, message, StringLength[message]];
 
 
-CSocketObject /: BinaryWrite[CSocketObject[socketId_Integer], byteArray_ByteArray] :=
+CSocketObject /: BinaryWrite[CSocketObject[socketId_Integer, internalType_Integer], byteArray_ByteArray] :=
 socketSend[socketId, byteArray, Length[byteArray]];
 
 
-CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer]] :=
-socketsPoll[{socketId}, 1, 10^6, BitOr[SOCKET`POLLIN, SOCKET`POLLERR, SOCKET`POLLHUP, SOCKET`POLLNVAL]];
+CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer, _]] :=
+socketsPoll[{socketId}, 1, 10^3, BitOr[SOCKET`POLLIN, SOCKET`POLLERR, SOCKET`POLLHUP, SOCKET`POLLNVAL]];
 
 
 With[{bufferSize = 64 * 1024, buffer = socketBufferCreate[64 * 1024]},
-    CSocketObject /: SocketReadMessage[CSocketObject[socketId_Integer]] :=
+    CSocketObject /: SocketReadMessage[CSocketObject[socketId_Integer, _]] :=
     socketRecv[socketId, buffer, bufferSize];
 ];
 
@@ -125,7 +122,7 @@ Module[{socketListId = socketListCreate[initialSockets, Length[initialSockets]]}
 ];
 
 
-CSocketList /: Append[CSocketList[socketListId_Integer], CSocketObject[socketId_Integer]] :=
+CSocketList /: Append[CSocketList[socketListId_Integer], CSocketObject[socketId_Integer, internalType_Integer]] :=
 socketListAdd[socketListId, socketId];
 
 
@@ -133,11 +130,11 @@ CSocketList /: DeleteMissing[CSocketList[socketListId_Integer]] :=
 socketListClear[socketListId];
 
 
-CSocketList /: Delete[CSocketList[socketListId_Integer], CSocketObject[socketId_Integer]] :=
+CSocketList /: Delete[CSocketList[socketListId_Integer], CSocketObject[socketId_Integer, internalType_Integer]] :=
 socketListDelete[socketListId, socketId];
 
 
-CSocketObject /: SocketListen[serverSocket: CSocketObject[serverSocketId_Integer], handler_] :=
+CSocketObject /: SocketListen[serverSocket: CSocketObject[serverSocketId_Integer, internalType_Integer], handler_] :=
 Module[{
     socketList = CSocketList[{serverSocketId}],
     usecInterval = 10 * 10^6
@@ -150,7 +147,7 @@ Module[{
 ];
 
 
-handleEvent[handler_, serverSocket: CSocketObject[serverSocketId_Integer], socketList: CSocketList[socketListId_Integer]] :=
+handleEvent[handler_, serverSocket: CSocketObject[serverSocketId_Integer, internalType_Integer], socketList: CSocketList[socketListId_Integer]] :=
 Function[With[{task = #1, eventName = #2, token = #3[[1]], data = #3[[2]]},
     Echo[{##}, "SELECTED: "];
     Echo[socketListGetAll[socketListId], "SOCKETLIST: "];
@@ -163,7 +160,7 @@ Function[With[{task = #1, eventName = #2, token = #3[[1]], data = #3[[2]]},
                     ],
                 (*Else*)
                     With[{
-                        sourceSocket = CSocketObject[socketId]}, {
+                        sourceSocket = CSocketObject[socketId, internalType]}, {
                         byteArray = Check[SocketReadMessage[sourceSocket], ByteArray[{}]]
                     },
                         If[Length[byteArray] > 0,
