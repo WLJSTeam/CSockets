@@ -26,7 +26,7 @@ Begin["`Private`"];
 
 
 CSocketOpen[host_String: "localhost", port_Integer, protocol: "TCP" | "UDP": "TCP"] :=
-Module[{internalType = If[protocol === "TCP", 0, 2],
+Module[{internalType = If[protocol === "TCP", 1, 2],
     addressInfo = socketAddressInfoCreate[host, ToString[port],
         SOCKET`AFINET,
         protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
@@ -41,7 +41,6 @@ Module[{internalType = If[protocol === "TCP", 0, 2],
     socketBind[socketId, addressInfo];
 
     If[protocol == "TCP",
-        internalType = 0;
         socketListen[socketId, SOCKET`SOMAXCONN]
     ];
 
@@ -58,7 +57,7 @@ Options[CSocketConnect] = {
 
 CSocketConnect[host_String: "localhost", port_Integer, protocol: "TCP" | "UDP": "TCP", OptionsPattern[]] :=
 With[{
-    internalType = If[protocol == "TCP", 1, 3],
+    internalType = If[protocol == "TCP", 3, 4],
     addressInfo = socketAddressInfoCreate[host, ToString[port],
         SOCKET`AFINET,
         protocol /. {"TCP" -> SOCKET`SOCKSTREAM, "UDP" -> SOCKET`SOCKDGRAM},
@@ -116,8 +115,8 @@ With[{bufferSize = 64 * 1024, buffer = socketBufferCreate[64 * 1024]},
 ];
 
 
-CSocketList[initialSockets : {__Integer}] :=
-Module[{socketListId = socketListCreate[initialSockets, Length[initialSockets]]},
+CSocketList[initialSockets : {__CSocketObject}] :=
+Module[{socketListId = socketListCreate[initialSockets[[All, 1]], initialSockets[[All, 2]], Length[initialSockets]]},
     CSocketList[socketListId]
 ];
 
@@ -134,64 +133,54 @@ CSocketList /: Delete[CSocketList[socketListId_Integer], CSocketObject[socketId_
 socketListDelete[socketListId, socketId];
 
 
-CSocketObject /: SocketListen[serverSocket: CSocketObject[serverSocketId_Integer, internalType_Integer], handler_] :=
+CSocketObject /: SocketListen[serverSocket_CSocketObject, handler_] :=
 Module[{
-    socketList = CSocketList[{serverSocketId}],
-    usecInterval = 10 * 10^6
+    socketList = CSocketList[{serverSocket}],
+    bufferSize = 8 * 1024,
+    usecInterval = 10 * 10^6,
+    eventMask = SOCKET`POLLIN
 },
     Internal`CreateAsynchronousTask[
-        createSocketsSelectLoop,
-        {socketList[[1]], usecInterval},
-        handleEvent[handler, serverSocket, socketList]
+        createSocketsPollLoop,
+        {socketList[[1]], bufferSize, usecInterval, eventMask},
+        handler[createEvent[serverSocket, socketList, ##]]&
     ]
 ];
 
 
-handleEvent[handler_, serverSocket: CSocketObject[serverSocketId_Integer, internalType_Integer], socketList: CSocketList[socketListId_Integer]] :=
-Function[With[{task = #1, eventName = #2, token = #3[[1]], data = #3[[2]]},
-    Echo[{##}, "SELECTED: "];
-    Echo[socketListGetAll[socketListId], "SOCKETLIST: "];
-    Which[
-        eventName === "Selected",
-            Table[
-                If[socketId === serverSocketId,
-                    With[{acceptedSocket = CSocketObject[socketAccept[serverSocketId]]},
-                        Append[socketList, acceptedSocket];
-                    ],
-                (*Else*)
-                    With[{
-                        sourceSocket = CSocketObject[socketId, internalType]}, {
-                        byteArray = Check[SocketReadMessage[sourceSocket], ByteArray[{}]]
-                    },
-                        If[Length[byteArray] > 0,
-                            handler @ <|
-                                "Timestamp" -> Now,
-                                "SourceSocket" -> sourceSocket,
-                                "Socket" -> serverSocket,
-                                "Data" :> ByteArrayToString[byteArray, "UTF-8"],
-                                "DataBytes" :> Normal[byteArray],
-                                "DataByteArray" -> byteArray,
-                                "MultipartComplete" -> True,
-                                "SocketList" -> socketList
-                            |>,
-                        (*Else*)
-                            Echo[sourceSocket, "CLOSE: "];
-                            Close[sourceSocket];
-                            Delete[socketList, sourceSocket];
-                            DeleteMissing[socketList]
-                        ]
-                    ]
-                ],
-                {socketId, data}
-            ],
+createEvent[serverSocket_, socketList_, task_, eventName_, {socketId_, socketType_, data__}] :=
+With[{eventData = createEventData[eventName, data]},
+    Join[<|
+        "Timestamp" -> Now,
+        "MultipartComplete" -> True,
+        "Task" -> task,
+        "Event" -> eventName,
+        "Socket" -> serverSocket,
+        "SocketList" -> socketList,
+        "SourceSocket" -> CSocketObject[socketId, socketType]
+    |>, eventData]
+];
 
-        eventName === "SelectError",
-            Echo[data, "ERROR: "];
-            DeleteMissing[socketList]
-    ];
 
-    (*Unfreeze select loop on the c-side*)
-    signalEvent[token]]
+createEventData["Accepted", data__] :=
+<|"AcceptedSocket" -> CSocketObject[data]|>
+
+
+createEventData["Closed", data__] :=
+<|"ClosedSocket" -> CSocketObject[data]|>
+
+
+createEventData["Error", data_] :=
+<|"ErrorCode" -> data|>
+
+
+createEventData["Received", data_] :=
+With[{byteArray = ByteArray[data]},
+    <|
+        "Data" :> ByteArrayToString[byteArray],
+        "DataBytes" :> Normal[byteArray],
+        "DataByteArray" :> byteArray
+    |>
 ];
 
 

@@ -75,21 +75,43 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
     int recvResult;
     SOCKET acceptedSocketId;
     MNumericArray byteArray;
+    DataStore dataStore;
 
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
     {
         size_t length = socketList->length;
 
+        for (size_t i = 0; i < length; i++) {
+            POLL_FD *pollfd = &socketList->pollfds[i];
+            pollfd->events = nativeEvents;
+            pollfd->revents = 0;
+        }
+
         POLL_FD *pollfds = socketList->pollfds;
         result = sockets_poll(pollfds, length, timeout);
         if (result > 0) {
             for (size_t i = 0; i < length; i++) {
-                if (pollfds[i].revents != 0) {
-                    SOCKET socketId = pollfds[i].fd;
-                    SOCKET_TYPE socketType = socketList->sockettypes[i];
+                mint wl_revents = convert_native_to_wl_events(pollfds[i].revents);
+                SOCKET socketId = pollfds[i].fd;
+                SOCKET_TYPE socketType = socketList->sockettypes[i];
 
-                    DataStore dataStore;
-                    libData->ioLibraryFunctions->createDataStore();
+                if (wl_revents & (WL_POLLERR | WL_POLLHUP | WL_POLLNVAL)) {
+                    closesocket(socketId);
+
+                    dataStore = libData->ioLibraryFunctions->createDataStore();
+                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
+                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketType);
+                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
+                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_CLIENT);
+                    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
+
+                    pollfds[i].fd = INVALID_SOCKET;
+                    socket_list_prune(socketList);
+                    continue;
+                }
+
+                if (wl_revents && WL_POLLIN) {
+                    dataStore = libData->ioLibraryFunctions->createDataStore();
                     libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
                     libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketType);
 
@@ -97,8 +119,8 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
                         acceptedSocketId = accept(socketId, NULL, NULL);
                         socket_list_add(socketList, acceptedSocketId, TCP_CLIENT);
                         libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)acceptedSocketId);
-                        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accept", dataStore);
-                        pollfds[i].revents = 0;
+                        libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_CLIENT);
+                        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accepted", dataStore);
                     }
 
                     if (socketType == TCP_CLIENT) {
@@ -112,8 +134,9 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
 
                             libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, byteArray);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Received", dataStore);
-                            pollfds[i].revents = 0;
                         } else if (recvResult == 0) {
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_CLIENT);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
                             socket_list_prune(socketList);
                         } else {
@@ -131,9 +154,9 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
 
 DLLEXPORT int createSocketsPollLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
-    mint bufferSize = MArgument_getInteger(Args[6]);
-    mint timeout = MArgument_getInteger(Args[7]);
-    mint eventsMask = MArgument_getInteger(Args[8]);
+    mint bufferSize = MArgument_getInteger(Args[1]);
+    mint timeout = MArgument_getInteger(Args[2]);
+    mint eventsMask = MArgument_getInteger(Args[3]);
 
     ServerLoopArgs serverLoopArgs = malloc(sizeof(struct ServerLoopArgs_st));
     serverLoopArgs->libData = libData;
