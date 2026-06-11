@@ -88,6 +88,7 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
         }
 
         POLL_FD *pollfds = socketList->pollfds;
+        printf("Polling...\n");
         result = sockets_poll(pollfds, length, timeout);
         if (result > 0) {
             for (size_t i = 0; i < length; i++) {
@@ -116,6 +117,7 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
                     libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketType);
 
                     if (socketType == TCP_SERVER) {
+                        printf("Accept event on %d\n", socketId);
                         acceptedSocketId = accept(socketId, NULL, NULL);
                         socket_list_add(socketList, acceptedSocketId, TCP_CLIENT);
                         libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)acceptedSocketId);
@@ -124,6 +126,7 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
                     }
 
                     if (socketType == TCP_CLIENT) {
+                        printf("Received event on %d\n");
                         int recvResult = recv(socketId, buffer, bufferSize, 0);
                         if (recvResult > 0) {
                             dims = (mint)recvResult;
@@ -165,6 +168,7 @@ DLLEXPORT int createSocketsPollLoop(WolframLibraryData libData, mint Argc, MArgu
     serverLoopArgs->timeout = timeout;
     serverLoopArgs->eventsMask = eventsMask;
 
+    printf("Creating polling task...\n");
     mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketsPollLoop, (void *)serverLoopArgs);
 
     MArgument_setInteger(Res, taskId);

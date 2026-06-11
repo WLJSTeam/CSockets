@@ -5,7 +5,7 @@ BeginPackage["WLJS`CSockets`Library`", {"LibraryLink`", "CCompilerDriver`"}];
 
 
 $CSocketsLibrary =
-FileNameJoin[{DirectoryName[$InputFileName, 2], "LibraryResources", $SystemID <> "-v" <> ToString[LibraryVersionInformation[FindLibrary["demo"]]["WolframLibraryVersion"]], "csockets." <> Internal`DynamicLibraryExtension[]}];
+FileNameJoin[{DirectoryName[$InputFileName, 2], "LibraryResources", $SystemID <> "-v" <> ToString[8], "csockets." <> Internal`DynamicLibraryExtension[]}];
 
 
 socketAddressInfoCreate::usage =
@@ -245,7 +245,7 @@ socketsPoll::usage =
 
 
 socketsPoll =
-LibraryFunctionLoad[$CSocketsLibrary, "socketsPoll", {{Integer, 1}, Integer, Integer, Integer}, {Integer, 1}];
+LibraryFunctionLoad[$CSocketsLibrary, "socketsPoll", {{Integer, 1}, Integer, Integer, Integer}, {Integer, 2}];
 
 
 EndPackage[];

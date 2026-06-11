@@ -388,8 +388,8 @@ DLLEXPORT int socketsPoll(WolframLibraryData libData, mint Argc, MArgument *Args
 
     if (length == 0) {
         MTensor emptyTensor;
-        mint dims = 0;
-        libData->MTensor_new(MType_Integer, 1, &dims, &emptyTensor);
+        mint dims[2] = {0, 2};
+        libData->MTensor_new(MType_Integer, 2, &dims, &emptyTensor);
         MArgument_setMTensor(Res, emptyTensor);
         return LIBRARY_NO_ERROR;
     }
@@ -415,16 +415,16 @@ DLLEXPORT int socketsPoll(WolframLibraryData libData, mint Argc, MArgument *Args
 
     if (result == 0) {
         free(fds);
-        mint dims = 0;
+        mint dims[2] = {0, 2};
         MTensor emptyTensor;
-        libData->MTensor_new(MType_Integer, 1, &dims, &emptyTensor);
+        libData->MTensor_new(MType_Integer, 2, &dims, &emptyTensor);
         MArgument_setMTensor(Res, emptyTensor);
         return LIBRARY_NO_ERROR;
     }
 
     mint dims[2] = {result, 2};
     MTensor resultTensor;
-    libData->MTensor_new(MType_Integer, 2, dims, &resultTensor);
+    libData->MTensor_new(MType_Integer, 2, &dims, &resultTensor);
     mint *resultData = libData->MTensor_getIntegerData(resultTensor);
 
     int idx = 0;

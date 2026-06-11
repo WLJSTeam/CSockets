@@ -105,8 +105,8 @@ CSocketObject /: BinaryWrite[CSocketObject[socketId_Integer, internalType_Intege
 socketSend[socketId, byteArray, Length[byteArray]];
 
 
-CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer, _], t_: 10^10] :=
-socketsPoll[{socketId}, 1, 10^10, SOCKET`POLLIN];
+CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer, _], t_: 0] :=
+socketsPoll[{socketId}, 1, Round[t * 10^6], SOCKET`POLLIN] === {{socketId, 1}};
 
 
 With[{bufferSize = 64 * 1024, buffer = socketBufferCreate[64 * 1024]},
@@ -140,7 +140,7 @@ Module[{
     usecInterval = 10 * 10^6,
     eventMask = SOCKET`POLLIN
 },
-    Internal`CreateAsynchronousTask[
+    Echo @ Internal`CreateAsynchronousTask[
         createSocketsPollLoop,
         {socketList[[1]], bufferSize, usecInterval, eventMask},
         handler[createEvent[serverSocket, socketList, ##]]&

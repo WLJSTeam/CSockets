@@ -122,7 +122,7 @@ Module[{code, definitions, bindCode},
     bindCode = StringRiffle[Flatten @ {
         "(* ::Package:: *)",
         "BeginPackage[\"" <> context <> "\", {\"LibraryLink`\", \"CCompilerDriver`\"}];",
-        "$CSocketsLibrary =\nFileNameJoin[{DirectoryName[$InputFileName, 2], \"LibraryResources\", $SystemID <> \"-v\" <> ToString[LibraryVersionInformation[FindLibrary[\"demo\"]][\"WolframLibraryVersion\"]], \"" <> library <> ".\" <> Internal`DynamicLibraryExtension[]}];",
+        "$CSocketsLibrary =\nFileNameJoin[{DirectoryName[$InputFileName, 2], \"LibraryResources\", $SystemID <> \"-v\" <> ToString[8], \"" <> library <> ".\" <> Internal`DynamicLibraryExtension[]}];",
         Map[parseDefinition] @ definitions,
         "EndPackage[];"
     }, "\n\n\n"];
