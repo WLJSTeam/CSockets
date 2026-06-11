@@ -225,11 +225,19 @@ LibraryFunctionLoad[$CSocketsLibrary, "socketSendStringTo", {Integer, Integer, S
 
 
 socketsCheck::usage =
-"socketsCheck[socketsTensor, length] -> validSocketsList.";
+"socketsCheck[sockets, length] -> validSockets.";
 
 
 socketsCheck =
 LibraryFunctionLoad[$CSocketsLibrary, "socketsCheck", {{Integer, 1}, Integer}, {Integer, 1}];
+
+
+socketIsConnected::usage =
+"socketIsConnected[sockedId] -> False.";
+
+
+socketIsConnected =
+LibraryFunctionLoad[$CSocketsLibrary, "socketIsConnected", {Integer}, Boolean];
 
 
 socketsSelect::usage =

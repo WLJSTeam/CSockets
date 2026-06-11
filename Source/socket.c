@@ -290,10 +290,10 @@ DLLEXPORT int socketSendStringTo(WolframLibraryData libData, mint Argc, MArgumen
 
 /*socketsCheck[{sockets}, length] -> validSockets*/
 DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    MTensor socketsTensor = MArgument_getMTensor(Args[0]); // list of sockets
+    MTensor sockets = MArgument_getMTensor(Args[0]);       // list of sockets
     size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
 
-    SOCKET *sockets = (SOCKET*)libData->MTensor_getIntegerData(socketsTensor);
+    mint *socketsData = (mint*)libData->MTensor_getIntegerData(sockets);
     SOCKET socketId;
     mint validCount = 0;
     int opt;
@@ -301,23 +301,70 @@ DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Arg
     socklen_t len = sizeof(opt);
 
     for (size_t i = 0; i < length; i++) {
-        socketId = sockets[i];
+        socketId = (SOCKET)socketsData[i];
 
         if (is_valid_socket(socketId)) {
-            sockets[validCount] = socketId;
+            socketsData[validCount] = (mint)socketId;
             validCount++;
         }
     }
 
-    MTensor validSocketsList;
-    libData->MTensor_new(MType_Integer, 1, &validCount, &validSocketsList);
-    SOCKET *validSockets = (SOCKET*)libData->MTensor_getIntegerData(validSocketsList);
+    MTensor validSockets;
+    libData->MTensor_new(MType_Integer, 1, &validCount, &validSockets);
+    mint *validSocketsData = (mint*)libData->MTensor_getIntegerData(validSockets);
 
     for (mint i = 0; i < validCount; i++) {
-        validSockets[i] = sockets[i];
+        validSocketsData[i] = socketsData[i];
     }
 
-    MArgument_setMTensor(Res, validSocketsList);
+    MArgument_setMTensor(Res, validSockets);
+    return LIBRARY_NO_ERROR;
+}
+
+
+/*socketIsConnected[socketId] -> true/false*/
+DLLEXPORT int socketIsConnected(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+    SOCKET sockedId = (SOCKET)MArgument_getInteger(Args[0]);
+
+    if (!ISVALIDSOCKET(sockedId)) {
+        MArgument_setBoolean(Res, False);
+        return LIBRARY_NO_ERROR;
+    }
+
+    bool wasNonBlocking = is_non_blocking_mode(sockedId);
+    if (!wasNonBlocking) {
+        set_non_blocking_mode(sockedId);
+    }
+
+    char dummy;
+    int ret = recv(sockedId, &dummy, 1, MSG_PEEK);
+    int err = GETSOCKETERRNO();
+
+    if (!wasNonBlocking) {
+        set_blocking_mode(sockedId);
+    }
+
+    if (ret > 0) {
+        MArgument_setBoolean(Res, True);
+        return LIBRARY_NO_ERROR;
+    }
+
+    if (ret == 0) {
+        MArgument_setBoolean(Res, False);
+        return LIBRARY_NO_ERROR;
+    }
+
+#ifdef _WIN32
+    if (err == WSAEWOULDBLOCK)
+#else
+    if (err == EAGAIN || err == EWOULDBLOCK)
+#endif
+    {
+        MArgument_setBoolean(Res, True);
+        return LIBRARY_NO_ERROR;
+    }
+
+    MArgument_setBoolean(Res, False);
     return LIBRARY_NO_ERROR;
 }
 
