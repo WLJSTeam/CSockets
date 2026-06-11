@@ -96,7 +96,7 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
                 SOCKET_TYPE socketType = socketList->sockettypes[i];
 
                 if (wl_revents & (WL_POLLERR | WL_POLLHUP | WL_POLLNVAL)) {
-                    closesocket(socketId);
+                    CLOSESOCKET(socketId);
 
                     dataStore = libData->ioLibraryFunctions->createDataStore();
                     libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);

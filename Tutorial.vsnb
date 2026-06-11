@@ -1,3 +1,56 @@
 {
- "cells": []
+ "cells": [
+  {
+   "kind": 2,
+   "value": "PacletDirectoryLoad[FileNameJoin[{$HomeDirectory, \"Projects\", \"CSockets\"}]];\nGet[\"WLJS`CSockets`\"];",
+   "languageId": "wolfram",
+   "outputs": [],
+   "metadata": {},
+   "executionSummary": {
+    "timing": {
+     "startTime": 1781175478385,
+     "endTime": 1781175478856
+    },
+    "executionOrder": 2,
+    "success": true
+   }
+  },
+  {
+   "kind": 2,
+   "value": "If[Head[server] === CSocketObject, Close[server]];\nserver = CSocketOpen[8080];",
+   "languageId": "wolfram",
+   "outputs": [],
+   "metadata": {},
+   "executionSummary": {
+    "timing": {
+     "startTime": 1781175537620,
+     "endTime": 1781175537627
+    },
+    "executionOrder": 4,
+    "success": true
+   }
+  },
+  {
+   "kind": 2,
+   "value": "task = SocketListen[server, Function[\n    If[KeyExistsQ[#, \"DataByteArray\"] && ByteArrayQ[#[\"DataByteArray\"]],\n        WriteString[#[\"SourceSocket\"], \"hello\"]\n    ];\n]]",
+   "languageId": "wolfram",
+   "outputs": [],
+   "metadata": {},
+   "executionSummary": {
+    "timing": {
+     "startTime": 1781175673240,
+     "endTime": 1781175701201
+    },
+    "success": false
+   }
+  },
+  {
+   "kind": 2,
+   "value": "",
+   "languageId": "wolfram",
+   "outputs": [],
+   "metadata": {},
+   "executionSummary": {}
+  }
+ ]
 }
