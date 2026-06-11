@@ -106,7 +106,12 @@ socketSend[socketId, byteArray, Length[byteArray]];
 
 
 CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer, _], t_: 0] :=
-socketsPoll[{socketId}, 1, Round[t * 10^6], SOCKET`POLLIN] === {{socketId, 1}};
+With[{validSockets = socketsCheck[{socketId}, 1]},
+    If[validSockets =!= {socketId},
+        Return[$Failed],
+        socketsPoll[{socketId}, 1, Round[t * 10^6], SOCKET`POLLIN] === {{socketId, 1}}
+    ]
+];
 
 
 With[{bufferSize = 64 * 1024, buffer = socketBufferCreate[64 * 1024]},
