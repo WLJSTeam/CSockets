@@ -97,16 +97,16 @@ CSocketObject /: Close[CSocketObject[socketId_Integer, internalType_Integer]] :=
 socketClose[socketId];
 
 
-CSocketObject /: WriteString[CSocketObject[socketId_Integer, internalType_Integer], message_String] :=
-socketSendString[socketId, message, StringLength[message]];
+CSocketObject /: WriteString[CSocketObject[socketId_Integer, _], text_String] :=
+socketSendString[socketId, text, StringLength[text]];
 
 
 CSocketObject /: BinaryWrite[CSocketObject[socketId_Integer, internalType_Integer], byteArray_ByteArray] :=
 socketSend[socketId, byteArray, Length[byteArray]];
 
 
-CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer, _]] :=
-socketsPoll[{socketId}, 1, 10^3, BitOr[SOCKET`POLLIN, SOCKET`POLLERR, SOCKET`POLLHUP, SOCKET`POLLNVAL]];
+CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer, _], t_: 10^10] :=
+socketsPoll[{socketId}, 1, 10^10, SOCKET`POLLIN];
 
 
 With[{bufferSize = 64 * 1024, buffer = socketBufferCreate[64 * 1024]},
