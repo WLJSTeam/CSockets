@@ -145,7 +145,7 @@ Module[{
     usecInterval = 10 * 10^6,
     eventMask = SOCKET`POLLIN
 },
-    Echo @ Internal`CreateAsynchronousTask[
+    Internal`CreateAsynchronousTask[
         createSocketsPollLoop,
         {socketList[[1]], bufferSize, usecInterval, eventMask},
         handler[createEvent[serverSocket, socketList, ##]]&
