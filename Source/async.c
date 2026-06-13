@@ -88,7 +88,7 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
         }
 
         POLL_FD *pollfds = socketList->pollfds;
-        printf("Polling...\n");
+
         result = sockets_poll(pollfds, length, timeout);
         if (result > 0) {
             for (size_t i = 0; i < length; i++) {
@@ -98,16 +98,15 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
 
                 if (wl_revents & (WL_POLLERR | WL_POLLHUP | WL_POLLNVAL)) {
                     CLOSESOCKET(socketId);
+                    pollfds[i].fd = INVALID_SOCKET;
+                    socket_list_prune(socketList);
 
                     dataStore = libData->ioLibraryFunctions->createDataStore();
                     libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
                     libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketType);
-                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
-                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_CLIENT);
+                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)wl_revents);
                     libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
 
-                    pollfds[i].fd = INVALID_SOCKET;
-                    socket_list_prune(socketList);
                     continue;
                 }
 
@@ -117,16 +116,15 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
                     libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketType);
 
                     if (socketType == TCP_SERVER) {
-                        printf("Accept event on %d\n", socketId);
                         acceptedSocketId = accept(socketId, NULL, NULL);
                         socket_list_add(socketList, acceptedSocketId, TCP_CLIENT);
+
                         libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)acceptedSocketId);
                         libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_CLIENT);
                         libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accepted", dataStore);
                     }
 
                     if (socketType == TCP_CLIENT) {
-                        printf("Received event on %d\n");
                         int recvResult = recv(socketId, buffer, bufferSize, 0);
                         if (recvResult > 0) {
                             dims = (mint)recvResult;
@@ -138,14 +136,17 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
                             libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, byteArray);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Received", dataStore);
                         } else if (recvResult == 0) {
+                            pollfds[i].fd = INVALID_SOCKET;
+                            socket_list_prune(socketList);
+
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_CLIENT);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
-                            socket_list_prune(socketList);
                         } else {
+                            socket_list_prune(socketList);
+
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, GETSOCKETERRNO());
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Error", dataStore);
-                            socket_list_prune(socketList);
                         }
                     }
                 }
