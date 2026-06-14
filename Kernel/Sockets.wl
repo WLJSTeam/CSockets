@@ -126,6 +126,10 @@ Module[{socketListId = socketListCreate[initialSockets[[All, 1]], initialSockets
 ];
 
 
+CSocketObject /: SocketWaitNext[CSocketObject[socketId_, socketType_]] :=
+socketsSelect[{socketId}, 1, 10^10, 1];
+
+
 CSocketList /: Append[CSocketList[socketListId_Integer], CSocketObject[socketId_Integer, internalType_Integer]] :=
 socketListAdd[socketListId, socketId];
 
@@ -138,54 +142,92 @@ CSocketList /: Delete[CSocketList[socketListId_Integer], CSocketObject[socketId_
 socketListDelete[socketListId, socketId];
 
 
-CSocketObject /: SocketListen[serverSocket_CSocketObject, handler_] :=
-Module[{
-    socketList = CSocketList[{serverSocket}],
+CSocketList /: SocketListen[CSocketList[socketListId_Integer], handler_] :=
+With[{
     bufferSize = 8 * 1024,
-    usecInterval = 10 * 10^6,
+    usecInterval = 10^6,
     eventMask = SOCKET`POLLIN
 },
     Internal`CreateAsynchronousTask[
         createSocketsPollLoop,
-        {socketList[[1]], bufferSize, usecInterval, eventMask},
-        handler[createEvent[serverSocket, socketList, ##]]&
+        {socketListId, bufferSize, usecInterval, eventMask},
+        handler[createEvent[##]]&
     ]
 ];
 
 
-createEvent[serverSocket_, socketList_, task_, eventName_, {socketId_, socketType_, data__}] :=
-With[{eventData = createEventData[eventName, data]},
+CSocketObject /: SocketListen[serverSocket_CSocketObject, handler_] :=
+SocketListen[CSocketList[{serverSocket}], handler];
+
+
+createEvent[task_, eventName_, {socketId_, socketType_, data_}] :=
+With[{eventData = createEventData[eventName, socketId, socketType, data]},
     Join[<|
         "Timestamp" -> Now,
         "MultipartComplete" -> True,
         "Task" -> task,
-        "Event" -> eventName,
-        "Socket" -> serverSocket,
-        "SocketList" -> socketList,
-        "SourceSocket" -> CSocketObject[socketId, socketType]
+        "Event" -> eventName
     |>, eventData]
 ];
 
 
-createEventData["Accepted", data__] :=
-<|"AcceptedSocket" -> CSocketObject[data]|>
-
-
-createEventData["Closed", data__] :=
-<|"ClosedSocket" -> CSocketObject[data]|>
-
-
-createEventData["Error", data_] :=
-<|"ErrorCode" -> data|>
-
-
-createEventData["Received", data_] :=
-With[{byteArray = ByteArray[data]},
+createEventData["Accepted", listenSocketId_, TCPSERVER, acceptedSocketId_] :=
+With[{
+    listenSocket = CSocketObject[listenSocketId, TCPSERVER],
+    acceptedSocket = CSocketObject[acceptedSocketId, TCPCLIENT]
+},
+    $csockets[acceptedSocket] = listenSocket;
     <|
+        "ListenSocket" ->listenSocket,
+        "AcceptedSocket" -> acceptedSocket
+    |>
+];
+
+
+createEventData["Closed", closedSocketId_, socketType_, _] :=
+<|"ClosedSocket" -> CSocketObject[closedSocketId, socketType]|>;
+
+
+createEventData["Error", socketId_, socketType_, errorCode_] :=
+<|
+    "ErrorSocket" -> CSocketObject[socketId, socketType],
+    "ErrorCode" -> errorCode
+|>;
+
+
+createEventData["Received", socketId_, socketType_, receivedData_] :=
+With[{
+    byteArray = ByteArray[receivedData],
+    sourceSocket = CSocketObject[socketId, socketType]}, {
+    socket = $csockets[sourceSocket]
+},
+    <|
+        "Socket" -> socket,
+        "SourceSocket" -> sourceSocket,
         "Data" :> ByteArrayToString[byteArray],
         "DataBytes" :> Normal[byteArray],
         "DataByteArray" :> byteArray
     |>
+];
+
+
+INTERUPTER = 0;
+
+
+TCPSERVER = 1;
+
+
+UDPSERVER = 2;
+
+
+TCPCLIENT = 3;
+
+
+UDPCLIENT = 4
+
+
+If[!AssociationQ[$csockets],
+    $csockets = <||>
 ];
 
 

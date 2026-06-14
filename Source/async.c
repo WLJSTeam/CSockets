@@ -124,7 +124,7 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
                         libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accepted", dataStore);
                     }
 
-                    if (socketType == TCP_CLIENT) {
+                    else if (socketType == TCP_CLIENT) {
                         int recvResult = recv(socketId, buffer, bufferSize, 0);
                         if (recvResult > 0) {
                             dims = (mint)recvResult;
@@ -147,6 +147,24 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
 
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, GETSOCKETERRNO());
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Error", dataStore);
+                        }
+                    }
+
+                    else if (socketType == UDP_SERVER || socketType == UDP_CLIENT) {
+                        struct addrinfo *addressInfo = NULL;
+                        int recvFromResult = recvfrom(socketId, buffer, bufferSize, 0, addressInfo->ai_addr, &(addressInfo->ai_addrlen));
+                        if (recvFromResult > 0) {
+                            dims = (mint)recvResult;
+                            libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &dims, &byteArray);
+
+                            BYTE *array = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
+                            memcpy(array, buffer, recvResult);
+
+                            libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, byteArray);
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)(uintptr_t)(&addressInfo));
+                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Received", dataStore);
+                        } else if (recvFromResult == 0) {
+
                         }
                     }
                 }
