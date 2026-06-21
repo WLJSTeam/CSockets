@@ -142,6 +142,7 @@ DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Ar
 /*socketAccept[socketId] -> acceptedSocketId*/
 DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
+    print("socketId: %d");
 
     SOCKET acceptedSocketId = accept(socketId, NULL, NULL);
 
