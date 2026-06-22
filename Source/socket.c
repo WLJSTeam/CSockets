@@ -3,7 +3,7 @@
 
 /*socketCreate[family, socktype, protocol] -> socketId*/
 DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
-    int family = (int)MArgument_getInteger(Args[0]); // family
+    int family = (int)MArgument_getInteger(Args[0]);   // family
     int socktype = (int)MArgument_getInteger(Args[1]); // sock type
     int protocol = (int)MArgument_getInteger(Args[2]); // protocol
 
