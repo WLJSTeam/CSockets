@@ -1,8 +1,8 @@
 #include "socket.h"
 
 
-/*socketCreate[family, socktype, protocol] -> socketId*/
-DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     int family = (int)MArgument_getInteger(Args[0]);   // family
     int socktype = (int)MArgument_getInteger(Args[1]); // sock type
     int protocol = (int)MArgument_getInteger(Args[2]); // protocol
@@ -17,8 +17,8 @@ DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Arg
 }
 
 
-/*socketClose[socketId]*/
-DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET socketId = MArgument_getInteger(Args[0]);
 
     mint result = true;
@@ -35,8 +35,8 @@ DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args
 }
 
 
-/*socketBind[socketId, addressInfoPtr]*/
-DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);             // socket for binding
     uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
     struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
@@ -58,8 +58,8 @@ DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args,
 }
 
 
-/*socketSetOpt[socketId, level, optName, optVal]*/
-DLLEXPORT int socketSetOpt(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketSetOpt(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     int level = (int)MArgument_getInteger(Args[1]);
     int optname = (int)MArgument_getInteger(Args[2]);
@@ -74,8 +74,8 @@ DLLEXPORT int socketSetOpt(WolframLibraryData libData, mint Argc, MArgument *Arg
 }
 
 
-/*socketGetOpt[socketId, level, optName] -> optVal*/
-DLLEXPORT int socketGetOpt(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketGetOpt(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     int level = (int)MArgument_getInteger(Args[1]);
     int optname = (int)MArgument_getInteger(Args[2]);
@@ -93,24 +93,24 @@ DLLEXPORT int socketGetOpt(WolframLibraryData libData, mint Argc, MArgument *Arg
 }
 
 
-/*socketSetBlockingMode[socketId]*/
-DLLEXPORT int socketSetBlockingMode(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketSetBlockingMode(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     set_blocking_mode(socketId);
     return LIBRARY_NO_ERROR;
 }
 
 
-/*socketSetNonBlockingMode[socketId]*/
-DLLEXPORT int socketSetNonBlockingMode(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketSetNonBlockingMode(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     set_non_blocking_mode(socketId);
     return LIBRARY_NO_ERROR;
 }
 
 
-/*socketListen[socketId, backlog]*/
-DLLEXPORT int socketListen(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketListen(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     int backlog = (int)MArgument_getInteger(Args[1]);
 
@@ -124,8 +124,8 @@ DLLEXPORT int socketListen(WolframLibraryData libData, mint Argc, MArgument *Arg
 }
 
 
-/*socketConnect[socketId, addressInfo]*/
-DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address info pointer as integer
     struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
@@ -139,8 +139,8 @@ DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Ar
 }
 
 
-/*socketAccept[socketId] -> acceptedSocketId*/
-DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     print("socketId: %d");
 
@@ -155,8 +155,8 @@ DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Arg
 }
 
 
-/*socketRecv[socketId, bufferPtr, bufferLength] -> byteArray*/
-DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     BYTE *buffer = (BYTE *)(uintptr_t)MArgument_getInteger(Args[1]);
     size_t bufferSize = (size_t)MArgument_getInteger(Args[2]);
@@ -183,8 +183,8 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
 }
 
 
-/*socketRecvFrom[socketId, addressInfoPtr, bufferPtr, bufferLength] -> byteArray (only UDP)*/
-DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET client = (SOCKET)MArgument_getInteger(Args[0]);
     uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
     struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
@@ -213,8 +213,8 @@ DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *A
 }
 
 
-/*socketSend[socketId, byteArray, length] -> sentLength*/
-DLLEXPORT int socketSend(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketSend(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET socketId = MArgument_getInteger(Args[0]);
     MNumericArray byteArray = MArgument_getMNumericArray(Args[1]);
     BYTE *data = (BYTE*)libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
@@ -232,8 +232,8 @@ DLLEXPORT int socketSend(WolframLibraryData libData, mint Argc, MArgument *Args,
 }
 
 
-/*socketSendString[socketId, text, length] -> sentLength*/
-DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET socketId = MArgument_getInteger(Args[0]);
     char *text = MArgument_getUTF8String(Args[1]);
     int length = MArgument_getInteger(Args[2]);
@@ -250,8 +250,8 @@ DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument 
 }
 
 
-/*socketSendTo[socketId, addressInfo, byteArray, length] -> sentLength*/
-DLLEXPORT int socketSendTo(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketSendTo(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     struct addrinfo *addressInfo = (struct addrinfo*)(uintptr_t)MArgument_getInteger(Args[1]);
     MNumericArray byteArray = MArgument_getMNumericArray(Args[2]);
@@ -270,8 +270,8 @@ DLLEXPORT int socketSendTo(WolframLibraryData libData, mint Argc, MArgument *Arg
 }
 
 
-/*socketSendStringTo[socketId, addressInfo, text, length] -> sentLength*/
-DLLEXPORT int socketSendStringTo(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketSendStringTo(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     struct addrinfo *addressInfo = (struct addrinfo*)(uintptr_t)MArgument_getInteger(Args[1]);
     char *text = MArgument_getUTF8String(Args[2]);
@@ -289,8 +289,8 @@ DLLEXPORT int socketSendStringTo(WolframLibraryData libData, mint Argc, MArgumen
 }
 
 
-/*socketsCheck[{sockets}, length] -> validSockets*/
-DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     MTensor sockets = MArgument_getMTensor(Args[0]);       // list of sockets
     size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
 
@@ -323,8 +323,8 @@ DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Arg
 }
 
 
-/*socketIsConnected[socketId] -> true/false*/
-DLLEXPORT int socketIsConnected(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketIsConnected(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SOCKET sockedId = (SOCKET)MArgument_getInteger(Args[0]);
 
     if (!ISVALIDSOCKET(sockedId)) {
@@ -370,8 +370,8 @@ DLLEXPORT int socketIsConnected(WolframLibraryData libData, mint Argc, MArgument
 }
 
 
-/*socketsSelect[{sockets}, length, timeout, mode] -> {readySockets}*/
-DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     MTensor sockets = MArgument_getMTensor(Args[0]); // list of sockets
     mint *socketArray = libData->MTensor_getIntegerData(sockets);
     mint length = MArgument_getInteger(Args[1]); // number of sockets
@@ -425,8 +425,8 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
 }
 
 
-/* socketsPoll[sockets, length, timeout_us, eventsMask] -> {{socket, events}, ...} */
-DLLEXPORT int socketsPoll(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketsPoll(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     MTensor socketsTensor = MArgument_getMTensor(Args[0]);
     mint length = MArgument_getInteger(Args[1]);
     mint timeout_us = MArgument_getInteger(Args[2]);

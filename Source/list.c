@@ -1,7 +1,8 @@
 #include "list.h"
 
 
-DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     MTensor sockets = MArgument_getMTensor(Args[0]);
     mint* socketsData = libData->MTensor_getIntegerData(sockets);
 
@@ -18,7 +19,8 @@ DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument 
 }
 
 
-DLLEXPORT int socketListAdd(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketListAdd(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[1]);
     SOCKET_TYPE socketType = (SOCKET_TYPE)MArgument_getInteger(Args[2]);
@@ -27,7 +29,8 @@ DLLEXPORT int socketListAdd(WolframLibraryData libData, mint Argc, MArgument *Ar
 }
 
 
-DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     POLL_FD *pollfds = socketList->pollfds;
     const mint length = socketList->length;
@@ -46,21 +49,24 @@ DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument 
 }
 
 
-DLLEXPORT int socketListPrune(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketListPrune(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     socket_list_prune(socketList);
     return LIBRARY_NO_ERROR;
 }
 
 
-DLLEXPORT int socketListDelete(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketListDelete(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     socket_list_free(socketList);
     return LIBRARY_NO_ERROR;
 }
 
 
-SocketList socket_list_create(mint *sockets, mint *types, size_t length) {
+SocketList socket_list_create(mint *sockets, mint *types, size_t length)
+{
     size_t capacity = 1;
     while (capacity < length)
     {
@@ -88,7 +94,8 @@ SocketList socket_list_create(mint *sockets, mint *types, size_t length) {
 }
 
 
-void socket_list_add(SocketList socketList, SOCKET socketId, SOCKET_TYPE socketType) {
+void socket_list_add(SocketList socketList, SOCKET socketId, SOCKET_TYPE socketType)
+{
     socketList->pollfds[socketList->length].fd = socketId;
     socketList->addrinfos[socketList->length] = NULL;
     socketList->sockettypes[socketList->length] = socketType;
@@ -103,7 +110,8 @@ void socket_list_add(SocketList socketList, SOCKET socketId, SOCKET_TYPE socketT
 }
 
 
-void socket_list_prune(SocketList socketList) {
+void socket_list_prune(SocketList socketList)
+{
     mint j = 0;
     for (mint i = 0; i < socketList->length; i++) {
         if (socketList->pollfds[i].fd != INVALID_SOCKET) {
@@ -119,7 +127,8 @@ void socket_list_prune(SocketList socketList) {
 }
 
 
-void socket_list_free(SocketList socketList) {
+void socket_list_free(SocketList socketList)
+{
     free(socketList->pollfds);
     free(socketList->addrinfos);
     free(socketList->sockettypes);

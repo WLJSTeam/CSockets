@@ -56,7 +56,7 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
         Shortest[
             "DLLEXPORT int " ~~
             name__ ~~
-            "(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {"] :> name][[1]];
+            "(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)"] :> name][[1]];
 
     $argLines = Select[StringContainsQ[#, "MArgument_get"]&] @ StringSplit[definition, "\n"];
 
@@ -117,7 +117,7 @@ bind[context_String, library_String] :=
 Module[{code, definitions, bindCode},
     code = StringRiffle[Map[Import[#, "String"]&] @ $sourceFiles, "\n\n\n"];
 
-    definitions = StringCases[code, Shortest["DLLEXPORT int " ~~ __ ~~ "(Wolfram" ~~ __ ~~ "\n}"]];
+    definitions = StringCases[code, Shortest["DLLEXPORT int " ~~ LetterCharacter.. ~~ "(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)" ~~ __ ~~ "\n}"]];
 
     bindCode = StringRiffle[Flatten @ {
         "(* ::Package:: *)",

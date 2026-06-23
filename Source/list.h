@@ -14,7 +14,8 @@ typedef enum {
 } SOCKET_TYPE;
 
 
-typedef struct SocketList_st {
+typedef struct SocketList_st
+{
     POLL_FD *pollfds;
     struct addrinfo **addrinfos;
     SOCKET_TYPE *sockettypes;

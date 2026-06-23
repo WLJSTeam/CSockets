@@ -1,8 +1,8 @@
 #include "address.h"
 
 
-/*socketAddressInfoCreate[host, port, ai_family, ai_socktype, ai_protocol, localIP] -> addrinfo*/
-DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     char *host = MArgument_getUTF8String(Args[0]);        // remote host (can be NULL)
     char *port = MArgument_getUTF8String(Args[1]);        // port as string
     int ai_family = (int)MArgument_getInteger(Args[2]);   // AF_UNSPEC, AF_INET, AF_INET6
@@ -52,8 +52,8 @@ DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MAr
 }
 
 
-/*socketAddressInfoRemove[addrinfo]*/
-DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[0]); // address pointer as integer
     struct addrinfo *address = (struct addrinfo*)addressPtr;
 

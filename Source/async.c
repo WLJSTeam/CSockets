@@ -1,7 +1,8 @@
 #include "async.h"
 
 
-void socketsSelectTask(mint taskId, void *taskArgs) {
+void socketsSelectTask(mint taskId, void *taskArgs)
+{
     SocketsSelectArgs socketsSelectTaskArgs = (SocketsSelectArgs)taskArgs;
     WolframLibraryData libData = socketsSelectTaskArgs->libData;
     SOCKET *sockets = socketsSelectTaskArgs->sockets;
@@ -36,7 +37,8 @@ void socketsSelectTask(mint taskId, void *taskArgs) {
 }
 
 
-DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     MTensor socketIds = MArgument_getMTensor(Args[0]);     // list of sockets
     size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
     int timeout = (int)MArgument_getInteger(Args[2]);      // timeout in microseconds
@@ -58,7 +60,8 @@ DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgumen
 }
 
 
-void socketsPollLoop(mint taskId, void *taskArgs) {
+void socketsPollLoop(mint taskId, void *taskArgs)
+{
     ServerLoopArgs args = (ServerLoopArgs)taskArgs;
 
     SocketList socketList = args->socketList;
@@ -79,7 +82,6 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
 
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
     {
-        print("size_t length = socketList->length;");
         size_t length = socketList->length;
 
         for (size_t i = 0; i < length; i++) {
@@ -88,13 +90,10 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
             pollfd->revents = 0;
         }
 
-        print("POLL_FD *pollfds = socketList->pollfds;");
         POLL_FD *pollfds = socketList->pollfds;
 
-        print("result = sockets_poll(pollfds, length, timeout);");
         result = sockets_poll(pollfds, length, timeout);
         if (result > 0) {
-            print("for (size_t i = 0; i < length; i++)");
             for (size_t i = 0; i < length; i++) {
                 mint wl_revents = convert_native_to_wl_events(pollfds[i].revents);
                 SOCKET socketId = pollfds[i].fd;
@@ -190,7 +189,8 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
 }
 
 
-DLLEXPORT int createSocketsPollLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res) {
+DLLEXPORT int createSocketsPollLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     mint bufferSize = MArgument_getInteger(Args[1]);
     mint timeout = MArgument_getInteger(Args[2]);

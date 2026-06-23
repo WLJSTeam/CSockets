@@ -16,7 +16,8 @@ void print(const char* format, ...)
 }
 
 
-char* get_current_time() {
+char* get_current_time()
+{
     static char time_buffer[64];
     time_t rawtime;
     struct tm* timeinfo;
@@ -44,7 +45,8 @@ char* get_current_time() {
 }
 
 
-void init_wsa() {
+void init_wsa()
+ {
     #ifdef _WIN32
     int iResult;
     WSADATA wsaData;
@@ -53,7 +55,8 @@ void init_wsa() {
 }
 
 
-void cleanup_wsa() {
+void cleanup_wsa()
+{
     #ifdef _WIN32
     WSACleanup();
     #else
@@ -62,7 +65,8 @@ void cleanup_wsa() {
 }
 
 
-void set_blocking_mode(SOCKET socketId) {
+void set_blocking_mode(SOCKET socketId)
+{
     #ifdef _WIN32
     u_long mode = 0;
     ioctlsocket(socketId, FIONBIO, &mode);
@@ -73,7 +77,8 @@ void set_blocking_mode(SOCKET socketId) {
 }
 
 
-void set_non_blocking_mode(SOCKET socketId) {
+void set_non_blocking_mode(SOCKET socketId)
+{
     #ifdef _WIN32
     u_long mode = 1;
     ioctlsocket(socketId, FIONBIO, &mode);
@@ -84,7 +89,8 @@ void set_non_blocking_mode(SOCKET socketId) {
 }
 
 
-bool is_non_blocking_mode(SOCKET socketId) {
+bool is_non_blocking_mode(SOCKET socketId)
+{
     #ifdef _WIN32
     u_long mode;
     ioctlsocket(socketId, FIONBIO, &mode);
@@ -96,7 +102,8 @@ bool is_non_blocking_mode(SOCKET socketId) {
 }
 
 
-bool is_valid_socket(SOCKET socketId) {
+bool is_valid_socket(SOCKET socketId)
+{
     if (socketId == INVALID_SOCKET) {
         return false;
     }
@@ -134,7 +141,8 @@ bool is_valid_socket(SOCKET socketId) {
 }
 
 
-struct timeval new_tv(long long usec) {
+struct timeval new_tv(long long usec)
+{
     struct timeval tv = {
         .tv_sec = usec / USEC_PER_SEC,
         .tv_usec = usec % USEC_PER_SEC
@@ -143,7 +151,8 @@ struct timeval new_tv(long long usec) {
 }
 
 
-size_t filter_fd_set_to_array(fd_set *set, SOCKET *input, SOCKET *result, size_t length) {
+size_t filter_fd_set_to_array(fd_set *set, SOCKET *input, SOCKET *result, size_t length)
+{
     SOCKET socketId;
     size_t j = 0;
     for (size_t i = 0; i < length; i++) {
@@ -157,7 +166,8 @@ size_t filter_fd_set_to_array(fd_set *set, SOCKET *input, SOCKET *result, size_t
 }
 
 
-size_t filter_fd_set_to_tensor(WolframLibraryData libData, fd_set *set, SOCKET *input, MTensor result, size_t length) {
+size_t filter_fd_set_to_tensor(WolframLibraryData libData, fd_set *set, SOCKET *input, MTensor result, size_t length)
+{
     mint *data = libData->MTensor_getIntegerData(result);
     SOCKET socketId;
     size_t j = 0;
@@ -172,7 +182,8 @@ size_t filter_fd_set_to_tensor(WolframLibraryData libData, fd_set *set, SOCKET *
 }
 
 
-SOCKET fill_fd_set_from_array(fd_set *set, SOCKET *sockets, size_t length, SOCKET initmaxfd) {
+SOCKET fill_fd_set_from_array(fd_set *set, SOCKET *sockets, size_t length, SOCKET initmaxfd)
+{
     SOCKET maxfd = initmaxfd;
     SOCKET socketId;
 
@@ -188,7 +199,8 @@ SOCKET fill_fd_set_from_array(fd_set *set, SOCKET *sockets, size_t length, SOCKE
 }
 
 
-void copy_tensor_to_socket_array(WolframLibraryData libData, MTensor tensor, SOCKET *result, size_t length) {
+void copy_tensor_to_socket_array(WolframLibraryData libData, MTensor tensor, SOCKET *result, size_t length)
+{
     mint *data = libData->MTensor_getIntegerData(tensor);
     for (size_t i = 0; i < length; i++) {
         result[i] = (SOCKET)data[i];
@@ -199,7 +211,8 @@ void copy_tensor_to_socket_array(WolframLibraryData libData, MTensor tensor, SOC
 // Wrapper for poll/WSAPoll to handle timeout conversion and platform differences
 // timeout_us: -1 for infinite, 0 for non-blocking, >0 for timeout in microseconds
 // returns: number of fds with events, 0 for timeout, -1 for error
-int sockets_poll(POLL_FD *fds, mint length, mint timeout_us) {
+int sockets_poll(POLL_FD *fds, mint length, mint timeout_us)
+{
     int timeout_ms;
     if (timeout_us == -1) {
         timeout_ms = -1;
@@ -220,7 +233,8 @@ int sockets_poll(POLL_FD *fds, mint length, mint timeout_us) {
 }
 
 
-int convert_wl_to_native_events(mint wl_events) {
+int convert_wl_to_native_events(mint wl_events)
+{
     int native = 0;
 
     #ifdef _WIN32
@@ -241,7 +255,8 @@ int convert_wl_to_native_events(mint wl_events) {
 }
 
 
-mint convert_native_to_wl_events(int native_revents) {
+mint convert_native_to_wl_events(int native_revents)
+{
     mint wl = 0;
 
     #ifdef _WIN32
@@ -262,16 +277,19 @@ mint convert_native_to_wl_events(int native_revents) {
 }
 
 
-DLLEXPORT mint WolframLibrary_getVersion() {
+DLLEXPORT mint WolframLibrary_getVersion()
+{
     return WolframLibraryVersion;
 }
 
-DLLEXPORT int WolframLibrary_initialize(WolframLibraryData libData) {
+DLLEXPORT int WolframLibrary_initialize(WolframLibraryData libData)
+{
     init_wsa();
     return LIBRARY_NO_ERROR;
 }
 
-DLLEXPORT void WolframLibrary_uninitialize(WolframLibraryData libData) {
+DLLEXPORT void WolframLibrary_uninitialize(WolframLibraryData libData)
+{
     cleanup_wsa();
     (void)libData;
 }
