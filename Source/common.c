@@ -9,7 +9,7 @@ void print(const char* format, ...)
     va_start(args, format);
 
     vprintf(format, args);
-    vprintf("\n", "");
+    printf("\n");
 
     va_end(args);
     #endif
