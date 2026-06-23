@@ -260,3 +260,18 @@ mint convert_native_to_wl_events(int native_revents) {
 
     return wl;
 }
+
+
+DLLEXPORT mint WolframLibrary_getVersion() {
+    return WolframLibraryVersion;
+}
+
+DLLEXPORT int WolframLibrary_initialize(WolframLibraryData libData) {
+    init_wsa();
+    return LIBRARY_NO_ERROR;
+}
+
+DLLEXPORT void WolframLibrary_uninitialize(WolframLibraryData libData) {
+    cleanup_wsa();
+    (void)libData;
+}

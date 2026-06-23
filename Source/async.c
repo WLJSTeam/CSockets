@@ -203,7 +203,6 @@ DLLEXPORT int createSocketsPollLoop(WolframLibraryData libData, mint Argc, MArgu
     serverLoopArgs->timeout = timeout;
     serverLoopArgs->eventsMask = eventsMask;
 
-    printf("Creating polling task...\n");
     mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketsPollLoop, (void *)serverLoopArgs);
 
     MArgument_setInteger(Res, taskId);
