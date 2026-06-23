@@ -159,7 +159,7 @@ CSocketObject /: SocketListen[serverSocket_CSocketObject, handler_] :=
 SocketListen[CSocketList[{serverSocket}], handler];
 
 
-createEvent[task_, eventName_, {socketId_, socketType_, data_}] :=
+createEvent[task_, eventName_, {socketId_, socketType_, data__}] :=
 With[{eventData = createEventData[eventName, socketId, socketType, data]},
     Join[<|
         "Timestamp" -> Now,
@@ -170,10 +170,10 @@ With[{eventData = createEventData[eventName, socketId, socketType, data]},
 ];
 
 
-createEventData["Accepted", listenSocketId_, $TCPSERVER, acceptedSocketId_] :=
+createEventData["Accepted", listenSocketId_, listenSocketType_, acceptedSocketId_, acceptedSocketType_] :=
 With[{
-    listenSocket = CSocketObject[listenSocketId, $TCPSERVER],
-    acceptedSocket = CSocketObject[acceptedSocketId, $TCPCLIENT]
+    listenSocket = CSocketObject[listenSocketId, listenSocketType],
+    acceptedSocket = CSocketObject[acceptedSocketId, acceptedSocketType]
 },
     $csockets[acceptedSocket] = listenSocket;
     <|

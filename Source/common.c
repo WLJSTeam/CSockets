@@ -4,11 +4,12 @@
 void print(const char* format, ...)
 {
     #ifdef _DEBUG
-    fprintf(stderr, "[%s] \n", get_current_time());
+    fprintf(stderr, "[%s] ", get_current_time());
     va_list args;
     va_start(args, format);
 
     vprintf(format, args);
+    vprintf("\n", "");
 
     va_end(args);
     #endif

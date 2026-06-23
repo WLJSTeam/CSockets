@@ -79,6 +79,7 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
 
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
     {
+        print("size_t length = socketList->length;");
         size_t length = socketList->length;
 
         for (size_t i = 0; i < length; i++) {
@@ -87,10 +88,13 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
             pollfd->revents = 0;
         }
 
+        print("POLL_FD *pollfds = socketList->pollfds;");
         POLL_FD *pollfds = socketList->pollfds;
 
+        print("result = sockets_poll(pollfds, length, timeout);");
         result = sockets_poll(pollfds, length, timeout);
         if (result > 0) {
+            print("for (size_t i = 0; i < length; i++)");
             for (size_t i = 0; i < length; i++) {
                 mint wl_revents = convert_native_to_wl_events(pollfds[i].revents);
                 SOCKET socketId = pollfds[i].fd;
@@ -110,7 +114,7 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
                     continue;
                 }
 
-                if (wl_revents && WL_POLLIN) {
+                if (wl_revents & WL_POLLIN) {
                     dataStore = libData->ioLibraryFunctions->createDataStore();
                     libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
                     libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketType);
@@ -143,6 +147,7 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_CLIENT);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
                         } else {
+                            pollfds[i].fd = INVALID_SOCKET;
                             socket_list_prune(socketList);
 
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, GETSOCKETERRNO());
@@ -164,7 +169,18 @@ void socketsPollLoop(mint taskId, void *taskArgs) {
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)(uintptr_t)(&addressInfo));
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Received", dataStore);
                         } else if (recvFromResult == 0) {
+                            pollfds[i].fd = INVALID_SOCKET;
+                            socket_list_prune(socketList);
 
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, UDP_CLIENT);
+                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
+                        } else {
+                            pollfds[i].fd = INVALID_SOCKET;
+                            socket_list_prune(socketList);
+
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, GETSOCKETERRNO());
+                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Error", dataStore);
                         }
                     }
                 }
