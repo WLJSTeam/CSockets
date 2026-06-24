@@ -141,6 +141,16 @@ bool is_valid_socket(SOCKET socketId)
 }
 
 
+bool is_wouldblock_err(int err)
+{
+    #ifdef _WIN32
+    return err == WSAEWOULDBLOCK;
+    #else
+    return err == EAGAIN || err == EWOULDBLOCK;
+    #endif
+}
+
+
 struct timeval new_tv(long long usec)
 {
     struct timeval tv = {

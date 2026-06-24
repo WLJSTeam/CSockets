@@ -129,6 +129,9 @@ bool is_non_blocking_mode(SOCKET socketId);
 bool is_valid_socket(SOCKET socketId);
 
 
+bool is_wouldblock_err(int err);
+
+
 struct timeval new_tv(long long usec);
 
 

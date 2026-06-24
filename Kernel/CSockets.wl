@@ -224,9 +224,9 @@ Options[CSocketHandler] = {
     "DefaultAccumulator" :> Function[Length[#DataByteArray]],
     "Handler" :> <||>,
     "DefaultHandler" :> Function[Null],
-    "AcceptHandler" :> Function[Append[#Data, #SourceSocket]],
-    "CloseHandler" :> Function[Close[#SourceSocket]; DeleteMissing[#Data]],
-    "ErrorHandler" :> Function[DeleteMissing[#SourceSocket]]
+    "AcceptHandler" :> Function[Null],
+    "CloseHandler" :> Function[Null],
+    "ErrorHandler" :> Function[Null]
 };
 
 

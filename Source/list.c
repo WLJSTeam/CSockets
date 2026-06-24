@@ -96,17 +96,17 @@ SocketList socket_list_create(mint *sockets, mint *types, size_t length)
 
 void socket_list_add(SocketList socketList, SOCKET socketId, SOCKET_TYPE socketType)
 {
-    socketList->pollfds[socketList->length].fd = socketId;
-    socketList->addrinfos[socketList->length] = NULL;
-    socketList->sockettypes[socketList->length] = socketType;
-    socketList->length++;
-
     if (socketList->length == socketList->capacity) {
         socketList->capacity *= 2;
         socketList->pollfds = realloc(socketList->pollfds, sizeof(POLL_FD) * socketList->capacity);
         socketList->addrinfos = realloc(socketList->addrinfos, sizeof(struct addrinfo*) * socketList->capacity);
         socketList->sockettypes = realloc(socketList->sockettypes, sizeof(SOCKET_TYPE) * socketList->capacity);
     }
+
+    socketList->pollfds[socketList->length].fd = socketId;
+    socketList->addrinfos[socketList->length] = NULL;
+    socketList->sockettypes[socketList->length] = socketType;
+    socketList->length++;
 }
 
 

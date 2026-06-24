@@ -17,8 +17,6 @@ favicon = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length:
 
 echo[assoc_Association?AssociationQ] :=
 (
-    Print[assoc["Data"]];
-    Print[assoc];
     If[StringMatchQ[StringSplit[assoc["Data"], "\n"][[1]], "GET /favicon.ico " ~~ __],
         favicon,
         StringTemplate["HTTP/1.1 200 OK\r\nContent-Length: `1`\r\nContent-Type: text/plain\r\n\r\n`2`"][StringLength[assoc["Data"]], assoc["Data"]]

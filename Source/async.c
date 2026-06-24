@@ -26,14 +26,14 @@ void socketsSelectTask(mint taskId, void *taskArgs)
 
         filter_fd_set_to_tensor(libData, &readfd, sockets, readySockets, length);
 
-        DataStore dataStore;
-        libData->ioLibraryFunctions->createDataStore();
+        DataStore dataStore = libData->ioLibraryFunctions->createDataStore();
         libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readySockets);
         libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Selected", dataStore);
         libData->MTensor_free(readySockets);
     }
 
     free(sockets);
+    free(taskArgs);
 }
 
 
@@ -79,9 +79,15 @@ void socketsPollLoop(mint taskId, void *taskArgs)
     SOCKET acceptedSocketId;
     MNumericArray byteArray;
     DataStore dataStore;
+    bool needPrune = False;
 
     while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
     {
+        if (needPrune) {
+            socket_list_prune(socketList);
+            needPrune = False;
+        }
+
         size_t length = socketList->length;
 
         for (size_t i = 0; i < length; i++) {
@@ -102,7 +108,7 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                 if (wl_revents & (WL_POLLERR | WL_POLLHUP | WL_POLLNVAL)) {
                     CLOSESOCKET(socketId);
                     pollfds[i].fd = INVALID_SOCKET;
-                    socket_list_prune(socketList);
+                    needPrune = True;
 
                     dataStore = libData->ioLibraryFunctions->createDataStore();
                     libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
@@ -120,11 +126,17 @@ void socketsPollLoop(mint taskId, void *taskArgs)
 
                     if (socketType == TCP_SERVER) {
                         acceptedSocketId = accept(socketId, NULL, NULL);
-                        socket_list_add(socketList, acceptedSocketId, TCP_CLIENT);
+                        if (ISVALIDSOCKET(acceptedSocketId)) {
+                            socket_list_add(socketList, acceptedSocketId, TCP_CLIENT);
 
-                        libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)acceptedSocketId);
-                        libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_CLIENT);
-                        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accepted", dataStore);
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)acceptedSocketId);
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_CLIENT);
+                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accepted", dataStore);
+                        } else {
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, GETSOCKETERRNO());
+                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Error", dataStore);
+                            continue;
+                        }
                     }
 
                     else if (socketType == TCP_CLIENT) {
@@ -140,23 +152,31 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Received", dataStore);
                         } else if (recvResult == 0) {
                             pollfds[i].fd = INVALID_SOCKET;
-                            socket_list_prune(socketList);
+                            needPrune = True;
 
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_CLIENT);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
                         } else {
-                            pollfds[i].fd = INVALID_SOCKET;
-                            socket_list_prune(socketList);
+                            int err = GETSOCKETERRNO();
 
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, GETSOCKETERRNO());
+                            if (is_wouldblock_err(err)) {
+                                continue;
+                            }
+
+                            pollfds[i].fd = INVALID_SOCKET;
+                            needPrune = True;
+
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, err);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Error", dataStore);
                         }
                     }
 
                     else if (socketType == UDP_SERVER || socketType == UDP_CLIENT) {
-                        struct addrinfo *addressInfo = NULL;
-                        int recvFromResult = recvfrom(socketId, buffer, bufferSize, 0, addressInfo->ai_addr, &(addressInfo->ai_addrlen));
+                        struct sockaddr_storage remoteAddr;
+                        socklen_t remoteAddrLen = sizeof(remoteAddr);
+
+                        int recvFromResult = recvfrom(socketId, buffer, bufferSize, 0, (struct sockaddr*)&remoteAddr, &remoteAddrLen);
                         if (recvFromResult > 0) {
                             dims = (mint)recvResult;
                             libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &dims, &byteArray);
@@ -165,18 +185,18 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                             memcpy(array, buffer, recvResult);
 
                             libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, byteArray);
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)(uintptr_t)(&addressInfo));
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)(uintptr_t)(&remoteAddr));
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Received", dataStore);
                         } else if (recvFromResult == 0) {
                             pollfds[i].fd = INVALID_SOCKET;
-                            socket_list_prune(socketList);
+                            needPrune = True;
 
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, UDP_CLIENT);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
                         } else {
                             pollfds[i].fd = INVALID_SOCKET;
-                            socket_list_prune(socketList);
+                            needPrune = True;
 
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, GETSOCKETERRNO());
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Error", dataStore);
