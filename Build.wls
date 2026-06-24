@@ -28,10 +28,18 @@ $packageDirectory =
 FileNameJoin[{$directory, "Kernel"}];
 
 
+$packageFile =
+FileNameJoin[{$packageDirectory, "CSockets.wl"}];
+
+
+$packageCode =
+Import[$packageFile, "String"];
+
+
 If[!FileExistsQ[$libraryDirectory], CreateDirectory[$libraryDirectory]];
 
 
-$libraryFile = build[library_String, prot_: Automatic] :=
+build[library_String, prot_: Automatic] :=
 CreateLibrary[$sourceFiles, library,
     "TargetDirectory" -> $libraryDirectory,
     "Debug" -> True,
@@ -113,22 +121,16 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
 ];
 
 
-bind[context_String, library_String] :=
+$bindCode =
 Module[{code, definitions, bindCode},
     code = StringRiffle[Map[Import[#, "String"]&] @ $sourceFiles, "\n\n\n"];
 
     definitions = StringCases[code, Shortest["DLLEXPORT int " ~~ LetterCharacter.. ~~ "(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)" ~~ __ ~~ "\n}"]];
 
-    bindCode = StringRiffle[Flatten @ {
-        "(* ::Package:: *)",
-        "BeginPackage[\"" <> context <> "\", {\"LibraryLink`\", \"CCompilerDriver`\"}];",
-        "$CSocketsLibrary =\nFileNameJoin[{DirectoryName[$InputFileName, 2], \"LibraryResources\", $SystemID <> \"-v\" <> ToString[8], \"" <> library <> ".\" <> Internal`DynamicLibraryExtension[]}];",
-        Map[parseDefinition] @ definitions,
-        "EndPackage[];"
-    }, "\n\n\n"];
+    bindCode = StringRiffle[Map[parseDefinition] @ definitions, "\n\n\n"];
 
-    WriteString[FileNameJoin[{$packageDirectory, StringSplit[context, "`"][[-1]] <> ".wl"}], bindCode];
+    bindCode
 ];
 
 
-bind["WLJS`CSockets`Library`", "csockets"];
+$kernelCode = Import[]
