@@ -182,7 +182,7 @@ With[{
 },
     $csockets[acceptedSocket] = listenSocket;
     <|
-        "ListenSocket" ->listenSocket,
+        "ListenSocket" -> listenSocket,
         "AcceptedSocket" -> acceptedSocket
     |>
 ];
@@ -220,13 +220,11 @@ Options[CSocketHandler] = {
     "Buffer" :> CreateDataStructure["HashTable"],
     "Serializer" :> Function[#],
     "Deserializer" :> Function[#],
-    "Accumulator" :> <||>,
-    "DefaultAccumulator" :> Function[Length[#DataByteArray]],
-    "Handler" :> <||>,
-    "DefaultHandler" :> Function[Null],
-    "AcceptHandler" :> Function[Null],
-    "CloseHandler" :> Function[Null],
-    "ErrorHandler" :> Function[Null]
+    "Accumulator" :> Function[Length[#DataByteArray]],
+    "Received" :> Function[Null],
+    "Accepted" :> Function[Null],
+    "Closed" :> Function[Null],
+    "Error" :> Function[Null]
 };
 
 
@@ -272,8 +270,8 @@ Module[{above, below},
 
 (handler_CSocketHandler)[packet_Association] :=
 Module[{extendedPacket, result, extraPacket, extraPacketDataLength},
-    Which[
-        packet["Event"] === "Received",
+    If[(KeyExistsQ[packet, "Event"] && packet["Event"] === "Received") ||
+        KeyExistsQ[packet, "DataByteArray"] && ByteArrayQ[packet["DataByteArray"]],
 
         extendedPacket = getExtendedPacket[handler, packet]; (*Association[]*)
 
@@ -306,14 +304,8 @@ Module[{extendedPacket, result, extraPacket, extraPacketDataLength},
             savePacketToBuffer[handler, extendedPacket]
         ];,
 
-        packet["Event"] === "Accepted",
-            handler["AcceptHandler"][packet],
-
-        packet["Event"] === "Closed",
-            handler["CloseHandler"][packet],
-
-        packet["Event"] === "SelectError",
-            handler["ErrorHandler"][packet]
+    (*Else*)
+        handler[packet["Event"]][packet]
     ];
 ];
 
@@ -337,7 +329,7 @@ With[{uuid = packet["SourceSocket"][[1]]},
             storedLength = last["StoredLength"];,
 
         (*Else*)
-            expectedLength = conditionApply[handler["Accumulator"], handler["DefaultAccumulator"]][packet];
+            expectedLength = conditionApply[handler["Accumulator"]][packet];
             storedLength = 0;
         ];
 
@@ -377,8 +369,7 @@ With[{
 
 invokeHandler[handler_, packet_] :=
 Module[{messageHandler, defaultMessageHandler},
-    messageHandler = handler["Handler"];
-    defaultMessageHandler = handler["DefaultHandler"];
+    messageHandler = handler["Received"];
 
     (*Return: ByteArray[] | _String | Null*)
     conditionApply[messageHandler, defaultMessageHandler][packet]
@@ -426,7 +417,7 @@ With[{buffer = handler["Buffer"]["Lookup", packet["SourceSocket"][[1]]]},
 ];
 
 
-conditionApply[conditionAndFunctions_: <||>, defalut_: Function[Null], ___] :=
+conditionApply[conditionAndFunctions: _?AssociationQ: <||>, defalut_: Function[Null], ___] :=
 Function[
     With[{selected = SelectFirst[conditionAndFunctions, Function[f, First[f][##]], {defalut}]},
         selected[[-1]][##]
