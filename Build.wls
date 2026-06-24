@@ -116,7 +116,7 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
             snakeToCamelCase[StringTrim[name]]][[1]]
     ];
 
-    StringTemplate["`1`::usage =\n\"`1`[`3`]`6`.\";\n\n\n`1` =\nLibraryFunctionLoad[$CSocketsLibrary, \"`1`\", `2`, `5`];"][
+    StringTemplate["`1`::usage =\n\"`1`[`3`]`6`.\";\n\n\n`1` =\nLibraryFunctionLoad[$library, \"`1`\", `2`, `5`];"][
         $name, $argTypes, StringRiffle[$argNames, ", "], $argNumbers, $resultType, If[# === "", "", " -> " <> #]& @ $resultName]
 ];
 
@@ -133,4 +133,12 @@ Module[{code, definitions, bindCode},
 ];
 
 
-$kernelCode = Import[]
+If[StringContainsQ[$packageCode, "(* :LibraryLoad: *)"],
+    $packageCode = StringReplace[$packageCode, {
+        "(* :LibraryLoad: *)" ~~ __ ~~ "End[];" :>
+        "(* :LibraryLoad: *)\n\n\n" <> $bindCode <> "\n\n\nEnd[];",
+        "\r" -> ""
+    }];
+
+    WriteString[$packageFile, $packageCode];
+];

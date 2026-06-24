@@ -22,6 +22,10 @@ CSocketList::usage =
 "CSocketList[{{socketId1, type1}, {socketId2, type2}, ...}]";
 
 
+CSocketHandler::usage =
+"CSocketHandler[] mutable handler object.";
+
+
 Begin["`Private`"];
 
 
@@ -208,6 +212,225 @@ With[{
         "DataBytes" :> Normal[byteArray],
         "DataByteArray" :> byteArray
     |>
+];
+
+
+Options[CSocketHandler] = {
+    "Logger" :> Function[#],
+    "Buffer" :> CreateDataStructure["HashTable"],
+    "Serializer" :> Function[#],
+    "Deserializer" :> Function[#],
+    "Accumulator" :> <||>,
+    "DefaultAccumulator" :> Function[Length[#DataByteArray]],
+    "Handler" :> <||>,
+    "DefaultHandler" :> Function[Null],
+    "AcceptHandler" :> Function[Append[#Data, #SourceSocket]],
+    "CloseHandler" :> Function[Close[#SourceSocket]; DeleteMissing[#Data]],
+    "ErrorHandler" :> Function[DeleteMissing[#SourceSocket]]
+};
+
+
+With[{store = Language`NewExpressionStore["CSocketHandler"]},
+
+    CSocketHandler[OptionsPattern[]] :=
+    With[{handler = CSocketHandler[Null]},
+        Map[store["put"[handler, #, OptionValue[#]]]&] @ Keys[Options[CSocketHandler]];
+
+        handler
+    ];
+
+    (handler_CSocketHandler)[key_] := store["get"[handler, key]];
+
+    CSocketHandler /: Set[(handler_CSocketHandler)[key_], value_] := (store["put"[handler, key, value]]; value);
+
+    CSocketHandler /: Set[(handler_CSocketHandler)[prop_, key_], value_] := (store["put"[handler, prop, Append[handler[prop], key -> value]]]; value);
+];
+
+
+Unprotect[Set];
+
+
+(*TODO: replace to MutationHandler*)
+Set[(handler_?(Head[#] === CSocketHandler&))[keys__], value_] :=
+With[{$handler$ = handler}, $handler$[keys] = value];
+
+
+Protect[Set];
+
+
+Format[handler_CSocketHandler, InputForm] :=
+SequenceForm[CSocketHandler] @ Map[Function[# -> handler[#]]] @ Keys @ Options[CSocketHandler];
+
+
+CSocketHandler /: MakeBoxes[handler: CSocketHandler[Null], form: (StandardForm | TraditionalForm)] :=
+Module[{above, below},
+    {above, below} = TakeDrop[Map[# -> handler[#]&] @ Keys @ Options[CSocketHandler], 2];
+
+    BoxForm`ArrangeSummaryBox[CSocketHandler, handler, Null, above, below, form, "Interpretable" -> Automatic]
+];
+
+
+(handler_CSocketHandler)[packet_Association] :=
+Module[{extendedPacket, result, extraPacket, extraPacketDataLength},
+    Which[
+        packet["Event"] === "Received",
+
+        extendedPacket = getExtendedPacket[handler, packet]; (*Association[]*)
+
+        If[extendedPacket["Completed"],
+            With[{message = getMessage[handler, extendedPacket]},
+                extendedPacket["DataByteArray"] := message; (*ByteArray[]*)
+                extendedPacket["Data"] := ByteArrayToString[message];
+                extendedPacket["DataBytes"] := Normal[message];
+                With[{content = handler["Deserializer"][message]},
+                    extendedPacket["Message"] := content;
+                ];
+            ];
+
+            result = handler["Serializer"] @ invokeHandler[handler, extendedPacket]; (*ByteArray[] | _String | Null*)
+
+            sendResponse[handler, packet, result];
+
+            If[extendedPacket["StoredLength"] > extendedPacket["ExpectedLength"],
+                extraPacket = packet;
+                extraPacketDataLength = extendedPacket["StoredLength"] - extendedPacket["ExpectedLength"];
+                extraPacket["DataByteArray"] = packet["DataByteArray"][[-extraPacketDataLength ;; ]];
+                clearBuffer[handler, packet];
+                handler[extraPacket],
+            (*Else*)
+                clearBuffer[handler, extendedPacket]
+            ];
+
+            Return[result],
+        (*Else*)
+            savePacketToBuffer[handler, extendedPacket]
+        ];,
+
+        packet["Event"] === "Accepted",
+            handler["AcceptHandler"][packet],
+
+        packet["Event"] === "Closed",
+            handler["CloseHandler"][packet],
+
+        packet["Event"] === "SelectError",
+            handler["ErrorHandler"][packet]
+    ];
+];
+
+
+getExtendedPacket[handler_, packet_] :=
+With[{uuid = packet["SourceSocket"][[1]]},
+    Module[{
+        dataLength,
+        last,
+        expectedLength,
+        storedLength,
+        completed,
+        buffer
+    },
+        dataLength = Length[packet["DataByteArray"]];
+        buffer = handler["Buffer"]["Lookup", uuid]; (*DataStructure[DynamicArray]*)
+
+        If[!MissingQ[buffer] && buffer["Length"] > 0,
+            last = buffer["Part", -1]; (*Association[]*)
+            expectedLength = last["ExpectedLength"];
+            storedLength = last["StoredLength"];,
+
+        (*Else*)
+            expectedLength = conditionApply[handler["Accumulator"], handler["DefaultAccumulator"]][packet];
+            storedLength = 0;
+        ];
+
+        completed = storedLength + dataLength >= expectedLength;
+
+        (*Return: Association[]*)
+        Join[packet, <|
+            "Completed" -> completed,
+            "ExpectedLength" -> expectedLength,
+            "StoredLength" -> storedLength + dataLength,
+            "DataLength" -> dataLength
+        |>]
+    ]
+];
+
+
+getMessage[handler_, extendedPacket_] :=
+With[{
+    buffer = handler["Buffer"]["Lookup", extendedPacket["SourceSocket"][[1]]],
+    expectedLength = extendedPacket["ExpectedLength"]
+},
+    If[!MissingQ[buffer] && buffer["Length"] > 0,
+
+        (*Return: _ByteArray*)
+        Part[#, 1 ;; expectedLength]& @
+        Apply[Join] @
+        Append[extendedPacket["DataByteArray"]] @
+        buffer["Elements"][[All, "DataByteArray"]],
+
+    (*Else*)
+
+        (*Return: _ByteArray*)
+        extendedPacket["DataByteArray"][[1 ;; expectedLength]]
+    ]
+];
+
+
+invokeHandler[handler_, packet_] :=
+Module[{messageHandler, defaultMessageHandler},
+    messageHandler = handler["Handler"];
+    defaultMessageHandler = handler["DefaultHandler"];
+
+    (*Return: ByteArray[] | _String | Null*)
+    conditionApply[messageHandler, defaultMessageHandler][packet]
+];
+
+
+CSocketHandler::cntsnd =
+"Can't send result to the client\n `1`";
+
+
+sendResponse[handler_, packet_, result: _ByteArray | _String | Null] :=
+With[{client = packet["SourceSocket"]},
+    Switch[result,
+        _String,
+            WriteString[client, result],
+
+        _ByteArray,
+            BinaryWrite[client, result],
+
+        Null,
+            Null
+    ]
+];
+
+
+sendResponse[_, _, result_] :=
+Message[CSocketHandler::cntsnd, result];
+
+
+savePacketToBuffer[handler_, extendedPacket_] :=
+With[{
+    buffer = handler["Buffer"]["Lookup", extendedPacket["SourceSocket"][[1]]],
+    uuid = extendedPacket["SourceSocket"][[1]]
+},
+    If[!MissingQ[buffer],
+        buffer["Append", extendedPacket],
+        handler["Buffer"]["Insert", uuid -> CreateDataStructure["DynamicArray", {extendedPacket}]]
+    ]
+];
+
+
+clearBuffer[handler_, packet_] :=
+With[{buffer = handler["Buffer"]["Lookup", packet["SourceSocket"][[1]]]},
+    buffer["DropAll"];
+];
+
+
+conditionApply[conditionAndFunctions_: <||>, defalut_: Function[Null], ___] :=
+Function[
+    With[{selected = SelectFirst[conditionAndFunctions, Function[f, First[f][##]], {defalut}]},
+        selected[[-1]][##]
+    ]
 ];
 
 
@@ -400,6 +623,254 @@ $library = FileNameJoin[{
 
 
 (* :LibraryLoad: *)
+
+
+socketAddressInfoCreate::usage =
+"socketAddressInfoCreate[host, port, aiFamily, aiSocktype, aiProtocol, localIP] -> addressPtr.";
+
+
+socketAddressInfoCreate =
+LibraryFunctionLoad[$library, "socketAddressInfoCreate", {String, String, Integer, Integer, Integer, String}, Integer];
+
+
+socketAddressInfoRemove::usage =
+"socketAddressInfoRemove[addressPtr].";
+
+
+socketAddressInfoRemove =
+LibraryFunctionLoad[$library, "socketAddressInfoRemove", {Integer}, "Void"];
+
+
+socketsSelectAsync::usage =
+"socketsSelectAsync[socketIds, length, timeout] -> taskId.";
+
+
+socketsSelectAsync =
+LibraryFunctionLoad[$library, "socketsSelectAsync", {{Integer, 1}, Integer, Integer}, Integer];
+
+
+createSocketsPollLoop::usage =
+"createSocketsPollLoop[socketList, bufferSize, timeout, eventsMask] -> taskId.";
+
+
+createSocketsPollLoop =
+LibraryFunctionLoad[$library, "createSocketsPollLoop", {Integer, Integer, Integer, Integer}, Integer];
+
+
+socketBufferCreate::usage =
+"socketBufferCreate[bufferSize] -> bufferPtr.";
+
+
+socketBufferCreate =
+LibraryFunctionLoad[$library, "socketBufferCreate", {Integer}, Integer];
+
+
+socketBufferRemove::usage =
+"socketBufferRemove[buffer].";
+
+
+socketBufferRemove =
+LibraryFunctionLoad[$library, "socketBufferRemove", {Integer}, "Void"];
+
+
+socketListCreate::usage =
+"socketListCreate[sockets, types, length] -> socketListPtr.";
+
+
+socketListCreate =
+LibraryFunctionLoad[$library, "socketListCreate", {{Integer, 1}, {Integer, 1}, Integer}, Integer];
+
+
+socketListAdd::usage =
+"socketListAdd[socketList, socketId, socketType].";
+
+
+socketListAdd =
+LibraryFunctionLoad[$library, "socketListAdd", {Integer, Integer, Integer}, "Void"];
+
+
+socketListGetAll::usage =
+"socketListGetAll[socketList] -> socketsTensor.";
+
+
+socketListGetAll =
+LibraryFunctionLoad[$library, "socketListGetAll", {Integer}, {Integer, 2}];
+
+
+socketListPrune::usage =
+"socketListPrune[socketList].";
+
+
+socketListPrune =
+LibraryFunctionLoad[$library, "socketListPrune", {Integer}, "Void"];
+
+
+socketListDelete::usage =
+"socketListDelete[socketList].";
+
+
+socketListDelete =
+LibraryFunctionLoad[$library, "socketListDelete", {Integer}, "Void"];
+
+
+socketCreate::usage =
+"socketCreate[family, socktype, protocol] -> createdSocket.";
+
+
+socketCreate =
+LibraryFunctionLoad[$library, "socketCreate", {Integer, Integer, Integer}, Integer];
+
+
+socketClose::usage =
+"socketClose[socketId].";
+
+
+socketClose =
+LibraryFunctionLoad[$library, "socketClose", {Integer}, "Void"];
+
+
+socketBind::usage =
+"socketBind[socketId, addressInfoPtr].";
+
+
+socketBind =
+LibraryFunctionLoad[$library, "socketBind", {Integer, Integer}, "Void"];
+
+
+socketSetOpt::usage =
+"socketSetOpt[socketId, level, optname, optval].";
+
+
+socketSetOpt =
+LibraryFunctionLoad[$library, "socketSetOpt", {Integer, Integer, Integer, Integer}, "Void"];
+
+
+socketGetOpt::usage =
+"socketGetOpt[socketId, level, optname] -> optval.";
+
+
+socketGetOpt =
+LibraryFunctionLoad[$library, "socketGetOpt", {Integer, Integer, Integer}, Integer];
+
+
+socketSetBlockingMode::usage =
+"socketSetBlockingMode[socketId].";
+
+
+socketSetBlockingMode =
+LibraryFunctionLoad[$library, "socketSetBlockingMode", {Integer}, "Void"];
+
+
+socketSetNonBlockingMode::usage =
+"socketSetNonBlockingMode[socketId].";
+
+
+socketSetNonBlockingMode =
+LibraryFunctionLoad[$library, "socketSetNonBlockingMode", {Integer}, "Void"];
+
+
+socketListen::usage =
+"socketListen[socketId, backlog].";
+
+
+socketListen =
+LibraryFunctionLoad[$library, "socketListen", {Integer, Integer}, "Void"];
+
+
+socketConnect::usage =
+"socketConnect[socketId, addressInfoPtr].";
+
+
+socketConnect =
+LibraryFunctionLoad[$library, "socketConnect", {Integer, Integer}, "Void"];
+
+
+socketAccept::usage =
+"socketAccept[socketId] -> acceptedSocketId.";
+
+
+socketAccept =
+LibraryFunctionLoad[$library, "socketAccept", {Integer}, Integer];
+
+
+socketRecv::usage =
+"socketRecv[socketId, buffer, bufferSize] -> byteArray.";
+
+
+socketRecv =
+LibraryFunctionLoad[$library, "socketRecv", {Integer, Integer, Integer}, "ByteArray"];
+
+
+socketRecvFrom::usage =
+"socketRecvFrom[client, addressInfoPtr, buffer, bufferSize] -> byteArray.";
+
+
+socketRecvFrom =
+LibraryFunctionLoad[$library, "socketRecvFrom", {Integer, Integer, Integer, Integer}, "ByteArray"];
+
+
+socketSend::usage =
+"socketSend[socketId, byteArray, length] -> sentLength.";
+
+
+socketSend =
+LibraryFunctionLoad[$library, "socketSend", {Integer, {"ByteArray", "Shared"}, Integer}, Integer];
+
+
+socketSendString::usage =
+"socketSendString[socketId, text, length] -> sentLength.";
+
+
+socketSendString =
+LibraryFunctionLoad[$library, "socketSendString", {Integer, String, Integer}, Integer];
+
+
+socketSendTo::usage =
+"socketSendTo[socketId, addressInfo, byteArray, length] -> sentLength.";
+
+
+socketSendTo =
+LibraryFunctionLoad[$library, "socketSendTo", {Integer, Integer, {"ByteArray", "Shared"}, Integer}, Integer];
+
+
+socketSendStringTo::usage =
+"socketSendStringTo[socketId, addressInfo, text, length] -> sentLength.";
+
+
+socketSendStringTo =
+LibraryFunctionLoad[$library, "socketSendStringTo", {Integer, Integer, String, Integer}, Integer];
+
+
+socketsCheck::usage =
+"socketsCheck[sockets, length] -> validSockets.";
+
+
+socketsCheck =
+LibraryFunctionLoad[$library, "socketsCheck", {{Integer, 1}, Integer}, {Integer, 1}];
+
+
+socketIsConnected::usage =
+"socketIsConnected[sockedId] -> False.";
+
+
+socketIsConnected =
+LibraryFunctionLoad[$library, "socketIsConnected", {Integer}, Boolean];
+
+
+socketsSelect::usage =
+"socketsSelect[sockets, length, timeout, mode] -> readySockets.";
+
+
+socketsSelect =
+LibraryFunctionLoad[$library, "socketsSelect", {{Integer, 1}, Integer, Integer, Integer}, {Integer, 1}];
+
+
+socketsPoll::usage =
+"socketsPoll[socketsTensor, length, timeoutUs, eventsMask] -> resultTensor.";
+
+
+socketsPoll =
+LibraryFunctionLoad[$library, "socketsPoll", {{Integer, 1}, Integer, Integer, Integer}, {Integer, 2}];
 
 
 End[];
