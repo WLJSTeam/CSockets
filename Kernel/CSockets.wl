@@ -239,9 +239,9 @@ With[{store = Language`NewExpressionStore["CSocketHandler"]},
 
     (handler_CSocketHandler)[key_] := store["get"[handler, key]];
 
-    CSocketHandler /: Set[(handler_CSocketHandler)[key_], value_] := (store["put"[handler, key, value]]; value);
+    (handler_CSocketHandler)[key_, rest__] := store["get"[handler, key]][rest];
 
-    CSocketHandler /: Set[(handler_CSocketHandler)[prop_, key_], value_] := (store["put"[handler, prop, Append[handler[prop], key -> value]]]; value);
+    CSocketHandler /: Set[(handler_CSocketHandler)[key_], value_] := (store["put"[handler, key, value]]; value);
 ];
 
 
