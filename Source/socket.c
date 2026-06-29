@@ -253,39 +253,71 @@ DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument 
 DLLEXPORT int socketSendTo(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
-    struct addrinfo *addressInfo = (struct addrinfo*)(uintptr_t)MArgument_getInteger(Args[1]);
-    MNumericArray byteArray = MArgument_getMNumericArray(Args[2]);
-    BYTE *data = (BYTE*)libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
-    mint length = MArgument_getInteger(Args[3]);
 
-    int sentLength = sendto(socketId, (const char*)data, length, 0, addressInfo->ai_addr, addressInfo->ai_addrlen);
-    if (sentLength > 0) {
+    char *host = MArgument_getUTF8String(Args[1]);
+    unsigned short port = (unsigned short)MArgument_getInteger(Args[2]);
+
+    MNumericArray byteArray = MArgument_getMNumericArray(Args[3]);
+    BYTE *data = (BYTE *)libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
+    mint length = MArgument_getInteger(Args[4]);
+
+    struct sockaddr_storage address;
+    socklen_t addressLength;
+
+    if (!socket_address_from_host(host, port, &address, &addressLength))
+    {
+        libData->UTF8String_disown(host);
         libData->numericarrayLibraryFunctions->MNumericArray_disown(byteArray);
-        MArgument_setInteger(Res, sentLength);
-        return LIBRARY_NO_ERROR;
+        return LIBRARY_FUNCTION_ERROR;
     }
 
+    int sentLength = sendto(socketId, (const char *)data, (size_t)length, 0, (const struct sockaddr *)&address, addressLength);
+
+    libData->UTF8String_disown(host);
     libData->numericarrayLibraryFunctions->MNumericArray_disown(byteArray);
-    return LIBRARY_FUNCTION_ERROR;
+
+    if (sentLength < 0)
+    {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    MArgument_setInteger(Res, sentLength);
+    return LIBRARY_NO_ERROR;
 }
 
 
 DLLEXPORT int socketSendStringTo(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
-    struct addrinfo *addressInfo = (struct addrinfo*)(uintptr_t)MArgument_getInteger(Args[1]);
-    char *text = MArgument_getUTF8String(Args[2]);
-    mint length = MArgument_getInteger(Args[3]);
 
-    int sentLength = sendto(socketId, (const char*)text, length, 0, addressInfo->ai_addr, addressInfo->ai_addrlen);
-    if (sentLength > 0) {
+    char *host = MArgument_getUTF8String(Args[1]);
+    unsigned short port = (unsigned short)MArgument_getInteger(Args[2]);
+
+    char *text = MArgument_getUTF8String(Args[3]);
+    mint length = MArgument_getInteger(Args[4]);
+
+    struct sockaddr_storage address;
+    socklen_t addressLength;
+
+    if (!socket_address_from_host(host, port, &address, &addressLength))
+    {
+        libData->UTF8String_disown(host);
         libData->UTF8String_disown(text);
-        MArgument_setInteger(Res, sentLength);
-        return LIBRARY_NO_ERROR;
+        return LIBRARY_FUNCTION_ERROR;
     }
 
+    int sentLength = sendto(socketId, text, (size_t)length, 0, (const struct sockaddr *)&address, addressLength);
+
+    libData->UTF8String_disown(host);
     libData->UTF8String_disown(text);
-    return LIBRARY_FUNCTION_ERROR;
+
+    if (sentLength < 0)
+    {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    MArgument_setInteger(Res, sentLength);
+    return LIBRARY_NO_ERROR;
 }
 
 

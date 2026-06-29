@@ -817,19 +817,19 @@ LibraryFunctionLoad[$library, "socketSendString", {Integer, String, Integer}, In
 
 
 socketSendTo::usage =
-"socketSendTo[socketId, addressInfo, byteArray, length] -> sentLength.";
+"socketSendTo[socketId, host, port, byteArray, length] -> sentLength.";
 
 
 socketSendTo =
-LibraryFunctionLoad[$library, "socketSendTo", {Integer, Integer, {"ByteArray", "Shared"}, Integer}, Integer];
+LibraryFunctionLoad[$library, "socketSendTo", {Integer, String, Integer, {"ByteArray", "Shared"}, Integer}, Integer];
 
 
 socketSendStringTo::usage =
-"socketSendStringTo[socketId, addressInfo, text, length] -> sentLength.";
+"socketSendStringTo[socketId, host, port, text, length] -> sentLength.";
 
 
 socketSendStringTo =
-LibraryFunctionLoad[$library, "socketSendStringTo", {Integer, Integer, String, Integer}, Integer];
+LibraryFunctionLoad[$library, "socketSendStringTo", {Integer, String, Integer, String, Integer}, Integer];
 
 
 socketsCheck::usage =

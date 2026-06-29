@@ -287,6 +287,32 @@ mint convert_native_to_wl_events(int native_revents)
 }
 
 
+int socket_address_from_host(const char *host, unsigned short port, struct sockaddr_storage *address, socklen_t *addressLength)
+{
+    memset(address, 0, sizeof(*address));
+
+    struct sockaddr_in *ipv4 = (struct sockaddr_in *)address;
+    if (inet_pton(AF_INET, host, &ipv4->sin_addr) == 1)
+    {
+        ipv4->sin_family = AF_INET;
+        ipv4->sin_port = htons(port);
+        *addressLength = sizeof(*ipv4);
+        return 1;
+    }
+
+    struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)address;
+    if (inet_pton(AF_INET6, host, &ipv6->sin6_addr) == 1)
+    {
+        ipv6->sin6_family = AF_INET6;
+        ipv6->sin6_port = htons(port);
+        *addressLength = sizeof(*ipv6);
+        return 1;
+    }
+
+    return 0;
+}
+
+
 DLLEXPORT mint WolframLibrary_getVersion()
 {
     return WolframLibraryVersion;
