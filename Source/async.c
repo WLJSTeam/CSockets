@@ -178,6 +178,13 @@ void socketsPollLoop(mint taskId, void *taskArgs)
 
                         int recvFromResult = recvfrom(socketId, buffer, bufferSize, 0, (struct sockaddr*)&remoteAddr, &remoteAddrLen);
                         if (recvFromResult > 0) {
+                            char host[INET6_ADDRSTRLEN];
+                            unsigned short port;
+
+                            if (!socket_address_to_host(&remoteAddr, host, sizeof(host), &port)) {
+                                continue;
+                            }
+
                             dims = (mint)recvResult;
                             libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &dims, &byteArray);
 
@@ -185,7 +192,8 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                             memcpy(array, buffer, recvResult);
 
                             libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, byteArray);
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)(uintptr_t)(&remoteAddr));
+                            libData->ioLibraryFunctions->DataStore_addString(dataStore, host);
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)port);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Received", dataStore);
                         } else if (recvFromResult == 0) {
                             pollfds[i].fd = INVALID_SOCKET;

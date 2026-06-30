@@ -159,4 +159,7 @@ mint convert_native_to_wl_events(int native_revents);
 int socket_address_from_host(const char *host, unsigned short port, struct sockaddr_storage *address, socklen_t *addressLength);
 
 
+int socket_address_to_host(const struct sockaddr_storage *address, char *host, size_t hostLength, unsigned short *port);
+
+
 #endif

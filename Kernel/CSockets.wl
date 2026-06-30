@@ -721,7 +721,7 @@ LibraryFunctionLoad[$library, "socketClose", {Integer}, "Void"];
 
 
 socketBind::usage =
-"socketBind[socketId, addressInfoPtr].";
+"socketBind[socketId, addressInfo].";
 
 
 socketBind =

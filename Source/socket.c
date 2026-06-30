@@ -37,9 +37,8 @@ DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args
 
 DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);             // socket for binding
-    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address pointer as integer
-    struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
+    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
+    struct addrinfo *addressInfo = (struct addrinfo*)(uintptr_t)MArgument_getInteger(Args[1]);
 
     if (addressInfo == NULL) {
         return LIBRARY_FUNCTION_ERROR;

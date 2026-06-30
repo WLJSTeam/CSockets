@@ -313,6 +313,52 @@ int socket_address_from_host(const char *host, unsigned short port, struct socka
 }
 
 
+int socket_address_to_host(const struct sockaddr_storage *address, char *host, size_t hostLength, unsigned short *port)
+{
+    switch (address->ss_family)
+    {
+        case AF_INET:
+        {
+            const struct sockaddr_in *ipv4 =
+                (const struct sockaddr_in *)address;
+
+            if (inet_ntop(
+                    AF_INET,
+                    &ipv4->sin_addr,
+                    host,
+                    (socklen_t)hostLength) == NULL)
+            {
+                return 0;
+            }
+
+            *port = ntohs(ipv4->sin_port);
+            return 1;
+        }
+
+        case AF_INET6:
+        {
+            const struct sockaddr_in6 *ipv6 =
+                (const struct sockaddr_in6 *)address;
+
+            if (inet_ntop(
+                    AF_INET6,
+                    &ipv6->sin6_addr,
+                    host,
+                    (socklen_t)hostLength) == NULL)
+            {
+                return 0;
+            }
+
+            *port = ntohs(ipv6->sin6_port);
+            return 1;
+        }
+
+        default:
+            return 0;
+    }
+}
+
+
 DLLEXPORT mint WolframLibrary_getVersion()
 {
     return WolframLibraryVersion;
