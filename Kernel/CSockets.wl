@@ -769,7 +769,7 @@ LibraryFunctionLoad[$library, "socketListen", {Integer, Integer}, "Void"];
 
 
 socketConnect::usage =
-"socketConnect[socketId, addressInfoPtr].";
+"socketConnect[socketId, addressInfo].";
 
 
 socketConnect =

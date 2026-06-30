@@ -127,8 +127,7 @@ DLLEXPORT int socketListen(WolframLibraryData libData, mint Argc, MArgument *Arg
 DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
-    uintptr_t addressInfoPtr = (uintptr_t)MArgument_getInteger(Args[1]); // address info pointer as integer
-    struct addrinfo *addressInfo = (struct addrinfo*)addressInfoPtr;
+    struct addrinfo *addressInfo = (struct addrinfo*)(uintptr_t)MArgument_getInteger(Args[1]);
 
     int iResult = connect(socketId, addressInfo->ai_addr, (int)addressInfo->ai_addrlen);
     if (iResult == SOCKET_ERROR) {
@@ -142,7 +141,6 @@ DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Ar
 DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
-
     SOCKET acceptedSocketId = accept(socketId, NULL, NULL);
 
     if (acceptedSocketId == INVALID_SOCKET) {
