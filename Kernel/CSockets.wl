@@ -586,7 +586,7 @@ getLibraryLinkVersion[] := getLibraryLinkVersion[] =
 Which[
     $VersionNumber >= 14.1,
         With[{n = LibraryVersionInformation[FindLibrary["demo"] ]["WolframLibraryVersion"]},
-            If[!NumberQ[n], 7, n]
+            If[!NumberQ[n], If[$VersionNumber < 14.3, 7, 8], n]
         ],
     $VersionNumber >= 13.1,
         7,

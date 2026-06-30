@@ -194,7 +194,7 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                             libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, byteArray);
                             libData->ioLibraryFunctions->DataStore_addString(dataStore, host);
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)port);
-                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Received", dataStore);
+                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReceivedFrom", dataStore);
                         } else if (recvFromResult == 0) {
                             pollfds[i].fd = INVALID_SOCKET;
                             needPrune = True;
