@@ -2,7 +2,8 @@
 
 BeginPackage["WLJS`CSockets`", {
     "LibraryLink`",
-    "CCompilerDriver`"
+    "CCompilerDriver`",
+    "WLJS`Internal`Console`"
 }];
 
 
@@ -270,6 +271,7 @@ Module[{above, below},
 
 (handler_CSocketHandler)[packet_Association] :=
 Module[{extendedPacket, result, extraPacket, extraPacketDataLength},
+    ConsoleEcho["PACKET"][packet];
     If[(KeyExistsQ[packet, "Event"] && packet["Event"] === "Received") ||
         KeyExistsQ[packet, "DataByteArray"] && ByteArrayQ[packet["DataByteArray"]],
 
