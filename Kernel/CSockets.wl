@@ -586,10 +586,8 @@ If[!AssociationQ[$csockets],
 
 getLibraryLinkVersion[] := getLibraryLinkVersion[] =
 Which[
-    $VersionNumber >= 14.1,
-        With[{n = LibraryVersionInformation[FindLibrary["demo"] ]["WolframLibraryVersion"]},
-            If[!NumberQ[n], If[$VersionNumber < 14.3, 7, 8], n]
-        ],
+    $VersionNumber >= 14.3,
+        8,
     $VersionNumber >= 13.1,
         7,
     $VersionNumber >= 12.1,
