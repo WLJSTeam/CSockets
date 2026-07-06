@@ -2,8 +2,7 @@
 
 BeginPackage["WLJS`CSockets`", {
     "LibraryLink`",
-    "CCompilerDriver`",
-    "WLJS`Internal`Console`"
+    "CCompilerDriver`"
 }];
 
 
@@ -80,8 +79,6 @@ With[{
     If[!blocking,
         socketSetNonBlockingMode[socketId]
     ];
-
-    socketBind[socketId, addressInfo];
 
     If[Not[wait] && blocking,
         socketSetNonBlockingMode[socketId]
@@ -271,7 +268,6 @@ Module[{above, below},
 
 (handler_CSocketHandler)[packet_Association] :=
 Module[{extendedPacket, result, extraPacket, extraPacketDataLength},
-    ConsoleEcho["PACKET"][packet];
     If[(KeyExistsQ[packet, "Event"] && packet["Event"] === "Received") ||
         KeyExistsQ[packet, "DataByteArray"] && ByteArrayQ[packet["DataByteArray"]],
 
