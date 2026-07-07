@@ -1,30 +1,35 @@
 #!/usr/bin/env wolframscript
 
+PacletDirectoryLoad[FileNameJoin[{$HomeDirectory, "Projects", #}]]& /@ {"CSockets", "Internal"};
+
+
 port = First @ SequenceCases[#, {"-p" | "--port", port_} :> ToExpression[port]]& @ $ScriptCommandLine;
-
-
-Echo["Starting TCP streaming server on port " <> ToString[port]];
-
-
-PacletDirectoryLoad[DirectoryName[$InputFileName, 2]];
 
 
 Get["WLJS`CSockets`"];
 
 
+Get["WLJS`Internal`Console`"];
+
+
 serverSocket = CSocketOpen[port];
 
 
-handler = CSocketHandler["Accepted" -> broadcastData, "Received" -> setNewParameters]
+handler = CSocketHandler[
+    "Accepted" -> broadcastData,
+    "Received" -> setNewParameters,
+    "Closed" -> Function[$sockets = DeleteCases[$sockets, #ClosedSocket]],
+    "Error" -> Function[$sockets = DeleteCases[$sockets, #ErrorSocket]]
+];
 
 
-broadcastData = Echo[
+broadcastData = ConsoleEcho["Accept"][
     $sockets = Append[$sockets, #AcceptedSocket];
-    #, "Accepted: "
+    #
 ]&;
 
 
-setNewParameters = Echo[(*change T here*)#, "Received: "]&;
+setNewParameters = ConsoleEcho["Receive"][#]&;
 
 
 $T = 300.0;
@@ -41,7 +46,7 @@ serve = Function[
         WriteString[socket, StringTemplate["REPORT: T=`1`\n"][$T]],
         {socket, $sockets}
     ]
-]
+];
 
 
 While[True, Pause[1]; serve[]];
