@@ -1,31 +1,34 @@
 #!/usr/bin/env wolframscript
 
-PacletDirectoryLoad[DirectoryName[$InputFileName]];
+Map[PacletDirectoryLoad[FileNameJoin[{$HomeDirectory, "Projects", #}]]&] @ {
+    "CSockets",
+    "Internal"
+};
 
 
 Get["WLJS`CSockets`"];
+Get["WLJS`Internal`Console`"];
 
 
-server = CSocketOpen[8080];
+port = First @ SequenceCases[#, {"-p" | "--port", port_} :> ToExpression[port]]& @ $ScriptCommandLine;
 
 
-handler = CSocketHandler[]
+server = CSocketOpen[port];
 
 
-svg = ExportString[
-    Graphics[{Thick, Green, Rectangle[{0, -1}, {2, 1}], Red, Disk[], Blue,
-   Circle[{2, 0}], Yellow, Polygon[{{2, 0}, {4, 1}, {4, -1}}], Purple,
-   Arrowheads[Large], Arrow[{{4, 3/2}, {0, 3/2}, {0, 0}}], Black,
-  Dashed, Line[{{-1, 0}, {4, 0}}]}], "SVG"];
+svg = ExportString[Graphics[{Red, Disk[{0, 0}, 0.5], Blue, Thick,Circle[{0, 0}, 0.75]}], "SVG"];
 
 
-handler["DefaultHandler"] = Function[
-    Echo[#Data];
+handler = CSocketHandler["Received" -> Function[
+    ConsoleEcho["RECEIVED"][#Data];
     "HTTP/1.1 200 OK\r\nContent-Type: image/svg+xml\r\nContent-Length: " <> ToString[StringLength[svg]] <> "\r\n\r\n" <> svg
-];
+]];
 
 
 SocketListen[server, handler];
+
+
+UsingFrontEnd[SystemOpen["http://localhost:" <> ToString[port]]];
 
 
 While[True,

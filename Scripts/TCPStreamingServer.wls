@@ -3,7 +3,7 @@
 PacletDirectoryLoad[FileNameJoin[{$HomeDirectory, "Projects", #}]]& /@ {"CSockets", "Internal"};
 
 
-port = First @ SequenceCases[#, {"-p" | "--port", port_} :> ToExpression[port]]& @ $ScriptCommandLine;
+port = First @ SequenceCases[$ScriptCommandLine, {"-p" | "--port", port_} :> ToExpression[port]];
 
 
 Get["WLJS`CSockets`"];
