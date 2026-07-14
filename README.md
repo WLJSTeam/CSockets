@@ -9,7 +9,5 @@ wolframscript -f Build.wls
 ## Nano Demo
 
 ```shell
-wolframscript -f Example.wls
+wolframscript -f Example.wls -p 8080
 ```
-
-and go to http://localhost:8080
