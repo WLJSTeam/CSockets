@@ -26,6 +26,26 @@ CSocketHandler::usage =
 "CSocketHandler[] mutable handler object.";
 
 
+(*SocketWaitNext::overrirde*)
+(*SocketWaitNext[socketList, timeout=10^10]*)
+
+
+(*SocketWaitAll::overrirde*)
+(*SocketWaitAll[socketList, timeout=10^10]*)
+
+
+(*SocketReadyQ::overrirde*)
+(*SocketReadyQ[socketObject, timeout=10^10]*)
+
+
+(*Close::overrirde*)
+(*Close[socketObject]*)
+
+
+(*DeleteObject::overrirde*)
+(*DeleteObject[socketListener]*)
+
+
 Begin["`Private`"];
 
 
@@ -76,6 +96,16 @@ With[{
     wait = OptionValue["Wait"],
     blocking = OptionValue["Blocking"]
 },
+    If[!BooleanQ[wait],
+        Message[CSocketConnect::argt, CSocketConnect, "Wait" -> wait, True, False];
+        Return[$Failed]
+    ];
+
+    If[!BooleanQ[blocking],
+        Message[CSocketConnect::argt, CSocketConnect, "Blocking" -> blocking, True, False];
+        Return[$Failed]
+    ];
+
     If[!blocking,
         socketSetNonBlockingMode[socketId]
     ];
