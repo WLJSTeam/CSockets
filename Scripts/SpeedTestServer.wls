@@ -10,7 +10,12 @@ log = <||>;
 
 
 serve[assoc_Association?AssociationQ] /; KeyExistsQ[assoc, "DataByteArray"] :=
-log[AbsoluteTime[assoc["Timestamp"]]] = Length[assoc["DataByteArray"]];
+With[{t = Round[AbsoluteTime[assoc["Timestamp"]]], d = Length[assoc["DataByteArray"]]},
+    If[KeyExistsQ[log, t],
+        log[t] = log[t] + d,
+        log[t] = d
+    ];
+];
 
 
 SocketListen[CSocketOpen[8000], serve];
@@ -18,7 +23,6 @@ SocketListen[CSocketOpen[8000], serve];
 
 While[True, Pause[0.1];
     If[Length[log] > 1,
-        Echo[ToString[UnitConvert[Quantity[N @ Total[log] / ((#[[-1]] - #[[1]])&)[Keys[log]], "Bytes"], "Gigabytes"]]];
-        log = <||>;
+        Echo[N @ Mean[Select[log, # > 0&]] / 1000000.];
     ]
 ];
