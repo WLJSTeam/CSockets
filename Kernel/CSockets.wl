@@ -46,7 +46,13 @@ CSocketHandler::usage =
 (*DeleteObject[socketListener]*)
 
 
+$CSockets::usage = "CSockets`Private`$CSockets - internal variable for storing socket objects.";
+
+
 Begin["`Private`"];
+
+
+If[!AssociationQ[$CSockets], $CSockets = <||>];
 
 
 CSocketOpen[host_String: "localhost", port_Integer, protocol: "TCP" | "UDP": "TCP"] :=
@@ -69,7 +75,7 @@ Module[{internalType = If[protocol === "TCP", $TCPSERVER, $UDPSERVER],
     ];
 
     (*Return*)
-    CSocketObject[socketId, internalType]
+    $CSockets[socketId] = CSocketObject[socketId, internalType]
 ];
 
 
@@ -121,12 +127,39 @@ With[{
     ];
 
     (*Return*)
-    CSocketObject[socketId, internalType]
+    $CSockets[socketId] = CSocketObject[socketId, internalType]
 ];
 
 
+CSocketObject[socketId_Integer, internalType_Integer]["DestinationPort"] :=
+socketGetPort[socketId];
+
+
+CSocketObject[socketId_Integer, internalType_Integer]["DirectionType"] :=
+If[internalType === $TCPSERVER || internalType === $UDPSERVER, "Server", "Client"];
+
+
+CSocketObject[socketId_Integer, internalType_Integer]["InprocQ"] :=
+False;
+
+
+CSocketObject[socketId_Integer, internalType_Integer]["Protocol"] :=
+If[internalType === $TCPSERVER || internalType === $TCPCLIENT, "TCP", "UDP"];
+
+
+CSOcketObject[socketId_Integer, internalType_Integer]["Scheme"] :=
+If[internalType === $TCPSERVER || internalType === $TCPCLIENT, "tcp", "udp"];
+
+
+CSocketObject[socketId_Integer, internalType_Integer]["UUID"] :=
+socketId;
+
+
 CSocketObject /: Close[CSocketObject[socketId_Integer, internalType_Integer]] :=
-socketClose[socketId];
+(
+    Delete[$CSockets, socketId];
+    socketClose[socketId];
+)
 
 
 CSocketObject /: WriteString[CSocketObject[socketId_Integer, _], text_String] :=
@@ -208,7 +241,8 @@ With[{
     listenSocket = CSocketObject[listenSocketId, listenSocketType],
     acceptedSocket = CSocketObject[acceptedSocketId, acceptedSocketType]
 },
-    $csockets[acceptedSocket] = listenSocket;
+    $CSockets[acceptedSocketId] = acceptedSocket;
+    $CSockets[acceptedSocket] = listenSocket;
     <|
         "ListenSocket" -> listenSocket,
         "AcceptedSocket" -> acceptedSocket
@@ -231,7 +265,7 @@ createEventData["Received", socketId_, socketType_, receivedData_] :=
 With[{
     byteArray = ByteArray[receivedData],
     sourceSocket = CSocketObject[socketId, socketType]}, {
-    socket = $csockets[sourceSocket]
+    socket = $CSockets[sourceSocket]
 },
     <|
         "Socket" -> socket,
@@ -784,6 +818,14 @@ socketSetNonBlockingMode::usage =
 
 socketSetNonBlockingMode =
 LibraryFunctionLoad[$library, "socketSetNonBlockingMode", {Integer}, "Void"];
+
+
+socketGetPort::usage =
+"socketGetPort[socketId] -> port.";
+
+
+socketGetPort =
+LibraryFunctionLoad[$library, "socketGetPort", {Integer}, Integer];
 
 
 socketListen::usage =

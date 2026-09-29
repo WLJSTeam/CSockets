@@ -108,6 +108,38 @@ DLLEXPORT int socketSetNonBlockingMode(WolframLibraryData libData, mint Argc, MA
 }
 
 
+DLLEXPORT int socketGetPort(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    if (Argc != 1) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    int socketId = MArgument_getInteger(Args[0]);
+
+    struct sockaddr_storage addr;
+    socklen_t len = sizeof(addr);
+    int err = getsockname(socketId, (struct sockaddr*)&addr, &len);
+    if (err != 0) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    int port = -1;
+
+    if (addr.ss_family == AF_INET) {
+        struct sockaddr_in *a = (struct sockaddr_in*)&addr;
+        port = ntohs(a->sin_port);
+    } else if (addr.ss_family == AF_INET6) {
+        struct sockaddr_in6 *a6 = (struct sockaddr_in6*)&addr;
+        port = ntohs(a6->sin6_port);
+    } else {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    MArgument_setInteger(Res, port);
+    return LIBRARY_NO_ERROR;
+}
+
+
 DLLEXPORT int socketListen(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
