@@ -46,7 +46,8 @@ CSocketHandler::usage =
 (*DeleteObject[socketListener]*)
 
 
-$CSockets::usage = "CSockets`Private`$CSockets - internal variable for storing socket objects.";
+$CSockets::usage =
+"$CSockets - internal variable for storing socket objects.";
 
 
 Begin["`Private`"];
@@ -55,7 +56,7 @@ Begin["`Private`"];
 If[!AssociationQ[$CSockets], $CSockets = <||>];
 
 
-CSocketOpen[host_String: "localhost", port_Integer, protocol: "TCP" | "UDP": "TCP"] :=
+CSocketOpen[host_String: "localhost", port_Integer: 0, protocol: "TCP" | "UDP": "TCP"] :=
 Module[{internalType = If[protocol === "TCP", $TCPSERVER, $UDPSERVER],
     addressInfo = socketAddressInfoCreate[host, ToString[port],
         $AFINET,
@@ -157,7 +158,8 @@ socketId;
 
 CSocketObject /: Close[CSocketObject[socketId_Integer, internalType_Integer]] :=
 (
-    Delete[$CSockets, socketId];
+    Delete[$CSockets, Key[socketId]];
+    Delete[$CSockets, Key[CSocketObject[socketId, internalType]]];
     socketClose[socketId];
 )
 
@@ -192,19 +194,15 @@ Module[{socketListId = socketListCreate[initialSockets[[All, 1]], initialSockets
 
 
 CSocketObject /: SocketWaitNext[CSocketObject[socketId_, socketType_]] :=
-socketsSelect[{socketId}, 1, 10^10, 1];
+socketsSelect[{socketId}, 1, 2^10, 1];
 
 
 CSocketList /: Append[CSocketList[socketListId_Integer], CSocketObject[socketId_Integer, internalType_Integer]] :=
-socketListAdd[socketListId, socketId];
+socketListAdd[socketListId, socketId, internalType];
 
 
 CSocketList /: DeleteMissing[CSocketList[socketListId_Integer]] :=
 socketListClear[socketListId];
-
-
-CSocketList /: Delete[CSocketList[socketListId_Integer], CSocketObject[socketId_Integer, internalType_Integer]] :=
-socketListDelete[socketListId, socketId];
 
 
 CSocketList /: SocketListen[CSocketList[socketListId_Integer], handler_] :=
