@@ -128,6 +128,7 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                         acceptedSocketId = accept(socketId, NULL, NULL);
                         if (ISVALIDSOCKET(acceptedSocketId)) {
                             socket_list_add(socketList, acceptedSocketId, TCP_CLIENT);
+                            pollfds = socketList->pollfds;
 
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)acceptedSocketId);
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_CLIENT);
