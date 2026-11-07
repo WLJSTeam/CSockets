@@ -127,11 +127,11 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                     if (socketType == TCP_SERVER) {
                         acceptedSocketId = accept(socketId, NULL, NULL);
                         if (ISVALIDSOCKET(acceptedSocketId)) {
-                            socket_list_add(socketList, acceptedSocketId, TCP_CLIENT);
+                            socket_list_add(socketList, acceptedSocketId, TCP_ACCEPTED);
                             pollfds = socketList->pollfds;
 
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)acceptedSocketId);
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_CLIENT);
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_ACCEPTED);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accepted", dataStore);
                         } else {
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, GETSOCKETERRNO());
@@ -140,7 +140,7 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                         }
                     }
 
-                    else if (socketType == TCP_CLIENT) {
+                    else if (socketType == TCP_CLIENT || socketType == TCP_ACCEPTED) {
                         int recvResult = recv(socketId, buffer, bufferSize, 0);
                         if (recvResult > 0) {
                             dims = (mint)recvResult;
@@ -156,7 +156,7 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                             needPrune = True;
 
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_CLIENT);
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, socketType);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
                         } else {
                             int err = GETSOCKETERRNO();
@@ -201,7 +201,7 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                             needPrune = True;
 
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, UDP_CLIENT);
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, socketType);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
                         } else {
                             pollfds[i].fd = INVALID_SOCKET;

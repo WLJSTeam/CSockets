@@ -148,7 +148,7 @@ CSocketObject[socketId_Integer, internalType_Integer]["Protocol"] :=
 If[internalType === $TCPSERVER || internalType === $TCPCLIENT, "TCP", "UDP"];
 
 
-CSOcketObject[socketId_Integer, internalType_Integer]["Scheme"] :=
+CSocketObject[socketId_Integer, internalType_Integer]["Scheme"] :=
 If[internalType === $TCPSERVER || internalType === $TCPCLIENT, "tcp", "udp"];
 
 
@@ -185,6 +185,9 @@ With[{bufferSize = 64 * 1024, buffer = socketBufferCreate[64 * 1024]},
     CSocketObject /: SocketReadMessage[CSocketObject[socketId_Integer, _]] :=
     socketRecv[socketId, buffer, bufferSize];
 ];
+
+
+If[Not[ListQ[$ListenCSockets]], $ListenCSockets = {}];
 
 
 CSocketList[initialSockets : {__CSocketObject}] :=

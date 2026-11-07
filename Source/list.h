@@ -10,7 +10,8 @@ typedef enum {
     TCP_SERVER,
     UDP_SERVER,
     TCP_CLIENT,
-    UDP_CLIENT
+    UDP_CLIENT,
+    TCP_ACCEPTED
 } SOCKET_TYPE;
 
 
