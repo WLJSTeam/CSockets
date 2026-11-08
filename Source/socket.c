@@ -23,7 +23,7 @@ DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args
 
     mint result = true;
 
-    if (socketId > 0) {
+    if (socketId >= 0) {
         result = CLOSESOCKET(socketId);
     }
 

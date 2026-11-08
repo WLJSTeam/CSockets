@@ -75,7 +75,6 @@ void socketsPollLoop(mint taskId, void *taskArgs)
 
     int result;
     mint dims;
-    int recvResult;
     SOCKET acceptedSocketId;
     MNumericArray byteArray;
     DataStore dataStore;
@@ -178,7 +177,7 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                         socklen_t remoteAddrLen = sizeof(remoteAddr);
 
                         int recvFromResult = recvfrom(socketId, buffer, bufferSize, 0, (struct sockaddr*)&remoteAddr, &remoteAddrLen);
-                        if (recvFromResult > 0) {
+                        if (recvFromResult >= 0) {
                             char host[INET6_ADDRSTRLEN];
                             unsigned short port;
 
@@ -186,13 +185,19 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                                 continue;
                             }
 
-                            dims = (mint)recvResult;
-                            libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &dims, &byteArray);
+                            dims = (mint)recvFromResult;
 
-                            BYTE *array = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
-                            memcpy(array, buffer, recvResult);
+                            if (recvFromResult > 0) {
+                                libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &dims, &byteArray);
 
-                            libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, byteArray);
+                                BYTE *array = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
+                                memcpy(array, buffer, recvFromResult);
+
+                                libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, byteArray);
+                            } else {
+                                libData->ioLibraryFunctions->DataStore_addInteger(dataStore, 0);
+                            }
+
                             libData->ioLibraryFunctions->DataStore_addString(dataStore, host);
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)port);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReceivedFrom", dataStore);
@@ -204,10 +209,16 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, socketType);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
                         } else {
+                            int err = GETSOCKETERRNO();
+
+                            if (is_wouldblock_err(err)) {
+                                continue;
+                            }
+
                             pollfds[i].fd = INVALID_SOCKET;
                             needPrune = True;
 
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, GETSOCKETERRNO());
+                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, err);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Error", dataStore);
                         }
                     }
@@ -215,6 +226,9 @@ void socketsPollLoop(mint taskId, void *taskArgs)
             }
         }
     }
+
+    free(buffer);
+    free(taskArgs);
 }
 
 

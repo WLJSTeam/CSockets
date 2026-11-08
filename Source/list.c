@@ -41,7 +41,7 @@ DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument 
     libData->MTensor_new(MType_Integer, 2, dimensions, &socketsTensor);
     mint *socketsData = libData->MTensor_getIntegerData(socketsTensor);
 
-    for (size_t i = 0; i < length; i += 2) {
+    for (size_t i = 0; i < 2 * length; i += 2) {
         socketsData[i] = (mint)pollfds[i].fd;
         socketsData[i + 1] = (mint)types[i];
     }

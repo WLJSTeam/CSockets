@@ -86,49 +86,66 @@ Options[CSocketConnect] = {
 };
 
 
+CSocketConnect::opts =
+"CSocketConnect called with invalid option `1` -> `2`.";
+
+
 CSocketConnect[host_String: "localhost", port_Integer, protocol: "TCP" | "UDP": "TCP", OptionsPattern[]] :=
 With[{
-    internalType = If[protocol == "TCP", $TCPCLIENT, $UDPCLIENT],
-    addressInfo = socketAddressInfoCreate[host, ToString[port],
-        $AFINET,
-        protocol /. {"TCP" -> $SOCKSTREAM, "UDP" -> $SOCKDGRAM},
-        $IPPROTOAUTO,
-        ""
-    ],
-    socketId = socketCreate[
-        $AFINET,
-        protocol /. {"TCP" -> $SOCKSTREAM, "UDP" -> $SOCKDGRAM},
-        $IPPROTOAUTO
-    ],
     wait = OptionValue["Wait"],
     blocking = OptionValue["Blocking"]
 },
     If[!BooleanQ[wait],
-        Message[CSocketConnect::argt, CSocketConnect, "Wait" -> wait, True, False];
+        Message[CSocketConnect::opts, "Wait", wait];
         Return[$Failed]
     ];
 
     If[!BooleanQ[blocking],
-        Message[CSocketConnect::argt, CSocketConnect, "Blocking" -> blocking, True, False];
+        Message[CSocketConnect::opts, "Blocking", blocking];
         Return[$Failed]
     ];
 
-    If[!blocking,
-        socketSetNonBlockingMode[socketId]
-    ];
+    With[{
+        internalType = If[protocol == "TCP", $TCPCLIENT, $UDPCLIENT],
+        addressInfo = socketAddressInfoCreate[host, ToString[port],
+            $AFINET,
+            protocol /. {"TCP" -> $SOCKSTREAM, "UDP" -> $SOCKDGRAM},
+            $IPPROTOAUTO,
+            ""
+        ],
+        socketId = socketCreate[
+            $AFINET,
+            protocol /. {"TCP" -> $SOCKSTREAM, "UDP" -> $SOCKDGRAM},
+            $IPPROTOAUTO
+        ]
+    },
+        If[!BooleanQ[wait],
+            Message[CSocketConnect::argt, CSocketConnect, "Wait" -> wait, True, False];
+            Return[$Failed]
+        ];
 
-    If[Not[wait] && blocking,
-        socketSetNonBlockingMode[socketId]
-    ];
+        If[!BooleanQ[blocking],
+            Message[CSocketConnect::argt, CSocketConnect, "Blocking" -> blocking, True, False];
+            Return[$Failed]
+        ];
 
-    socketConnect[socketId, addressInfo];
+        If[!blocking,
+            socketSetNonBlockingMode[socketId]
+        ];
 
-    If[Not[wait] && blocking,
-        socketSetBlockingMode[socketId]
-    ];
+        If[Not[wait] && blocking,
+            socketSetNonBlockingMode[socketId]
+        ];
 
-    (*Return*)
-    $CSockets[socketId] = CSocketObject[socketId, internalType]
+        socketConnect[socketId, addressInfo];
+
+        If[Not[wait] && blocking,
+            socketSetBlockingMode[socketId]
+        ];
+
+        (*Return*)
+        $CSockets[socketId] = CSocketObject[socketId, internalType]
+    ]
 ];
 
 
@@ -145,11 +162,11 @@ False;
 
 
 CSocketObject[socketId_Integer, internalType_Integer]["Protocol"] :=
-If[internalType === $TCPSERVER || internalType === $TCPCLIENT, "TCP", "UDP"];
+If[internalType === $TCPSERVER || internalType === $TCPCLIENT || internalType === $TCPACCEPTED, "TCP", "UDP"];
 
 
 CSocketObject[socketId_Integer, internalType_Integer]["Scheme"] :=
-If[internalType === $TCPSERVER || internalType === $TCPCLIENT, "tcp", "udp"];
+If[internalType === $TCPSERVER || internalType === $TCPCLIENT || internalType === $TCPACCEPTED, "tcp", "udp"];
 
 
 CSocketObject[socketId_Integer, internalType_Integer]["UUID"] :=
@@ -205,7 +222,7 @@ socketListAdd[socketListId, socketId, internalType];
 
 
 CSocketList /: DeleteMissing[CSocketList[socketListId_Integer]] :=
-socketListClear[socketListId];
+socketListPrune[socketListId];
 
 
 CSocketList /: SocketListen[CSocketList[socketListId_Integer], handler_] :=
@@ -264,7 +281,10 @@ createEventData["Error", socketId_, socketType_, errorCode_] :=
 
 createEventData["Received", socketId_, socketType_, receivedData_] :=
 With[{
-    byteArray = ByteArray[receivedData],
+    byteArray = If[receivedData === 0,
+        ByteArray[{}],
+        ByteArray[receivedData]
+    ],
     sourceSocket = CSocketObject[socketId, socketType]}, {
     socket = $CSockets[sourceSocket]
 },
@@ -501,6 +521,9 @@ $TCPCLIENT = 3;
 
 
 $UDPCLIENT = 4
+
+
+$TCPACCEPTED = 5;
 
 
 (* Protocol levels *)
