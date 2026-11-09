@@ -182,7 +182,7 @@ CSocketObject /: Close[CSocketObject[socketId_Integer, internalType_Integer]] :=
 
 
 CSocketObject /: WriteString[CSocketObject[socketId_Integer, _], text_String] :=
-socketSendString[socketId, text, StringLength[text]];
+socketSendString[socketId, text];
 
 
 CSocketObject /: BinaryWrite[CSocketObject[socketId_Integer, internalType_Integer], byteArray_ByteArray] :=
@@ -901,11 +901,11 @@ LibraryFunctionLoad[$library, "socketSend", {Integer, {"ByteArray", "Shared"}, I
 
 
 socketSendString::usage =
-"socketSendString[socketId, text, length] -> sentLength.";
+"socketSendString[socketId, text] -> sentLength.";
 
 
 socketSendString =
-LibraryFunctionLoad[$library, "socketSendString", {Integer, String, Integer}, Integer];
+LibraryFunctionLoad[$library, "socketSendString", {Integer, String}, Integer];
 
 
 socketSendTo::usage =
@@ -917,11 +917,11 @@ LibraryFunctionLoad[$library, "socketSendTo", {Integer, String, Integer, {"ByteA
 
 
 socketSendStringTo::usage =
-"socketSendStringTo[socketId, host, port, text, length] -> sentLength.";
+"socketSendStringTo[socketId, host, port, text] -> sentLength.";
 
 
 socketSendStringTo =
-LibraryFunctionLoad[$library, "socketSendStringTo", {Integer, String, Integer, String, Integer}, Integer];
+LibraryFunctionLoad[$library, "socketSendStringTo", {Integer, String, Integer, String}, Integer];
 
 
 socketsCheck::usage =

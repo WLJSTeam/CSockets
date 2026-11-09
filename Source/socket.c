@@ -264,9 +264,9 @@ DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument 
 {
     SOCKET socketId = MArgument_getInteger(Args[0]);
     char *text = MArgument_getUTF8String(Args[1]);
-    int length = MArgument_getInteger(Args[2]);
+    size_t length = strlen(text);
 
-    int sentLength = send(socketId, text, length, 0);
+    int sentLength = send(socketId, text, (int)length, 0);
     if (sentLength > 0) {
         libData->UTF8String_disown(text);
         MArgument_setInteger(Res, sentLength);
@@ -322,7 +322,7 @@ DLLEXPORT int socketSendStringTo(WolframLibraryData libData, mint Argc, MArgumen
     unsigned short port = (unsigned short)MArgument_getInteger(Args[2]);
 
     char *text = MArgument_getUTF8String(Args[3]);
-    mint length = MArgument_getInteger(Args[4]);
+    size_t length = strlen(text);
 
     struct sockaddr_storage address;
     socklen_t addressLength;
@@ -334,7 +334,7 @@ DLLEXPORT int socketSendStringTo(WolframLibraryData libData, mint Argc, MArgumen
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    int sentLength = sendto(socketId, text, (size_t)length, 0, (const struct sockaddr *)&address, addressLength);
+    int sentLength = sendto(socketId, text, length, 0, (const struct sockaddr *)&address, addressLength);
 
     libData->UTF8String_disown(host);
     libData->UTF8String_disown(text);
