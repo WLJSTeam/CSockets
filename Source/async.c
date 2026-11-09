@@ -44,9 +44,17 @@ DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgumen
     int timeout = (int)MArgument_getInteger(Args[2]);      // timeout in microseconds
 
     SOCKET *sockets = malloc(length * sizeof(SOCKET));
+    if (!sockets) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
     copy_tensor_to_socket_array(libData, socketIds, sockets, length);
 
     SocketsSelectArgs taskArgs = malloc(sizeof(struct SocketsSelectArgs_st));
+    if (!taskArgs) {
+        free(sockets);
+        return LIBRARY_FUNCTION_ERROR;
+    }
 
     taskArgs->libData = libData;
     taskArgs->sockets = sockets;
@@ -69,6 +77,10 @@ void socketsPollLoop(mint taskId, void *taskArgs)
     WolframLibraryData libData = args->libData;
     mint bufferSize = args->bufferSize;
     BYTE *buffer = malloc(bufferSize);
+    if (!buffer) {
+        free(taskArgs);
+        return;
+    }
     mint timeout = args->timeout;
     mint eventsMask = args->eventsMask;
     int nativeEvents = convert_wl_to_native_events(eventsMask);
@@ -126,7 +138,11 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                     if (socketType == TCP_SERVER) {
                         acceptedSocketId = accept(socketId, NULL, NULL);
                         if (ISVALIDSOCKET(acceptedSocketId)) {
-                            socket_list_add(socketList, acceptedSocketId, TCP_ACCEPTED);
+                            if (!socket_list_add(socketList, acceptedSocketId, TCP_ACCEPTED)) {
+                                CLOSESOCKET(acceptedSocketId);
+                                continue;
+                            }
+
                             pollfds = socketList->pollfds;
 
                             libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)acceptedSocketId);
@@ -240,6 +256,10 @@ DLLEXPORT int createSocketsPollLoop(WolframLibraryData libData, mint Argc, MArgu
     mint eventsMask = MArgument_getInteger(Args[3]);
 
     ServerLoopArgs serverLoopArgs = malloc(sizeof(struct ServerLoopArgs_st));
+    if (!serverLoopArgs) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
     serverLoopArgs->libData = libData;
     serverLoopArgs->socketList = socketList;
     serverLoopArgs->bufferSize = bufferSize;

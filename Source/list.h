@@ -29,7 +29,7 @@ typedef struct SocketList_st
 SocketList socket_list_create(mint *sockets, mint *types, size_t length);
 
 
-void socket_list_add(SocketList socketList, SOCKET socketId, SOCKET_TYPE socketType);
+bool socket_list_add(SocketList socketList, SOCKET socketId, SOCKET_TYPE socketType);
 
 
 void socket_list_prune(SocketList socketList);
