@@ -176,7 +176,7 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                         } else {
                             int err = GETSOCKETERRNO();
 
-                            if (is_wouldblock_err(err)) {
+                            if (is_would_block_err(err)) {
                                 continue;
                             }
 
@@ -227,7 +227,7 @@ void socketsPollLoop(mint taskId, void *taskArgs)
                         } else {
                             int err = GETSOCKETERRNO();
 
-                            if (is_wouldblock_err(err)) {
+                            if (is_would_block_err(err)) {
                                 continue;
                             }
 

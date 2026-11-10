@@ -1,14 +1,28 @@
 #include "address.h"
 
 
+struct addrinfo *MArgument_getAddressInfo(WolframLibraryData libData, MArgument arg)
+{
+    (void)libData;
+    return (struct addrinfo *)(uintptr_t)MArgument_getInteger(arg);
+}
+
+
+void MArgument_setAddressInfo(WolframLibraryData libData, MArgument res, struct addrinfo *addressInfo)
+{
+    (void)libData;
+    MArgument_setInteger(res, (mint)(uintptr_t)addressInfo);
+}
+
+
 DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    char *host = MArgument_getUTF8String(Args[0]);        // remote host (can be NULL)
-    char *port = MArgument_getUTF8String(Args[1]);        // port as string
-    int ai_family = (int)MArgument_getInteger(Args[2]);   // AF_UNSPEC, AF_INET, AF_INET6
-    int ai_socktype = (int)MArgument_getInteger(Args[3]); // SOCK_STREAM, SOCK_DGRAM
-    int ai_protocol = (int)MArgument_getInteger(Args[4]); // 0, IPPROTO_TCP, IPPROTO_UDP
-    char *localIP = MArgument_getUTF8String(Args[5]);     // local IP for binding
+    char *host = MArgument_getUTF8String(Args[0]);
+    char *port = MArgument_getUTF8String(Args[1]);
+    int ai_family = (int)MArgument_getInteger(Args[2]);
+    int ai_socktype = (int)MArgument_getInteger(Args[3]);
+    int ai_protocol = (int)MArgument_getInteger(Args[4]);
+    char *localIP = MArgument_getUTF8String(Args[5]);
 
     int result;
     struct addrinfo *address = NULL;
@@ -46,21 +60,25 @@ DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MAr
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    mint addressPtr = (mint)(uintptr_t)address;
-    MArgument_setInteger(Res, addressPtr);
+    MArgument_setAddressInfo(libData, Res, address);
     return LIBRARY_NO_ERROR;
 }
 
 
 DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[0]); // address pointer as integer
-    struct addrinfo *address = (struct addrinfo*)addressPtr;
-
-    if (address == NULL) {
+    (void)Res;
+    if (Argc != 1) {
+        libData->Message("socketAddressInfoRemove: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    freeaddrinfo(address);
+    struct addrinfo *addressInfo = MArgument_getAddressInfo(libData, Args[0]);
+
+    if (addressInfo == NULL) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    freeaddrinfo(addressInfo);
     return LIBRARY_NO_ERROR;
 }

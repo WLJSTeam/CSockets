@@ -701,7 +701,7 @@ $library = FileNameJoin[{
 
 
 socketAddressInfoCreate::usage =
-"socketAddressInfoCreate[host, port, aiFamily, aiSocktype, aiProtocol, localIP] -> addressPtr.";
+"socketAddressInfoCreate[host, port, aiFamily, aiSocktype, aiProtocol, localIP] -> address.";
 
 
 socketAddressInfoCreate =
@@ -709,7 +709,7 @@ LibraryFunctionLoad[$library, "socketAddressInfoCreate", {String, String, Intege
 
 
 socketAddressInfoRemove::usage =
-"socketAddressInfoRemove[addressPtr].";
+"socketAddressInfoRemove[addressInfo].";
 
 
 socketAddressInfoRemove =
@@ -730,22 +730,6 @@ createSocketsPollLoop::usage =
 
 createSocketsPollLoop =
 LibraryFunctionLoad[$library, "createSocketsPollLoop", {Integer, Integer, Integer, Integer}, Integer];
-
-
-socketBufferCreate::usage =
-"socketBufferCreate[bufferSize] -> bufferPtr.";
-
-
-socketBufferCreate =
-LibraryFunctionLoad[$library, "socketBufferCreate", {Integer}, Integer];
-
-
-socketBufferRemove::usage =
-"socketBufferRemove[buffer].";
-
-
-socketBufferRemove =
-LibraryFunctionLoad[$library, "socketBufferRemove", {Integer}, "Void"];
 
 
 socketListCreate::usage =
@@ -789,139 +773,139 @@ LibraryFunctionLoad[$library, "socketListDelete", {Integer}, "Void"];
 
 
 socketCreate::usage =
-"socketCreate[family, socktype, protocol] -> createdSocket.";
+"socketCreate[family, socktype, protocol] -> socketObject.";
 
 
 socketCreate =
-LibraryFunctionLoad[$library, "socketCreate", {Integer, Integer, Integer}, Integer];
+LibraryFunctionLoad[$library, "socketCreate", {Integer, Integer, Integer}, {Integer, 1}];
 
 
 socketClose::usage =
-"socketClose[socketId].";
+"socketClose[socketObject].";
 
 
 socketClose =
-LibraryFunctionLoad[$library, "socketClose", {Integer}, "Void"];
+LibraryFunctionLoad[$library, "socketClose", {{Integer, 1, "Shared"}}, "Void"];
 
 
 socketBind::usage =
-"socketBind[socketId, addressInfo].";
+"socketBind[socketObject, addressInfo].";
 
 
 socketBind =
-LibraryFunctionLoad[$library, "socketBind", {Integer, Integer}, "Void"];
+LibraryFunctionLoad[$library, "socketBind", {{Integer, 1, "Shared"}, Integer}, "Void"];
 
 
 socketSetOpt::usage =
-"socketSetOpt[socketId, level, optname, optval].";
+"socketSetOpt[socketObject, level, optname, optval].";
 
 
 socketSetOpt =
-LibraryFunctionLoad[$library, "socketSetOpt", {Integer, Integer, Integer, Integer}, "Void"];
+LibraryFunctionLoad[$library, "socketSetOpt", {{Integer, 1, "Shared"}, Integer, Integer, Integer}, "Void"];
 
 
 socketGetOpt::usage =
-"socketGetOpt[socketId, level, optname] -> optval.";
+"socketGetOpt[socketObject, level, optname] -> optval.";
 
 
 socketGetOpt =
-LibraryFunctionLoad[$library, "socketGetOpt", {Integer, Integer, Integer}, Integer];
+LibraryFunctionLoad[$library, "socketGetOpt", {{Integer, 1, "Shared"}, Integer, Integer}, Integer];
 
 
 socketSetBlockingMode::usage =
-"socketSetBlockingMode[socketId].";
+"socketSetBlockingMode[socketObject].";
 
 
 socketSetBlockingMode =
-LibraryFunctionLoad[$library, "socketSetBlockingMode", {Integer}, "Void"];
+LibraryFunctionLoad[$library, "socketSetBlockingMode", {{Integer, 1, "Shared"}}, "Void"];
 
 
 socketSetNonBlockingMode::usage =
-"socketSetNonBlockingMode[socketId].";
+"socketSetNonBlockingMode[socketObject].";
 
 
 socketSetNonBlockingMode =
-LibraryFunctionLoad[$library, "socketSetNonBlockingMode", {Integer}, "Void"];
+LibraryFunctionLoad[$library, "socketSetNonBlockingMode", {{Integer, 1, "Shared"}}, "Void"];
 
 
 socketGetPort::usage =
-"socketGetPort[socketId] -> port.";
+"socketGetPort[socketObject] -> port.";
 
 
 socketGetPort =
-LibraryFunctionLoad[$library, "socketGetPort", {Integer}, Integer];
+LibraryFunctionLoad[$library, "socketGetPort", {{Integer, 1, "Shared"}}, Integer];
 
 
 socketListen::usage =
-"socketListen[socketId, backlog].";
+"socketListen[socketObject, backlog].";
 
 
 socketListen =
-LibraryFunctionLoad[$library, "socketListen", {Integer, Integer}, "Void"];
+LibraryFunctionLoad[$library, "socketListen", {{Integer, 1, "Shared"}, Integer}, "Void"];
 
 
 socketConnect::usage =
-"socketConnect[socketId, addressInfo].";
+"socketConnect[socketObject, addressInfo].";
 
 
 socketConnect =
-LibraryFunctionLoad[$library, "socketConnect", {Integer, Integer}, "Void"];
+LibraryFunctionLoad[$library, "socketConnect", {{Integer, 1, "Shared"}, Integer}, "Void"];
 
 
 socketAccept::usage =
-"socketAccept[socketId] -> acceptedSocketId.";
+"socketAccept[listenSocket] -> acceptedSocketObject.";
 
 
 socketAccept =
-LibraryFunctionLoad[$library, "socketAccept", {Integer}, Integer];
+LibraryFunctionLoad[$library, "socketAccept", {{Integer, 1, "Shared"}}, {Integer, 1}];
 
 
 socketRecv::usage =
-"socketRecv[socketId, buffer, bufferSize] -> byteArray.";
+"socketRecv[socketObject, buffer, bufferSize] -> buffer.";
 
 
 socketRecv =
-LibraryFunctionLoad[$library, "socketRecv", {Integer, Integer, Integer}, "ByteArray"];
+LibraryFunctionLoad[$library, "socketRecv", {{Integer, 1, "Shared"}, {"ByteArray", "Shared"}, Integer}, "ByteArray"];
 
 
 socketRecvFrom::usage =
-"socketRecvFrom[client, addressInfoPtr, buffer, bufferSize] -> byteArray.";
+"socketRecvFrom[socketObject, addressInfo, buffer, bufferSize] -> result.";
 
 
 socketRecvFrom =
-LibraryFunctionLoad[$library, "socketRecvFrom", {Integer, Integer, Integer, Integer}, "ByteArray"];
+LibraryFunctionLoad[$library, "socketRecvFrom", {{Integer, 1, "Shared"}, Integer, {"ByteArray", "Shared"}, Integer}, "ByteArray"];
 
 
 socketSend::usage =
-"socketSend[socketId, byteArray, length] -> sentLength.";
+"socketSend[socketObject, data, length] -> sentLength.";
 
 
 socketSend =
-LibraryFunctionLoad[$library, "socketSend", {Integer, {"ByteArray", "Shared"}, Integer}, Integer];
+LibraryFunctionLoad[$library, "socketSend", {{Integer, 1, "Shared"}, {"ByteArray", "Shared"}, Integer}, Integer];
 
 
 socketSendString::usage =
-"socketSendString[socketId, text] -> sentLength.";
+"socketSendString[socketObject, text] -> sentLength.";
 
 
 socketSendString =
-LibraryFunctionLoad[$library, "socketSendString", {Integer, String}, Integer];
+LibraryFunctionLoad[$library, "socketSendString", {{Integer, 1, "Shared"}, String}, Integer];
 
 
 socketSendTo::usage =
-"socketSendTo[socketId, host, port, byteArray, length] -> sentLength.";
+"socketSendTo[socketObject, host, port, data, length] -> sentLength.";
 
 
 socketSendTo =
-LibraryFunctionLoad[$library, "socketSendTo", {Integer, String, Integer, {"ByteArray", "Shared"}, Integer}, Integer];
+LibraryFunctionLoad[$library, "socketSendTo", {{Integer, 1, "Shared"}, String, Integer, {"ByteArray", "Shared"}, Integer}, Integer];
 
 
 socketSendStringTo::usage =
-"socketSendStringTo[socketId, host, port, text] -> sentLength.";
+"socketSendStringTo[socketObject, host, port, text] -> sentLength.";
 
 
 socketSendStringTo =
-LibraryFunctionLoad[$library, "socketSendStringTo", {Integer, String, Integer, String}, Integer];
+LibraryFunctionLoad[$library, "socketSendStringTo", {{Integer, 1, "Shared"}, String, Integer, String}, Integer];
 
 
 socketsCheck::usage =
@@ -932,12 +916,12 @@ socketsCheck =
 LibraryFunctionLoad[$library, "socketsCheck", {{Integer, 1}, Integer}, {Integer, 1}];
 
 
-socketIsConnected::usage =
-"socketIsConnected[sockedId] -> False.";
+socketConnectedQ::usage =
+"socketConnectedQ[socketObject] -> False.";
 
 
-socketIsConnected =
-LibraryFunctionLoad[$library, "socketIsConnected", {Integer}, Boolean];
+socketConnectedQ =
+LibraryFunctionLoad[$library, "socketConnectedQ", {{Integer, 1, "Shared"}}, Alternatives[True, False]];
 
 
 socketsSelect::usage =

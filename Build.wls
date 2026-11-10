@@ -77,11 +77,11 @@ StringReplace[str, "_" ~~ c: LetterCharacter :> ToUpperCase[c]];
 
 parseDefinition[definition_String] :=
 Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
-    $name = StringCases[definition,
+    $name = Echo[StringCases[definition,
         Shortest[
             "DLLEXPORT int " ~~
             name__ ~~
-            "(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)"] :> name][[1]];
+            "(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)"] :> name][[1]]];
 
     $argLines = Select[StringContainsQ[#, "MArgument_get"]&] @ StringSplit[definition, "\n"];
 
@@ -95,15 +95,18 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
             "UTF8String" -> String,
             "Integer" -> Integer,
             "Real" -> Real,
-            "Boolean" -> Boolean,
+            "Boolean" -> True | False,
             "Complex" -> Complex,
+            "SocketObject" -> {Integer, 1, "\"Shared\""},
+            "AddressInfo" -> Integer,
             "MNumericArray" -> {"\"ByteArray\"", "\"Shared\""},
+            "ByteArray" -> {"\"ByteArray\"", "\"Shared\""},
             "MTensor" -> {Integer, 1}
         })
     ][[1]]&] @ $argLines;
 
     $argNumbers = Map[StringCases[#,
-        Shortest["MArgument_get" ~~ __ ~~ "(Args[" ~~ num__ ~~ "]"] :> ToExpression[num]
+        Shortest["MArgument_get" ~~ __ ~~ {"(libData, Args[)", "(Args[)"} ~~ num__ ~~ "]"] :> ToExpression[num]
     ][[1]]&] @ $argLines;
 
     $resultLines = Select[StringContainsQ[#, "MArgument_set"]&] @ StringSplit[definition, "\n"];
@@ -113,15 +116,18 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
             "UTF8String" -> String,
             "Integer" -> Integer,
             "Real" -> Real,
-            "Boolean" -> Boolean,
+            "Boolean" -> True | False,
             "Complex" -> Complex,
+            "SocketObject" -> {Integer, 1},
+            "AddressInfo" -> Integer,
             "MNumericArray" -> "\"ByteArray\"",
+            "ByteArray" -> "\"ByteArray\"",
             "MTensor" -> {Integer, 1}
         })][[1]],
         $resultType = "\"Void\""
     ];
 
-    If[$resultType == {Integer, 1},
+    If[$resultType == {Integer, 1} && StringContainsQ[definition, "MTensor_new(MType_Integer"],
         $resultType = {Integer, First[StringCases[definition,
             Shortest["MTensor_new(MType_Integer," ~~ n__ ~~ ","] :> ToExpression[n]
         ]]}
@@ -129,7 +135,9 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
 
     $resultName = If[$resultType === "\"Void\"",
         "",
-        StringCases[$resultLines[[-1]], Shortest["MArgument_set" ~~ __ ~~ "(Res," ~~ name__ ~~ ")"] :>
+        Print["- - - - - - ", $name, " - - - - - - "];
+        Print[$resultLines[[-1]]]; 
+        StringCases[StringTrim[$resultLines[[-1]]], Shortest["MArgument_set" ~~ __ ~~ "Res, " ~~ name__ ~~ {",", ")"}] :>
             snakeToCamelCase[StringTrim[name]]][[1]]
     ];
 

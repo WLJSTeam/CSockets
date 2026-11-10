@@ -1,6 +1,9 @@
 #include "common.h"
 
 
+WolframLibraryData csocketsLibData = NULL;
+
+
 void print(const char* format, ...)
 {
     #ifdef _DEBUG
@@ -141,7 +144,7 @@ bool is_valid_socket(SOCKET socketId)
 }
 
 
-bool is_wouldblock_err(int err)
+bool is_would_block_err(int err)
 {
     #ifdef _WIN32
     return err == WSAEWOULDBLOCK;
@@ -366,6 +369,7 @@ DLLEXPORT mint WolframLibrary_getVersion()
 
 DLLEXPORT int WolframLibrary_initialize(WolframLibraryData libData)
 {
+    csocketsLibData = libData;
     init_wsa();
     return LIBRARY_NO_ERROR;
 }
@@ -373,5 +377,6 @@ DLLEXPORT int WolframLibrary_initialize(WolframLibraryData libData)
 DLLEXPORT void WolframLibrary_uninitialize(WolframLibraryData libData)
 {
     cleanup_wsa();
+    csocketsLibData = NULL;
     (void)libData;
 }

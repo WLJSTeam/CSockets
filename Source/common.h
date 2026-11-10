@@ -111,6 +111,9 @@ void print(const char* format, ...);
 char* get_current_time();
 
 
+extern WolframLibraryData csocketsLibData;
+
+
 void init_wsa();
 
 
@@ -129,7 +132,7 @@ bool is_non_blocking_mode(SOCKET socketId);
 bool is_valid_socket(SOCKET socketId);
 
 
-bool is_wouldblock_err(int err);
+bool is_would_block_err(int err);
 
 
 struct timeval new_tv(long long usec);
