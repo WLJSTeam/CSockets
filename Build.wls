@@ -81,7 +81,7 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
         Shortest[
             "DLLEXPORT int " ~~
             name__ ~~
-            "(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)"] :> name][[1]]];
+            "(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)"] :> name][[1]], "NAME"];
 
     $argLines = Select[StringContainsQ[#, "MArgument_get"]&] @ StringSplit[definition, "\n"];
 
@@ -106,8 +106,10 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
     ][[1]]&] @ $argLines;
 
     $argNumbers = Map[StringCases[#,
-        Shortest["MArgument_get" ~~ __ ~~ {"(libData, Args[)", "(Args[)"} ~~ num__ ~~ "]"] :> ToExpression[num]
+        Shortest["MArgument_get" ~~ __ ~~ {"(libData, Args[", "(Args["} ~~ num__ ~~ "]"] :> ToExpression[num]
     ][[1]]&] @ $argLines;
+
+    Echo["========================"];
 
     $resultLines = Select[StringContainsQ[#, "MArgument_set"]&] @ StringSplit[definition, "\n"];
 
