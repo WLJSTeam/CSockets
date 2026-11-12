@@ -208,8 +208,9 @@ If[Not[ListQ[$ListenCSockets]], $ListenCSockets = {}];
 
 
 CSocketList[initialSockets : {__CSocketObject}] :=
-Module[{socketListId = socketListCreate[initialSockets[[All, 1]], initialSockets[[All, 2]], Length[initialSockets]]},
-    CSocketList[socketListId]
+Module[{socketListId = socketListCreate[], socketList = CSocketList[socketListId]},
+    Scan[Append[socketList, #]&, initialSockets];
+    socketList
 ];
 
 
@@ -218,7 +219,7 @@ socketsSelect[{socketId}, 1, 2^10, 1];
 
 
 CSocketList /: Append[CSocketList[socketListId_Integer], CSocketObject[socketId_Integer, internalType_Integer]] :=
-socketListAdd[socketListId, socketId, internalType];
+socketListAdd[socketListId, CSocketObject[socketId, internalType]];
 
 
 CSocketList /: DeleteMissing[CSocketList[socketListId_Integer]] :=
@@ -700,20 +701,12 @@ $library = FileNameJoin[{
 (* :LibraryLoad: *)
 
 
-socketAddressInfoCreate::usage =
-"socketAddressInfoCreate[host, port, aiFamily, aiSocktype, aiProtocol, localIP] -> address.";
+socketAddressStorageCreate::usage =
+"socketAddressStorageCreate[host, port, aiFamily, aiSocktype, aiProtocol, localIP] -> address.";
 
 
-socketAddressInfoCreate =
-LibraryFunctionLoad[$library, "socketAddressInfoCreate", {String, String, Integer, Integer, Integer, String}, Integer];
-
-
-socketAddressInfoRemove::usage =
-"socketAddressInfoRemove[addressInfo].";
-
-
-socketAddressInfoRemove =
-LibraryFunctionLoad[$library, "socketAddressInfoRemove", {Integer}, "Void"];
+socketAddressStorageCreate =
+LibraryFunctionLoad[$library, "socketAddressStorageCreate", {String, String, Integer, Integer, Integer, String}, "ByteArray"];
 
 
 socketsSelectAsync::usage =
@@ -733,19 +726,19 @@ LibraryFunctionLoad[$library, "createSocketsPollLoop", {Integer, Integer, Intege
 
 
 socketListCreate::usage =
-"socketListCreate[sockets, types, length] -> socketListPtr.";
+"socketListCreate[] -> socketListPtr.";
 
 
 socketListCreate =
-LibraryFunctionLoad[$library, "socketListCreate", {{Integer, 1}, {Integer, 1}, Integer}, Integer];
+LibraryFunctionLoad[$library, "socketListCreate", {}, Integer];
 
 
 socketListAdd::usage =
-"socketListAdd[socketList, socketId, socketType].";
+"socketListAdd[socketList, socketObject].";
 
 
 socketListAdd =
-LibraryFunctionLoad[$library, "socketListAdd", {Integer, Integer, Integer}, "Void"];
+LibraryFunctionLoad[$library, "socketListAdd", {Integer, {Integer, 1, "Shared"}}, "Void"];
 
 
 socketListGetAll::usage =
@@ -789,11 +782,11 @@ LibraryFunctionLoad[$library, "socketClose", {{Integer, 1, "Shared"}}, "Void"];
 
 
 socketBind::usage =
-"socketBind[socketObject, addressInfo].";
+"socketBind[socketObject, addressStorage].";
 
 
 socketBind =
-LibraryFunctionLoad[$library, "socketBind", {{Integer, 1, "Shared"}, Integer}, "Void"];
+LibraryFunctionLoad[$library, "socketBind", {{Integer, 1, "Shared"}, "ByteArray"}, "Void"];
 
 
 socketSetOpt::usage =
@@ -845,11 +838,11 @@ LibraryFunctionLoad[$library, "socketListen", {{Integer, 1, "Shared"}, Integer},
 
 
 socketConnect::usage =
-"socketConnect[socketObject, addressInfo].";
+"socketConnect[socketObject, addressStorage].";
 
 
 socketConnect =
-LibraryFunctionLoad[$library, "socketConnect", {{Integer, 1, "Shared"}, Integer}, "Void"];
+LibraryFunctionLoad[$library, "socketConnect", {{Integer, 1, "Shared"}, "ByteArray"}, "Void"];
 
 
 socketAccept::usage =
@@ -869,11 +862,11 @@ LibraryFunctionLoad[$library, "socketRecv", {{Integer, 1, "Shared"}, {"ByteArray
 
 
 socketRecvFrom::usage =
-"socketRecvFrom[socketObject, addressInfo, buffer, bufferSize] -> result.";
+"socketRecvFrom[socketObject, addressStorage, buffer, bufferSize] -> buffer.";
 
 
 socketRecvFrom =
-LibraryFunctionLoad[$library, "socketRecvFrom", {{Integer, 1, "Shared"}, Integer, {"ByteArray", "Shared"}, Integer}, "ByteArray"];
+LibraryFunctionLoad[$library, "socketRecvFrom", {{Integer, 1, "Shared"}, "ByteArray", {"ByteArray", "Shared"}, Integer}, "ByteArray"];
 
 
 socketSend::usage =

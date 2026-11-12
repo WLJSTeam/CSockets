@@ -77,11 +77,11 @@ StringReplace[str, "_" ~~ c: LetterCharacter :> ToUpperCase[c]];
 
 parseDefinition[definition_String] :=
 Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
-    $name = Echo[StringCases[definition,
+    $name = StringCases[definition,
         Shortest[
             "DLLEXPORT int " ~~
             name__ ~~
-            "(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)"] :> name][[1]], "NAME"];
+            "(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)"] :> name][[1]];
 
     $argLines = Select[StringContainsQ[#, "MArgument_get"]&] @ StringSplit[definition, "\n"];
 
@@ -98,7 +98,7 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
             "Boolean" -> True | False,
             "Complex" -> Complex,
             "SocketObject" -> {Integer, 1, "\"Shared\""},
-            "AddressInfo" -> Integer,
+            "AddressStorage" -> "\"ByteArray\"",
             "MNumericArray" -> {"\"ByteArray\"", "\"Shared\""},
             "ByteArray" -> {"\"ByteArray\"", "\"Shared\""},
             "MTensor" -> {Integer, 1}
@@ -108,8 +108,6 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
     $argNumbers = Map[StringCases[#,
         Shortest["MArgument_get" ~~ __ ~~ {"(libData, Args[", "(Args["} ~~ num__ ~~ "]"] :> ToExpression[num]
     ][[1]]&] @ $argLines;
-
-    Echo["========================"];
 
     $resultLines = Select[StringContainsQ[#, "MArgument_set"]&] @ StringSplit[definition, "\n"];
 
@@ -121,7 +119,7 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
             "Boolean" -> True | False,
             "Complex" -> Complex,
             "SocketObject" -> {Integer, 1},
-            "AddressInfo" -> Integer,
+            "AddressStorage" -> "\"ByteArray\"",
             "MNumericArray" -> "\"ByteArray\"",
             "ByteArray" -> "\"ByteArray\"",
             "MTensor" -> {Integer, 1}
@@ -137,8 +135,6 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
 
     $resultName = If[$resultType === "\"Void\"",
         "",
-        Print["- - - - - - ", $name, " - - - - - - "];
-        Print[$resultLines[[-1]]]; 
         StringCases[StringTrim[$resultLines[[-1]]], Shortest["MArgument_set" ~~ __ ~~ "Res, " ~~ name__ ~~ {",", ")"}] :>
             snakeToCamelCase[StringTrim[name]]][[1]]
     ];

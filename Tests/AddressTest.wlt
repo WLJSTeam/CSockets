@@ -134,12 +134,13 @@ TestReport[
   VerificationTest[
    Block[
     {calls = {},
-     WLJS`CSockets`Private`socketListCreate = Function[{socketIds, socketTypes, length}, AppendTo[calls, {"list", socketIds, socketTypes, length}]; 99],
+     WLJS`CSockets`Private`socketListCreate = Function[{}, AppendTo[calls, {"list"}]; 99],
+     WLJS`CSockets`Private`socketListAdd = Function[{list, socket}, AppendTo[calls, {"add", list, socket}]; Null],
      WLJS`CSockets`Private`createSocketsPollLoop = Function[{socketListId, bufferSize, timeout, eventMask}, AppendTo[calls, {"loop", socketListId, bufferSize, timeout, eventMask}]; 123],
      Internal`CreateAsynchronousTask = Function[{f, args, handler}, AppendTo[calls, {"task", f, args}]; 456]}
     , And[
      WLJS`CSockets`SocketListen[WLJS`CSockets`CSocketObject[7, WLJS`CSockets`$TCPSERVER], Function[Null]] === 456,
-     calls === {{"list", {7}, {1}, 1}, {"task", Function[{socketListId, bufferSize, timeout, eventMask}, AppendTo[calls, {"loop", socketListId, bufferSize, timeout, eventMask}]; 123], {99, 8192, 1000000, 1}}}
+     calls === {{"list"}, {"add", 99, 7}, {"task", Function[{socketListId, bufferSize, timeout, eventMask}, AppendTo[calls, {"loop", socketListId, bufferSize, timeout, eventMask}]; 123], {99, 8192, 1000000, 1}}}
     ]
    ],
    True,
@@ -175,17 +176,17 @@ TestReport[
 
   VerificationTest[
    Block[
-    {WLJS`CSockets`Private`socketListAdd = Function[{list, id, type}, {list, id, type}],
-     WLJS`CSockets`Private`socketListClear = Function[{list}, list]}
+    {WLJS`CSockets`Private`socketListAdd = Function[{list, socket}, {list, socket}],
+     WLJS`CSockets`Private`socketListPrune = Function[{list}, list]}
     , Append[WLJS`CSockets`CSocketList[99], WLJS`CSockets`CSocketObject[7, WLJS`CSockets`$TCPCLIENT]]
    ],
-   {99, 7, 3},
+   {99, 7},
    TestID -> "socket-list-append-delegates"
   ],
 
   VerificationTest[
    Block[
-    {WLJS`CSockets`Private`socketListClear = Function[{list}, list]}
+    {WLJS`CSockets`Private`socketListPrune = Function[{list}, list]}
     , DeleteMissing[WLJS`CSockets`CSocketList[99]]
    ],
    99,

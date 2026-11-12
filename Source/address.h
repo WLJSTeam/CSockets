@@ -5,10 +5,10 @@
 #include "common.h"
 
 
-struct addrinfo *MArgument_getAddressInfo(WolframLibraryData libData, MArgument arg);
+struct sockaddr_storage *MArgument_getAddressStorage(WolframLibraryData libData, MArgument arg);
 
 
-void MArgument_setAddressInfo(WolframLibraryData libData, MArgument res, struct addrinfo *addressInfo);
+void MArgument_setAddressStorage(WolframLibraryData libData, MArgument res, struct addrinfo *addressInfo);
 
 
 #endif

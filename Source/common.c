@@ -23,12 +23,16 @@ char* get_current_time()
 {
     static char time_buffer[64];
     time_t rawtime;
-    struct tm* timeinfo;
+    struct tm timeinfo;
 
     time(&rawtime);
-    timeinfo = localtime(&rawtime);
+#ifdef _WIN32
+    localtime_s(&timeinfo, &rawtime);
+#else
+    localtime_r(&rawtime, &timeinfo);
+#endif
 
-    strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
+    strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
 
     #ifdef _WIN32
     SYSTEMTIME st;
@@ -51,7 +55,6 @@ char* get_current_time()
 void init_wsa()
  {
     #ifdef _WIN32
-    int iResult;
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2,2), &wsaData);
     #endif
@@ -157,8 +160,8 @@ bool is_would_block_err(int err)
 struct timeval new_tv(long long usec)
 {
     struct timeval tv = {
-        .tv_sec = usec / USEC_PER_SEC,
-        .tv_usec = usec % USEC_PER_SEC
+        .tv_sec = (long)(usec / USEC_PER_SEC),
+        .tv_usec = (long)(usec % USEC_PER_SEC)
     };
     return tv;
 }

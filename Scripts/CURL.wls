@@ -54,7 +54,6 @@ HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
     ];
 
     socketClose[socketId];
-    socketAddressInfoRemove[addressInfo];
 
     (*Return*)
     ImportByteArray[response, "HTTPResponse"]

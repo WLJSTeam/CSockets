@@ -2,21 +2,10 @@
 #include "address.h"
 
 
-SocketObject MArgument_getSocketObject(WolframLibraryData libData, MArgument arg)
+SocketObject *MArgument_getSocketObject(WolframLibraryData libData, MArgument arg)
 {
     MTensor tensor = MArgument_getMTensor(arg);
-    mint *data = libData->MTensor_getIntegerData(tensor);
-
-    SocketObject socketObject = {
-        .socket = (uint64_t)data[0],
-        .protocol = (SocketProtocol)data[1],
-        .type = (SocketType)data[2],
-        .role = (SocketRole)data[3],
-        .state = (SocketState)data[4],
-        .mode = (SocketMode)data[5]
-    };
-
-    return socketObject;
+    return (SocketObject *)libData->MTensor_getIntegerData(tensor);
 }
 
 
@@ -26,32 +15,13 @@ void MArgument_setSocketObject(WolframLibraryData libData, MArgument Res, Socket
     MTensor tensor;
     libData->MTensor_new(MType_Integer, 1, dims, &tensor);
 
-    mint *data = libData->MTensor_getIntegerData(tensor);
-    data[0] = (mint)socketObject.socket;
-    data[1] = (mint)socketObject.protocol;
-    data[2] = (mint)socketObject.type;
-    data[3] = (mint)socketObject.role;
-    data[4] = (mint)socketObject.state;
-    data[5] = (mint)socketObject.mode;
+    SocketObject *data = (SocketObject *)libData->MTensor_getIntegerData(tensor);
+    *data = socketObject;
 
     MArgument_setMTensor(Res, tensor);
 }
 
 
-void MArgument_updateSocketObject(WolframLibraryData libData, MArgument arg, SocketObject socketObject)
-{
-    MTensor tensor = MArgument_getMTensor(arg);
-    mint *data = libData->MTensor_getIntegerData(tensor);
-
-    data[0] = (mint)socketObject.socket;
-    data[1] = (mint)socketObject.protocol;
-    data[2] = (mint)socketObject.type;
-    data[3] = (mint)socketObject.role;
-    data[4] = (mint)socketObject.state;
-    data[5] = (mint)socketObject.mode;
-
-    libData->MTensor_disown(tensor);
-}
 
 
 BYTE *MArgument_getByteArray(WolframLibraryData libData, MArgument arg)
@@ -107,12 +77,12 @@ DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Arg
     }
 
     SocketObject socketObject = {
-        .socket = (uint64_t)createdSocket,
-        .protocol = (SocketProtocol)protocol,
-        .type = (SocketType)socktype,
-        .role = SOCKET_ROLE_INTERRUPTER,
-        .state = SOCKET_STATE_ALIVE,
-        .mode = SOCKET_MODE_BLOCKING
+        .socket = (int64_t)createdSocket,
+        .protocol = (int64_t)protocol,
+        .type = (int64_t)socktype,
+        .role = (int64_t)SOCKET_ROLE_INTERRUPTER,
+        .state = (int64_t)SOCKET_STATE_ALIVE,
+        .mode = (int64_t)SOCKET_MODE_BLOCKING
     };
 
     MArgument_setSocketObject(libData, Res, socketObject);
@@ -122,12 +92,13 @@ DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Arg
 
 DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
+    (void)Res;
     if (Argc != 1) {
         libData->Message("socketClose: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
-    SOCKET socketId = (SOCKET)socketObject.socket;
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
+    SOCKET socketId = (SOCKET)socketObject->socket;
 
     mint result = true;
 
@@ -140,9 +111,8 @@ DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    socketObject.socket = (mint)INVALID_SOCKET;
-    socketObject.state = SOCKET_STATE_CLOSED;
-    MArgument_updateSocketObject(libData, Args[0], socketObject);
+    socketObject->socket = (int64_t)INVALID_SOCKET;
+    socketObject->state = (int64_t)SOCKET_STATE_CLOSED;
 
     return LIBRARY_NO_ERROR;
 }
@@ -150,16 +120,16 @@ DLLEXPORT int socketClose(WolframLibraryData libData, mint Argc, MArgument *Args
 
 DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
+    (void)Res;
     if (Argc != 2) {
         libData->Message("socketBind: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
-    SOCKET socketId = (SOCKET)socketObject.socket;
-    struct addrinfo *addressInfo = MArgument_getAddressInfo(libData, Args[1]);
-
-    if (addressInfo == NULL) {
-        libData->Message("Bind failed: address info is null");
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
+    SOCKET socketId = (SOCKET)socketObject->socket;
+    struct sockaddr_storage *addressStorage = MArgument_getAddressStorage(libData, Args[1]);
+    if (addressStorage == NULL) {
+        libData->Message("Bind failed: invalid address data");
         return LIBRARY_FUNCTION_ERROR;
     }
 
@@ -168,28 +138,40 @@ DLLEXPORT int socketBind(WolframLibraryData libData, mint Argc, MArgument *Args,
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    if (bind(socketId, addressInfo->ai_addr, (int)addressInfo->ai_addrlen) == SOCKET_ERROR) {
+    socklen_t addressSize = 0;
+    switch (addressStorage->ss_family) {
+    case AF_INET:
+        addressSize = sizeof(struct sockaddr_in);
+        break;
+    case AF_INET6:
+        addressSize = sizeof(struct sockaddr_in6);
+        break;
+    default:
+        libData->Message("Bind failed: unsupported address family");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    if (bind(socketId, (struct sockaddr *)addressStorage, addressSize) == SOCKET_ERROR) {
         libData->Message("Bind failed");
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    if (socketObject.type == SOCKET_TYPE_DGRAM) {
-        socketObject.role = SOCKET_ROLE_LISTENER;
+    if (socketObject->type == SOCKET_TYPE_DGRAM) {
+        socketObject->role = (int64_t)SOCKET_ROLE_LISTENER;
     }
-
-    MArgument_updateSocketObject(libData, Args[0], socketObject);
     return LIBRARY_NO_ERROR;
 }
 
 
 DLLEXPORT int socketSetOpt(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
+    (void)Res;
     if (Argc != 4) {
         libData->Message("socketSetOpt: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
-    SOCKET socketId = (SOCKET)socketObject.socket;
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
+    SOCKET socketId = (SOCKET)socketObject->socket;
     int level = (int)MArgument_getInteger(Args[1]);
     int optname = (int)MArgument_getInteger(Args[2]);
     int optval = (int)MArgument_getInteger(Args[3]);
@@ -209,8 +191,8 @@ DLLEXPORT int socketGetOpt(WolframLibraryData libData, mint Argc, MArgument *Arg
         libData->Message("socketGetOpt: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
-    SOCKET socketId = (SOCKET)socketObject.socket;
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
+    SOCKET socketId = (SOCKET)socketObject->socket;
     int level = (int)MArgument_getInteger(Args[1]);
     int optname = (int)MArgument_getInteger(Args[2]);
 
@@ -229,34 +211,32 @@ DLLEXPORT int socketGetOpt(WolframLibraryData libData, mint Argc, MArgument *Arg
 
 DLLEXPORT int socketSetBlockingMode(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
+    (void)Res;
     if (Argc != 1) {
         libData->Message("SetBlockingMode failed: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
 
-    set_blocking_mode((SOCKET)socketObject.socket);
-    socketObject.mode = SOCKET_MODE_BLOCKING;
-
-    MArgument_updateSocketObject(libData, Args[0], socketObject);
+    set_blocking_mode((SOCKET)socketObject->socket);
+    socketObject->mode = (int64_t)SOCKET_MODE_BLOCKING;
     return LIBRARY_NO_ERROR;
 }
 
 
 DLLEXPORT int socketSetNonBlockingMode(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
+    (void)Res;
     if (Argc != 1) {
         libData->Message("SetNonBlockingMode failed: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
 
-    set_non_blocking_mode((SOCKET)socketObject.socket);
-    socketObject.mode = SOCKET_MODE_NONBLOCKING;
-
-    MArgument_updateSocketObject(libData, Args[0], socketObject);
+    set_non_blocking_mode((SOCKET)socketObject->socket);
+    socketObject->mode = (int64_t)SOCKET_MODE_NONBLOCKING;
     return LIBRARY_NO_ERROR;
 }
 
@@ -267,11 +247,11 @@ DLLEXPORT int socketGetPort(WolframLibraryData libData, mint Argc, MArgument *Ar
         libData->Message("GetPort failed: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
     struct sockaddr_storage addr;
     socklen_t len = sizeof(addr);
 
-    if (getsockname((SOCKET)socketObject.socket, (struct sockaddr*)&addr, &len) != 0) {
+    if (getsockname((SOCKET)socketObject->socket, (struct sockaddr*)&addr, &len) != 0) {
         libData->Message("GetPort failed");
         return LIBRARY_FUNCTION_ERROR;
     }
@@ -294,48 +274,58 @@ DLLEXPORT int socketGetPort(WolframLibraryData libData, mint Argc, MArgument *Ar
 
 DLLEXPORT int socketListen(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
+    (void)Res;
     if (Argc != 2) {
         libData->Message("socketListen: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
-    SOCKET socketId = (SOCKET)socketObject.socket;
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
+    SOCKET socketId = (SOCKET)socketObject->socket;
     mint backlog = MArgument_getInteger(Args[1]);
 
     if (listen(socketId, (int)backlog) == SOCKET_ERROR) {
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    socketObject.role = SOCKET_ROLE_LISTENER;
-
-    MArgument_updateSocketObject(libData, Args[0], socketObject);
+    socketObject->role = (int64_t)SOCKET_ROLE_LISTENER;
     return LIBRARY_NO_ERROR;
 }
 
 
 DLLEXPORT int socketConnect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
+    (void)Res;
     if (Argc != 2) {
         libData->Message("socketConnect: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
-    struct addrinfo *addressInfo = MArgument_getAddressInfo(libData, Args[1]);
-
-    if (addressInfo == NULL) {
-        libData->Message("Connect failed: address info is null");
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
+    struct sockaddr_storage *addressStorage = MArgument_getAddressStorage(libData, Args[1]);
+    if (addressStorage == NULL) {
+        libData->Message("Connect failed: invalid address data");
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    if (connect((SOCKET)socketObject.socket, addressInfo->ai_addr, (int)addressInfo->ai_addrlen) == SOCKET_ERROR) {
+    socklen_t addressSize = 0;
+    switch (addressStorage->ss_family) {
+    case AF_INET:
+        addressSize = sizeof(struct sockaddr_in);
+        break;
+    case AF_INET6:
+        addressSize = sizeof(struct sockaddr_in6);
+        break;
+    default:
+        libData->Message("Connect failed: unsupported address family");
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    socketObject.role = SOCKET_ROLE_CONNECTED;
-    socketObject.state = SOCKET_STATE_ALIVE;
+    if (connect((SOCKET)socketObject->socket, (struct sockaddr *)addressStorage, addressSize) == SOCKET_ERROR) {
+        return LIBRARY_FUNCTION_ERROR;
+    }
 
-    MArgument_updateSocketObject(libData, Args[0], socketObject);
+    socketObject->role = (int64_t)SOCKET_ROLE_CONNECTED;
+    socketObject->state = (int64_t)SOCKET_STATE_ALIVE;
     return LIBRARY_NO_ERROR;
 }
 
@@ -346,20 +336,20 @@ DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Arg
         libData->Message("socketAccept: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
-    SocketObject listenSocket = MArgument_getSocketObject(libData, Args[0]);
-    SOCKET acceptedSocketId = accept((SOCKET)listenSocket.socket, NULL, NULL);
+    SocketObject *listenSocket = MArgument_getSocketObject(libData, Args[0]);
+    SOCKET acceptedSocketId = accept((SOCKET)listenSocket->socket, NULL, NULL);
 
     if (acceptedSocketId == INVALID_SOCKET) {
         return LIBRARY_FUNCTION_ERROR;
     }
 
     SocketObject acceptedSocketObject = {
-        .socket = (uint64_t)acceptedSocketId,
-        .protocol = SOCKET_PROTOCOL_TCP,
-        .type = SOCKET_TYPE_STREAM,
-        .role = SOCKET_ROLE_ACCEPTED,
-        .state = SOCKET_STATE_ALIVE,
-        .mode = listenSocket.mode
+        .socket = (int64_t)acceptedSocketId,
+        .protocol = (int64_t)SOCKET_PROTOCOL_TCP,
+        .type = (int64_t)SOCKET_TYPE_STREAM,
+        .role = (int64_t)SOCKET_ROLE_ACCEPTED,
+        .state = (int64_t)SOCKET_STATE_ALIVE,
+        .mode = listenSocket->mode
     };
 
     MArgument_setSocketObject(libData, Res, acceptedSocketObject);
@@ -373,11 +363,11 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
         libData->Message("socketRecv: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
     BYTE *buffer = MArgument_getByteArray(libData, Args[1]);
-    size_t bufferSize = (size_t)MArgument_getInteger(Args[2]);
+    mint bufferSize = MArgument_getInteger(Args[2]);
 
-    int result = recv((SOCKET)socketObject.socket, buffer, bufferSize, 0);
+    int result = recv((SOCKET)socketObject->socket, buffer, bufferSize, 0);
     if (result >= 0) {
         MArgument_setByteArray(libData, Res, buffer, result);
         return LIBRARY_NO_ERROR;
@@ -396,19 +386,32 @@ DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *A
         libData->Message("socketRecvFrom: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
-    struct addrinfo *addressInfo = MArgument_getAddressInfo(libData, Args[1]);
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
+    struct sockaddr_storage *addressStorage = MArgument_getAddressStorage(libData, Args[1]);
     BYTE *buffer = MArgument_getByteArray(libData, Args[2]);
-    mint bufferSize = (mint)MArgument_getInteger(Args[3]);
+    mint bufferSize = MArgument_getInteger(Args[3]);
 
-    if (addressInfo == NULL) {
-        libData->Message("socketRecvFrom: address info is null");
+    if (addressStorage == NULL) {
+        libData->Message("socketRecvFrom: invalid address data");
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    int result = recvfrom((SOCKET)socketObject.socket, buffer, bufferSize, 0, addressInfo->ai_addr, &(addressInfo->ai_addrlen));
+    socklen_t addrLen = 0;
+    switch (addressStorage->ss_family) {
+    case AF_INET:
+        addrLen = sizeof(struct sockaddr_in);
+        break;
+    case AF_INET6:
+        addrLen = sizeof(struct sockaddr_in6);
+        break;
+    default:
+        libData->Message("socketRecvFrom: unsupported address family");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    int result = recvfrom((SOCKET)socketObject->socket, buffer, bufferSize, 0, (struct sockaddr *)addressStorage, &addrLen);
     if (result >= 0) {
-        MArgument_setByteArray(libData, Res, result, buffer);
+        MArgument_setByteArray(libData, Res, buffer, (mint)result);
         return LIBRARY_NO_ERROR;
     }
 
@@ -425,11 +428,11 @@ DLLEXPORT int socketSend(WolframLibraryData libData, mint Argc, MArgument *Args,
         libData->Message("socketSend: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
     BYTE *data = MArgument_getByteArray(libData, Args[1]);
     int length = MArgument_getInteger(Args[2]);
 
-    int sentLength = send((SOCKET)socketObject.socket, (char*)data, length, 0);
+    int sentLength = send((SOCKET)socketObject->socket, (char*)data, (int)length, 0);
 
     if (sentLength < 0) {
         return LIBRARY_FUNCTION_ERROR;
@@ -446,11 +449,11 @@ DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument 
         libData->Message("socketSendString: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
     char *text = MArgument_getUTF8String(Args[1]);
     size_t length = strlen(text);
 
-    int sentLength = send((SOCKET)socketObject.socket, text, (int)length, 0);
+    int sentLength = send((SOCKET)socketObject->socket, text, (int)length, 0);
     libData->UTF8String_disown(text);
 
     if (sentLength < 0) {
@@ -468,7 +471,7 @@ DLLEXPORT int socketSendTo(WolframLibraryData libData, mint Argc, MArgument *Arg
         libData->Message("socketSendTo: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
     char *host = MArgument_getUTF8String(Args[1]);
     unsigned short port = (unsigned short)MArgument_getInteger(Args[2]);
 
@@ -484,7 +487,7 @@ DLLEXPORT int socketSendTo(WolframLibraryData libData, mint Argc, MArgument *Arg
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    int sentLength = sendto((SOCKET)socketObject.socket, (const char *)data, (size_t)length, 0, (const struct sockaddr *)&address, addressLength);
+    int sentLength = sendto((SOCKET)socketObject->socket, (const char *)data, (int)length, 0, (const struct sockaddr *)&address, addressLength);
 
     libData->UTF8String_disown(host);
 
@@ -504,7 +507,7 @@ DLLEXPORT int socketSendStringTo(WolframLibraryData libData, mint Argc, MArgumen
         libData->Message("socketSendStringTo: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
 
     char *host = MArgument_getUTF8String(Args[1]);
     unsigned short port = (unsigned short)MArgument_getInteger(Args[2]);
@@ -522,7 +525,7 @@ DLLEXPORT int socketSendStringTo(WolframLibraryData libData, mint Argc, MArgumen
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    int sentLength = sendto((SOCKET)socketObject.socket, text, length, 0, (const struct sockaddr *)&address, addressLength);
+    int sentLength = sendto((SOCKET)socketObject->socket, text, (int)length, 0, (const struct sockaddr *)&address, addressLength);
 
     libData->UTF8String_disown(host);
     libData->UTF8String_disown(text);
@@ -548,14 +551,10 @@ DLLEXPORT int socketsCheck(WolframLibraryData libData, mint Argc, MArgument *Arg
     size_t length = (size_t)MArgument_getInteger(Args[1]);
 
     mint *socketsData = (mint*)libData->MTensor_getIntegerData(sockets);
-    SOCKET socketId;
     mint validCount = 0;
-    int opt;
-    int err;
-    socklen_t len = sizeof(opt);
 
     for (size_t i = 0; i < length; i++) {
-        socketId = (SOCKET)socketsData[i];
+        SOCKET socketId = (SOCKET)socketsData[i];
 
         if (is_valid_socket(socketId)) {
             socketsData[validCount] = (mint)socketId;
@@ -583,25 +582,25 @@ DLLEXPORT int socketConnectedQ(WolframLibraryData libData, mint Argc, MArgument 
         return LIBRARY_FUNCTION_ERROR;
     }
     
-    SocketObject socketObject = MArgument_getSocketObject(libData, Args[0]);
-    SOCKET sockedId = (SOCKET)socketObject.socket;
+    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
+    SOCKET socketId = (SOCKET)socketObject->socket;
 
-    if (!ISVALIDSOCKET(sockedId)) {
+    if (!ISVALIDSOCKET(socketId)) {
         MArgument_setBoolean(Res, False);
         return LIBRARY_NO_ERROR;
     }
 
-    bool wasNonBlocking = is_non_blocking_mode(sockedId);
+    bool wasNonBlocking = is_non_blocking_mode(socketId);
     if (!wasNonBlocking) {
-        set_non_blocking_mode(sockedId);
+        set_non_blocking_mode(socketId);
     }
 
     char dummy;
-    int ret = recv(sockedId, &dummy, 1, MSG_PEEK);
+    int ret = recv(socketId, &dummy, 1, MSG_PEEK);
     int err = GETSOCKETERRNO();
 
     if (!wasNonBlocking) {
-        set_blocking_mode(sockedId);
+        set_blocking_mode(socketId);
     }
 
     if (ret > 0) {
@@ -636,11 +635,10 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
     mint timeout = MArgument_getInteger(Args[2]); // timeout in microseconds
     mint mode = MArgument_getInteger(Args[3]); // 1 - read, 2 - write
 
-    int err;
-    SOCKET socketId;
+    int result;
+    mint dims;
     fd_set fds;
     MTensor readySockets;
-    mint dims;
 
     SOCKET *socketIds = malloc(sizeof(SOCKET) * length);
     if (!socketIds) {
@@ -655,7 +653,6 @@ DLLEXPORT int socketsSelect(WolframLibraryData libData, mint Argc, MArgument *Ar
     SOCKET maxfd = fill_fd_set_from_array(&fds, socketIds, length, 0);
     struct timeval tv = new_tv(timeout);
 
-    int result;
     switch (mode)
     {
     case 1:

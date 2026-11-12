@@ -1,22 +1,42 @@
 #include "address.h"
 
 
-struct addrinfo *MArgument_getAddressInfo(WolframLibraryData libData, MArgument arg)
+struct sockaddr_storage *MArgument_getAddressStorage(WolframLibraryData libData, MArgument arg)
 {
-    (void)libData;
-    return (struct addrinfo *)(uintptr_t)MArgument_getInteger(arg);
+    MNumericArray addressArray = MArgument_getMNumericArray(arg);
+    struct sockaddr_storage *addressStorage = (struct sockaddr_storage *)libData->numericarrayLibraryFunctions->MNumericArray_getData(addressArray);
+    libData->numericarrayLibraryFunctions->MNumericArray_disown(addressArray);
+    return addressStorage;
 }
 
 
-void MArgument_setAddressInfo(WolframLibraryData libData, MArgument res, struct addrinfo *addressInfo)
+void MArgument_setAddressStorage(WolframLibraryData libData, MArgument res, struct addrinfo *addressInfo)
 {
-    (void)libData;
-    MArgument_setInteger(res, (mint)(uintptr_t)addressInfo);
+    mint length = (mint)sizeof(struct sockaddr_storage);
+    MNumericArray addressArray;
+    libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &length, &addressArray);
+
+    struct sockaddr_storage *addressStorage = (struct sockaddr_storage*)libData->numericarrayLibraryFunctions->MNumericArray_getData(addressArray);
+    ZeroMemory(addressStorage, sizeof(struct sockaddr_storage));
+
+    size_t addressSize = addressInfo->ai_addrlen;
+    if (addressSize > sizeof(struct sockaddr_storage)) {
+        addressSize = sizeof(struct sockaddr_storage);
+    }
+
+    memcpy(addressStorage, addressInfo->ai_addr, addressSize);
+
+    MArgument_setMNumericArray(res, addressArray);
 }
 
 
-DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+DLLEXPORT int socketAddressStorageCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
+    if (Argc != 6) {
+        libData->Message("socketAddressInfoCreate: invalid argument count");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
     char *host = MArgument_getUTF8String(Args[0]);
     char *port = MArgument_getUTF8String(Args[1]);
     int ai_family = (int)MArgument_getInteger(Args[2]);
@@ -56,29 +76,14 @@ DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MAr
     if (port) libData->UTF8String_disown(port);
     if (localIP) libData->UTF8String_disown(localIP);
 
-    if (result != 0) {
+    if (result != 0 || address == NULL) {
+        if (address) {
+            freeaddrinfo(address);
+        }
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    MArgument_setAddressInfo(libData, Res, address);
-    return LIBRARY_NO_ERROR;
-}
-
-
-DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    (void)Res;
-    if (Argc != 1) {
-        libData->Message("socketAddressInfoRemove: invalid argument count");
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    struct addrinfo *addressInfo = MArgument_getAddressInfo(libData, Args[0]);
-
-    if (addressInfo == NULL) {
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    freeaddrinfo(addressInfo);
+    MArgument_setAddressStorage(libData, Res, address);
+    freeaddrinfo(address);
     return LIBRARY_NO_ERROR;
 }

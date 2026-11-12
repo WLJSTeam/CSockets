@@ -39,22 +39,25 @@ typedef enum SocketMode {
 
 
 typedef struct SocketObject {
-    mint socket;
-    SocketProtocol protocol;
-    SocketType type;
-    SocketRole role;
-    SocketState state;
-    SocketMode mode;
+    int64_t socket;
+    int64_t protocol;
+    int64_t type;
+    int64_t role;
+    int64_t state;
+    int64_t mode;
 } SocketObject;
 
 
-SocketObject MArgument_getSocketObject(WolframLibraryData libData, MArgument arg);
+#define CSOCKETS_STATIC_ASSERT(cond, msg) typedef char csockets_static_assert_##msg[(cond) ? 1 : -1]
+
+CSOCKETS_STATIC_ASSERT(sizeof(SocketObject) == 6 * sizeof(int64_t), socketobject_must_be_6_int64_t);
+CSOCKETS_STATIC_ASSERT(sizeof(mint) == sizeof(int64_t), mint_must_be_64bit);
+
+
+SocketObject *MArgument_getSocketObject(WolframLibraryData libData, MArgument arg);
 
 
 void MArgument_setSocketObject(WolframLibraryData libData, MArgument res, SocketObject socketObject);
-
-
-void MArgument_updateSocketObject(WolframLibraryData libData, MArgument arg, SocketObject socketObject);
 
 
 BYTE *MArgument_getByteArray(WolframLibraryData libData, MArgument arg);
