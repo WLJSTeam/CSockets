@@ -30,6 +30,20 @@ void MArgument_setAddressStorage(WolframLibraryData libData, MArgument res, stru
 }
 
 
+void DataStore_addAddressStorage(WolframLibraryData libData, DataStore dataStore, struct sockaddr_storage *addressStorage)
+{
+    mint length = (mint)sizeof(struct sockaddr_storage);
+    MNumericArray addressArray;
+    libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &length, &addressArray);
+
+    struct sockaddr_storage *arrayData = (struct sockaddr_storage*)libData->numericarrayLibraryFunctions->MNumericArray_getData(addressArray);
+    ZeroMemory(arrayData, sizeof(struct sockaddr_storage));
+    memcpy(arrayData, addressStorage, sizeof(struct sockaddr_storage));
+
+    libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, addressArray);
+}
+
+
 DLLEXPORT int socketAddressStorageCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     if (Argc != 6) {

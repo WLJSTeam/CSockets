@@ -1,4 +1,5 @@
 #include "async.h"
+#include "address.h"
 
 
 void socketsSelectTask(mint taskId, void *taskArgs)
@@ -201,38 +202,19 @@ void socketsPollLoop(mint taskId, void *taskArgs)
 
                         int recvFromResult = recvfrom(socketId, buffer, bufferSize, 0, (struct sockaddr*)&remoteAddr, &remoteAddrLen);
                         if (recvFromResult >= 0) {
-                            char host[INET6_ADDRSTRLEN];
-                            unsigned short port;
-
-                            if (!socket_address_to_host(&remoteAddr, host, sizeof(host), &port)) {
-                                continue;
-                            }
-
-                            const mint dims = (mint)recvFromResult;
+                            DataStore_addAddressStorage(libData, dataStore, &remoteAddr);
 
                             if (recvFromResult > 0) {
+                                const mint dims = (mint)recvFromResult;
                                 libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &dims, &byteArray);
 
                                 BYTE *array = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
                                 memcpy(array, buffer, recvFromResult);
 
                                 libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, byteArray);
-                            } else {
-                                libData->ioLibraryFunctions->DataStore_addInteger(dataStore, 0);
                             }
 
-                            libData->ioLibraryFunctions->DataStore_addString(dataStore, host);
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)port);
                             libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReceivedFrom", dataStore);
-                        } else if (recvFromResult == 0) {
-                            socketList->sockets[i].socket = (int64_t)INVALID_SOCKET;
-                            socketList->sockets[i].state = (int64_t)SOCKET_STATE_CLOSED;
-                            socketList->pollfds[i].fd = INVALID_SOCKET;
-                            needPrune = True;
-
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, socketType);
-                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
                         } else {
                             int err = GETSOCKETERRNO();
 

@@ -26,6 +26,10 @@ CSocketHandler::usage =
 "CSocketHandler[] mutable handler object.";
 
 
+AddressObject::usage =
+"AddressObject[addressStorage] wraps raw address bytes.";
+
+
 (*SocketWaitNext::overrirde*)
 (*SocketWaitNext[socketList, timeout=10^10]*)
 
@@ -280,17 +284,41 @@ createEventData["Error", socketId_, socketType_, errorCode_] :=
 |>;
 
 
+createEventData["ReceivedFrom", socketId_, socketType_, addressStorage_ByteArray] :=
+<|
+    "SourceSocket" -> CSocketObject[socketId, socketType],
+    "AddressObject" -> AddressObject[addressStorage]
+|>;
+
+
+createEventData["ReceivedFrom", socketId_, socketType_, addressStorage_ByteArray, receivedData_] :=
+With[{
+    byteArray = If[receivedData === 0,
+        ByteArray[{}],
+        ByteArray[receivedData]
+    ],
+    sourceSocket = CSocketObject[socketId, socketType]
+},
+    <|
+        "SourceSocket" -> sourceSocket,
+        "AddressObject" -> AddressObject[addressStorage],
+        "Data" :> ByteArrayToString[byteArray],
+        "DataBytes" :> Normal[byteArray],
+        "DataByteArray" :> byteArray
+    |>
+];
+
+
 createEventData["Received", socketId_, socketType_, receivedData_] :=
 With[{
     byteArray = If[receivedData === 0,
         ByteArray[{}],
         ByteArray[receivedData]
     ],
-    sourceSocket = CSocketObject[socketId, socketType]}, {
-    socket = $CSockets[sourceSocket]
+    sourceSocket = CSocketObject[socketId, socketType]
 },
     <|
-        "Socket" -> socket,
+        "Socket" -> $CSockets[sourceSocket],
         "SourceSocket" -> sourceSocket,
         "Data" :> ByteArrayToString[byteArray],
         "DataBytes" :> Normal[byteArray],
@@ -308,7 +336,8 @@ Options[CSocketHandler] = {
     "Received" :> Function[Null],
     "Accepted" :> Function[Null],
     "Closed" :> Function[Null],
-    "Error" :> Function[Null]
+    "Error" :> Function[Null],
+    "ReceivedFrom" :> Function[Null]
 };
 
 
@@ -353,44 +382,16 @@ Module[{above, below},
 
 
 (handler_CSocketHandler)[packet_Association] :=
-Module[{extendedPacket, result, extraPacket, extraPacketDataLength},
-    If[(KeyExistsQ[packet, "Event"] && packet["Event"] === "Received") ||
-        KeyExistsQ[packet, "DataByteArray"] && ByteArrayQ[packet["DataByteArray"]],
+Module[{result, eventHandler},
+    eventHandler = handler[packet["Event"]];
 
-        extendedPacket = getExtendedPacket[handler, packet]; (*Association[]*)
-
-        If[extendedPacket["Completed"],
-            With[{message = getMessage[handler, extendedPacket]},
-                extendedPacket["DataByteArray"] := message; (*ByteArray[]*)
-                extendedPacket["Data"] := ByteArrayToString[message];
-                extendedPacket["DataBytes"] := Normal[message];
-                With[{content = handler["Deserializer"][message]},
-                    extendedPacket["Message"] := content;
-                ];
-            ];
-
-            result = handler["Serializer"] @ invokeHandler[handler, extendedPacket]; (*ByteArray[] | _String | Null*)
-
-            sendResponse[handler, packet, result];
-
-            If[extendedPacket["StoredLength"] > extendedPacket["ExpectedLength"],
-                extraPacket = packet;
-                extraPacketDataLength = extendedPacket["StoredLength"] - extendedPacket["ExpectedLength"];
-                extraPacket["DataByteArray"] = packet["DataByteArray"][[-extraPacketDataLength ;; ]];
-                clearBuffer[handler, packet];
-                handler[extraPacket],
-            (*Else*)
-                clearBuffer[handler, extendedPacket]
-            ];
-
-            Return[result],
-        (*Else*)
-            savePacketToBuffer[handler, extendedPacket]
-        ];,
-
-    (*Else*)
-        handler[packet["Event"]][packet]
+    If[MemberQ[{handler["Received"], handler["ReceivedFrom"]}, eventHandler],
+        result = handler["Serializer"] @ eventHandler[packet];
+        sendResponse[handler, packet, result];
+        Return[result];
     ];
+
+    eventHandler[packet]
 ];
 
 

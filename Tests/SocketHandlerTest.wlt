@@ -26,6 +26,33 @@ socketHandlerTests = {
 
   VerificationTest[
    With[
+    {event = WLJS`CSockets`Private`createEventData["ReceivedFrom", 7, WLJS`CSockets`$UDPCLIENT, ByteArray[{1, 2, 3}]]},
+    And[
+     Lookup[event, "SourceSocket"] === WLJS`CSockets`CSocketObject[7, WLJS`CSockets`$UDPCLIENT],
+     Lookup[event, "AddressObject"] === WLJS`CSockets`AddressObject[ByteArray[{1, 2, 3}]]
+    ]
+   ],
+   True,
+   TestID -> "receivedfrom-address-only-conversion"
+  ],
+
+  VerificationTest[
+   With[
+    {event = WLJS`CSockets`Private`createEventData["ReceivedFrom", 7, WLJS`CSockets`$UDPCLIENT, ByteArray[{1, 2, 3}], {65, 66, 67}]},
+    And[
+     Lookup[event, "SourceSocket"] === WLJS`CSockets`CSocketObject[7, WLJS`CSockets`$UDPCLIENT],
+     Lookup[event, "AddressObject"] === WLJS`CSockets`AddressObject[ByteArray[{1, 2, 3}]],
+     Lookup[event, "Data"] === "ABC",
+     Lookup[event, "DataBytes"] === {65, 66, 67},
+     Lookup[event, "DataByteArray"] === ByteArray[{65, 66, 67}]
+    ]
+   ],
+   True,
+   TestID -> "receivedfrom-address-and-data-conversion"
+  ],
+
+  VerificationTest[
+   With[
     {event = WLJS`CSockets`Private`createEventData["Received", 7, WLJS`CSockets`$TCPSERVER, {65, 66, 67}]},
     And[
      Lookup[event, "SourceSocket"] === WLJS`CSockets`CSocketObject[7, WLJS`CSockets`$TCPSERVER],

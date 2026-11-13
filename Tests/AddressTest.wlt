@@ -99,10 +99,12 @@ TestReport[
   ],
 
   VerificationTest[
-   Lookup[WLJS`CSockets`Private`createEventData["Received", 7, WLJS`CSockets`$TCPSERVER, {65, 66, 67}], "SourceSocket"] ===
-    WLJS`CSockets`CSocketObject[7, WLJS`CSockets`$TCPSERVER],
+   With[
+    {event = WLJS`CSockets`Private`createEventData["ReceivedFrom", 7, WLJS`CSockets`$UDPCLIENT, ByteArray[{1, 2, 3}]]},
+    Lookup[event, "AddressObject"] === WLJS`CSockets`AddressObject[ByteArray[{1, 2, 3}]]
+   ],
    True,
-   TestID -> "received-event-source-socket"
+   TestID -> "receivedfrom-address-object"
   ],
 
   VerificationTest[
