@@ -57,10 +57,20 @@ CSOCKETS_STATIC_ASSERT(sizeof(mint) == sizeof(int64_t), mint_must_be_64bit);
 bool socket_objects_valid(WolframLibraryData libData, MTensor tensor, mint length);
 void DataStore_addSocketObject(WolframLibraryData libData, DataStore store, SocketObject socketObject);
 
-SocketObject *MArgument_getSocketObject(WolframLibraryData libData, MArgument arg);
+/* Automatic: a call-scoped read-only copy; do not retain or disown. */
+const SocketObject *MArgument_getSocketObject(WolframLibraryData libData, MArgument arg);
+
+
+/* Shared: the original tensor; disown once when the call finishes using it. */
+SocketObject *MArgument_getSocketObjectRef(WolframLibraryData libData, MArgument arg);
 
 
 void MArgument_setSocketObject(WolframLibraryData libData, MArgument res, SocketObject socketObject);
+
+
+/* Ordinary calls release one shared reference; successful Close releases all. */
+void MArgument_disownSocketObject(WolframLibraryData libData, MArgument arg);
+void MArgument_disownAllSocketObject(WolframLibraryData libData, MArgument arg);
 
 
 BYTE *MArgument_getByteArray(WolframLibraryData libData, MArgument arg);

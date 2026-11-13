@@ -1136,7 +1136,7 @@ socketSetOpt::usage =
 
 
 socketSetOpt =
-LibraryFunctionLoad[$library, "socketSetOpt", {{Integer, 1, "Shared"}, Integer, Integer, Integer}, "Void"];
+LibraryFunctionLoad[$library, "socketSetOpt", {{Integer, 1}, Integer, Integer, Integer}, "Void"];
 
 
 socketGetOpt::usage =
@@ -1144,7 +1144,7 @@ socketGetOpt::usage =
 
 
 socketGetOpt =
-LibraryFunctionLoad[$library, "socketGetOpt", {{Integer, 1, "Shared"}, Integer, Integer}, Integer];
+LibraryFunctionLoad[$library, "socketGetOpt", {{Integer, 1}, Integer, Integer}, Integer];
 
 
 socketSetBlockingMode::usage =
@@ -1168,7 +1168,7 @@ socketGetPort::usage =
 
 
 socketGetPort =
-LibraryFunctionLoad[$library, "socketGetPort", {{Integer, 1, "Shared"}}, Integer];
+LibraryFunctionLoad[$library, "socketGetPort", {{Integer, 1}}, Integer];
 
 
 socketGetHost::usage =
@@ -1176,7 +1176,7 @@ socketGetHost::usage =
 
 
 socketGetHost =
-LibraryFunctionLoad[$library, "socketGetHost", {{Integer, 1, "Shared"}}, String];
+LibraryFunctionLoad[$library, "socketGetHost", {{Integer, 1}}, String];
 
 
 socketListen::usage =
@@ -1200,7 +1200,7 @@ socketAccept::usage =
 
 
 socketAccept =
-LibraryFunctionLoad[$library, "socketAccept", {{Integer, 1, "Shared"}}, {Integer, 1}];
+LibraryFunctionLoad[$library, "socketAccept", {{Integer, 1}}, {Integer, 1}];
 
 
 socketRecv::usage =
@@ -1208,7 +1208,7 @@ socketRecv::usage =
 
 
 socketRecv =
-LibraryFunctionLoad[$library, "socketRecv", {{Integer, 1, "Shared"}, {"ByteArray", "Shared"}, Integer}, "ByteArray"];
+LibraryFunctionLoad[$library, "socketRecv", {{Integer, 1}, {"ByteArray", "Shared"}, Integer}, "ByteArray"];
 
 
 socketRecvFrom::usage =
@@ -1216,7 +1216,7 @@ socketRecvFrom::usage =
 
 
 socketRecvFrom =
-LibraryFunctionLoad[$library, "socketRecvFrom", {{Integer, 1, "Shared"}, "ByteArray", {"ByteArray", "Shared"}, Integer}, "ByteArray"];
+LibraryFunctionLoad[$library, "socketRecvFrom", {{Integer, 1}, "ByteArray", {"ByteArray", "Shared"}, Integer}, "ByteArray"];
 
 
 socketSend::usage =
@@ -1224,7 +1224,7 @@ socketSend::usage =
 
 
 socketSend =
-LibraryFunctionLoad[$library, "socketSend", {{Integer, 1, "Shared"}, {"ByteArray", "Shared"}, Integer}, Integer];
+LibraryFunctionLoad[$library, "socketSend", {{Integer, 1}, {"ByteArray", "Shared"}, Integer}, Integer];
 
 
 socketSendString::usage =
@@ -1232,7 +1232,7 @@ socketSendString::usage =
 
 
 socketSendString =
-LibraryFunctionLoad[$library, "socketSendString", {{Integer, 1, "Shared"}, String}, Integer];
+LibraryFunctionLoad[$library, "socketSendString", {{Integer, 1}, String}, Integer];
 
 
 socketSendTo::usage =
@@ -1240,7 +1240,7 @@ socketSendTo::usage =
 
 
 socketSendTo =
-LibraryFunctionLoad[$library, "socketSendTo", {{Integer, 1, "Shared"}, String, Integer, {"ByteArray", "Shared"}, Integer}, Integer];
+LibraryFunctionLoad[$library, "socketSendTo", {{Integer, 1}, String, Integer, {"ByteArray", "Shared"}, Integer}, Integer];
 
 
 socketSendToAddressStorage::usage =
@@ -1248,7 +1248,7 @@ socketSendToAddressStorage::usage =
 
 
 socketSendToAddressStorage =
-LibraryFunctionLoad[$library, "socketSendToAddressStorage", {{Integer, 1, "Shared"}, "ByteArray", {"ByteArray", "Shared"}}, Integer];
+LibraryFunctionLoad[$library, "socketSendToAddressStorage", {{Integer, 1}, "ByteArray", {"ByteArray", "Shared"}}, Integer];
 
 
 socketSendStringTo::usage =
@@ -1256,7 +1256,7 @@ socketSendStringTo::usage =
 
 
 socketSendStringTo =
-LibraryFunctionLoad[$library, "socketSendStringTo", {{Integer, 1, "Shared"}, String, Integer, String}, Integer];
+LibraryFunctionLoad[$library, "socketSendStringTo", {{Integer, 1}, String, Integer, String}, Integer];
 
 
 socketsCheck::usage =
@@ -1272,7 +1272,7 @@ socketConnectedQ::usage =
 
 
 socketConnectedQ =
-LibraryFunctionLoad[$library, "socketConnectedQ", {{Integer, 1, "Shared"}}, Alternatives[True, False]];
+LibraryFunctionLoad[$library, "socketConnectedQ", {{Integer, 1}}, Alternatives[True, False]];
 
 
 socketsSelect::usage =

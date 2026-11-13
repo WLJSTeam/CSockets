@@ -50,10 +50,14 @@ DLLEXPORT int socketListAdd(WolframLibraryData libData, mint Argc, MArgument *Ar
     }
 
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
-    SocketObject *socketObject = MArgument_getSocketObject(libData, Args[1]);
-    if (!socketObject) return LIBRARY_FUNCTION_ERROR;
+    SocketObject *socketObject = MArgument_getSocketObjectRef(libData, Args[1]);
+    if (!socketObject) {
+        MArgument_disownSocketObject(libData, Args[1]);
+        return LIBRARY_FUNCTION_ERROR;
+    }
 
     if (!socket_list_add(socketList, *socketObject)) {
+        MArgument_disownSocketObject(libData, Args[1]);
         libData->Message("socketListAdd: allocation failed");
         return LIBRARY_FUNCTION_ERROR;
     }
