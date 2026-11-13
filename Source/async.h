@@ -10,6 +10,7 @@ typedef struct SocketsSelectArgs_st
 {
     WolframLibraryData libData;
     SOCKET *sockets;
+    SocketObject *objects;
     size_t length;
     mint timeout;
 } *SocketsSelectArgs;

@@ -28,9 +28,9 @@ static inline SOCKET_TYPE socket_list_socket_type(SocketObject socketObject)
 {
     switch ((SocketRole)socketObject.role) {
     case SOCKET_ROLE_LISTENER:
-        return (socketObject.protocol == SOCKET_PROTOCOL_UDP) ? UDP_SERVER : TCP_SERVER;
+        return (socketObject.type == SOCKET_TYPE_DGRAM) ? UDP_SERVER : TCP_SERVER;
     case SOCKET_ROLE_CONNECTED:
-        return (socketObject.protocol == SOCKET_PROTOCOL_UDP) ? UDP_CLIENT : TCP_CLIENT;
+        return (socketObject.type == SOCKET_TYPE_DGRAM) ? UDP_CLIENT : TCP_CLIENT;
     case SOCKET_ROLE_ACCEPTED:
         return TCP_ACCEPTED;
     case SOCKET_ROLE_INTERRUPTER:

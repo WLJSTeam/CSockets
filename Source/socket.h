@@ -54,6 +54,9 @@ CSOCKETS_STATIC_ASSERT(sizeof(SocketObject) == 6 * sizeof(int64_t), socketobject
 CSOCKETS_STATIC_ASSERT(sizeof(mint) == sizeof(int64_t), mint_must_be_64bit);
 
 
+bool socket_objects_valid(WolframLibraryData libData, MTensor tensor, mint length);
+void DataStore_addSocketObject(WolframLibraryData libData, DataStore store, SocketObject socketObject);
+
 SocketObject *MArgument_getSocketObject(WolframLibraryData libData, MArgument arg);
 
 

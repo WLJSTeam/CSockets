@@ -4,8 +4,11 @@
 struct sockaddr_storage *MArgument_getAddressStorage(WolframLibraryData libData, MArgument arg)
 {
     MNumericArray addressArray = MArgument_getMNumericArray(arg);
+    if (libData->numericarrayLibraryFunctions->MNumericArray_getFlattenedLength(addressArray) < sizeof(struct sockaddr_storage)) {
+        libData->Message("AddressStorage: invalid buffer size");
+        return NULL;
+    }
     struct sockaddr_storage *addressStorage = (struct sockaddr_storage *)libData->numericarrayLibraryFunctions->MNumericArray_getData(addressArray);
-    libData->numericarrayLibraryFunctions->MNumericArray_disown(addressArray);
     return addressStorage;
 }
 
@@ -47,7 +50,7 @@ void DataStore_addAddressStorage(WolframLibraryData libData, DataStore dataStore
 DLLEXPORT int socketAddressStorageCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     if (Argc != 6) {
-        libData->Message("socketAddressInfoCreate: invalid argument count");
+        libData->Message("socketAddressStorageCreate: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
 
@@ -99,5 +102,52 @@ DLLEXPORT int socketAddressStorageCreate(WolframLibraryData libData, mint Argc, 
 
     MArgument_setAddressStorage(libData, Res, address);
     freeaddrinfo(address);
+    return LIBRARY_NO_ERROR;
+}
+
+
+DLLEXPORT int socketAddressStorageHost(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    if (Argc != 1) return LIBRARY_FUNCTION_ERROR;
+    struct sockaddr_storage *addressStorage = MArgument_getAddressStorage(libData, Args[0]);
+    if (!addressStorage) return LIBRARY_FUNCTION_ERROR;
+
+    /* LibraryLink reads the result after this function returns. */
+    static char host[INET6_ADDRSTRLEN];
+    unsigned short port;
+    if (!socket_address_to_host(addressStorage, host, sizeof(host), &port)) {
+        libData->Message("AddressStorage: unsupported address family or invalid address");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+    MArgument_setUTF8String(Res, host);
+    return LIBRARY_NO_ERROR;
+}
+
+
+DLLEXPORT int socketAddressStorageInspect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    if (Argc != 1) return LIBRARY_FUNCTION_ERROR;
+    struct sockaddr_storage *addressStorage = MArgument_getAddressStorage(libData, Args[0]);
+    if (!addressStorage) return LIBRARY_FUNCTION_ERROR;
+
+    mint values[2];
+    if (addressStorage->ss_family == AF_INET) {
+        const struct sockaddr_in *address = (const struct sockaddr_in *)addressStorage;
+        values[0] = 4;
+        values[1] = ntohs(address->sin_port);
+    } else if (addressStorage->ss_family == AF_INET6) {
+        const struct sockaddr_in6 *address = (const struct sockaddr_in6 *)addressStorage;
+        values[0] = 6;
+        values[1] = ntohs(address->sin6_port);
+    } else {
+        libData->Message("AddressStorage: unsupported address family");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    mint dims[1] = {2};
+    MTensor properties;
+    if (libData->MTensor_new(MType_Integer, 1, dims, &properties)) return LIBRARY_MEMORY_ERROR;
+    memcpy(libData->MTensor_getIntegerData(properties), values, sizeof(values));
+    MArgument_setMTensor(Res, properties);
     return LIBRARY_NO_ERROR;
 }

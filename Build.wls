@@ -105,6 +105,10 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
         })
     ][[1]]&] @ $argLines;
 
+    If[MemberQ[{"socketsCheck", "socketsSelect", "socketsPoll", "socketsSelectAsync"}, $name],
+        $argTypes[[1]] = {Integer, 2}
+    ];
+
     $argNumbers = Map[StringCases[#,
         Shortest["MArgument_get" ~~ __ ~~ {"(libData, Args[", "(Args["} ~~ num__ ~~ "]"] :> ToExpression[num]
     ][[1]]&] @ $argLines;

@@ -51,6 +51,7 @@ DLLEXPORT int socketListAdd(WolframLibraryData libData, mint Argc, MArgument *Ar
 
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     SocketObject *socketObject = MArgument_getSocketObject(libData, Args[1]);
+    if (!socketObject) return LIBRARY_FUNCTION_ERROR;
 
     if (!socket_list_add(socketList, *socketObject)) {
         libData->Message("socketListAdd: allocation failed");
@@ -66,34 +67,10 @@ DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument 
     (void)Argc;
     SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
     const mint length = (mint)socketList->length;
-    const mint dimensions[2] = {length, 2};
-
+    const mint dimensions[2] = {length, 6};
     MTensor socketsTensor;
-    libData->MTensor_new(MType_Integer, 2, dimensions, &socketsTensor);
-    mint *socketsData = libData->MTensor_getIntegerData(socketsTensor);
-
-    for (size_t i = 0; i < socketList->length; i++) {
-        SOCKET_TYPE socketType;
-        switch (socketList->sockets[i].role)
-        {
-        case SOCKET_ROLE_LISTENER:
-            socketType = (socketList->sockets[i].protocol == SOCKET_PROTOCOL_UDP) ? UDP_SERVER : TCP_SERVER;
-            break;
-        case SOCKET_ROLE_CONNECTED:
-            socketType = (socketList->sockets[i].protocol == SOCKET_PROTOCOL_UDP) ? UDP_CLIENT : TCP_CLIENT;
-            break;
-        case SOCKET_ROLE_ACCEPTED:
-            socketType = TCP_ACCEPTED;
-            break;
-        case SOCKET_ROLE_INTERRUPTER:
-        default:
-            socketType = INTERUPTER;
-            break;
-        }
-
-        socketsData[2 * i] = socketList->sockets[i].socket;
-        socketsData[2 * i + 1] = socketType;
-    }
+    if (libData->MTensor_new(MType_Integer, 2, dimensions, &socketsTensor)) return LIBRARY_MEMORY_ERROR;
+    memcpy(libData->MTensor_getIntegerData(socketsTensor), socketList->sockets, length * sizeof(SocketObject));
 
     MArgument_setMTensor(Res, socketsTensor);
     return LIBRARY_NO_ERROR;
