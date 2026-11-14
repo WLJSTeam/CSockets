@@ -138,3 +138,15 @@ Swicth[x,
     2, 3
 ];
 ```
+
+## Build
+
+- Build the project from the repository root with `wolframscript -f Build.wls`.
+- The build also runs the bindings generator: it inserts Wolfram Language declarations using `LibraryFunctionLoad` into `Kernel/CSockets.wl` to load the exported native library functions.
+- Rebuild after changing native code or exported function signatures so that the compiled library and generated bindings stay in sync.
+
+## Wolfram Engine and tests
+
+- This environment uses Wolfram Engine with a free license, which limits the number of concurrent kernel processes. Run Wolfram commands, builds, and tests sequentially; never launch them in parallel.
+- Wolfram Engine can occasionally terminate unexpectedly in this environment. If a test process exits with a nonzero exit code, retry it once, after the previous process has exited.
+- A process crash does not by itself establish a test failure. Report persistent process failures separately from failed test assertions.

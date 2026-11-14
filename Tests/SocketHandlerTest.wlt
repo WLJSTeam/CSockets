@@ -103,7 +103,7 @@ socketHandlerTests = {
   ],
 
   VerificationTest[
-   Module[{handler = WLJS`CSockets`CSocketHandler[]},
+   With[{handler = WLJS`CSockets`CSocketHandler[]},
     handler["Logger", "Received"] = "combined";
     handler["Logger", "Received"] === "combined"
    ],
