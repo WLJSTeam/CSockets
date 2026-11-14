@@ -91,7 +91,7 @@ CSocketConnect["127.0.0.1", 8080, "UDP"]
 
 ### `CSocketObject`
 
-`CSocketObject[id]` is the internal representation of a socket.
+`CSocketObject[{socket, protocol, type, role, state, mode}]` wraps the six-integer native socket structure. Bulk native functions accept an N x 6 integer matrix; `socketsCheck` and `socketsSelect` return rows in the same format. `socketsPoll` returns N x 7 rows: six socket fields followed by the event mask. Asynchronous events carry a six-field socket row (and a second row for accepted connections).
 
 Common properties:
 
@@ -229,3 +229,20 @@ wolframscript -f Example.wls -p 8080
 ```
 
 The `Scripts/` folder also contains sample programs such as `Echo.wls`, `HTTPEcho.wls`, `TCPStreamingServer.wls`, and `SpeedTestServer.wls`.
+
+## Address storage
+
+UDP `ReceivedFrom` events include `"AddressStorage" -> AddressStorage[storage]`.
+The wrapper reads native address bytes through LibraryLink:
+
+```wl
+address = event["AddressStorage"];
+address["Host"]
+address["Port"]
+address["Family"]
+```
+
+`"Host"` is a numeric IPv4/IPv6 address without reverse DNS or an IPv6 zone suffix.
+`"Family"` is `"IPv4"` or `"IPv6"`.
+Raw `sockaddr_storage` bytes use the current platform's ABI and should not be
+exchanged between platforms as a portable address format.

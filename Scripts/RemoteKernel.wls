@@ -34,7 +34,7 @@ Module[{client},
     BinarySerialize @
     HoldComplete[expr];
 
-    buffer = socketBufferCreate[1024];
+    buffer = ByteArray[ConstantArray[0, 1024]];
 
     Echo[#, "REMOTE RESULT:"]& @
     BinaryDeserialize @

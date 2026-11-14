@@ -6,7 +6,7 @@ PacletDirectoryLoad[DirectoryName[$InputFileName, 2]];
 Get["WLJS`CSockets`"];
 
 
-buffer = socketBufferCreate[4096];
+buffer = ByteArray[ConstantArray[0, 4096]];
 
 
 HTTPRequestEvaluate::invalidURL = "The URL `1` is invalid or not supported.";
@@ -30,7 +30,7 @@ HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
     port = URLParse[parsedURL]["Port"] /. None -> 80;
 
     socketId = socketCreate[2, 1, 0]; (* AF_INET, SOCK_STREAM, AUTO *)
-    addressInfo = socketAddressInfoCreate[host, ToString[port], 2, 1, 0, ""]; (* AF_INET, SOCK_STREAM, AUTO *)
+    addressInfo = socketAddressStorageCreate[host, ToString[port], 2, 1, 0, ""]; (* AF_INET, SOCK_STREAM, AUTO *)
     socketConnect[socketId, addressInfo];
 
     If[socketsSelect[{socketId}, 1, 10^5, 2] =!= {socketId},
@@ -39,7 +39,7 @@ HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
         Return[$Failed];
     ];
 
-    socketSendString[socketId, message, StringLength[message]];
+    socketSendString[socketId, message];
 
     If[socketsSelect[{socketId}, 1, 5 * 10^6, 1] =!= {socketId},
         Message[HTTPRequestEvaluate::timeout, absolutePath];
@@ -54,7 +54,6 @@ HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
     ];
 
     socketClose[socketId];
-    socketAddressInfoRemove[addressInfo];
 
     (*Return*)
     ImportByteArray[response, "HTTPResponse"]

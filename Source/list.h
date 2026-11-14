@@ -2,7 +2,7 @@
 #define LIST_H
 
 
-#include "common.h"
+#include "socket.h"
 
 
 typedef enum {
@@ -17,19 +17,30 @@ typedef enum {
 
 typedef struct SocketList_st
 {
+    SocketObject *sockets;
     POLL_FD *pollfds;
-    struct addrinfo **addrinfos;
-    SOCKET_TYPE *sockettypes;
-
-    mint capacity;
-    mint length;
+    size_t length;
+    size_t capacity;
 } *SocketList;
 
 
-SocketList socket_list_create(mint *sockets, mint *types, size_t length);
+static inline SOCKET_TYPE socket_list_socket_type(SocketObject socketObject)
+{
+    switch ((SocketRole)socketObject.role) {
+    case SOCKET_ROLE_LISTENER:
+        return (socketObject.type == SOCKET_TYPE_DGRAM) ? UDP_SERVER : TCP_SERVER;
+    case SOCKET_ROLE_CONNECTED:
+        return (socketObject.type == SOCKET_TYPE_DGRAM) ? UDP_CLIENT : TCP_CLIENT;
+    case SOCKET_ROLE_ACCEPTED:
+        return TCP_ACCEPTED;
+    case SOCKET_ROLE_INTERRUPTER:
+    default:
+        return INTERUPTER;
+    }
+}
 
 
-bool socket_list_add(SocketList socketList, SOCKET socketId, SOCKET_TYPE socketType);
+bool socket_list_add(SocketList socketList, SocketObject socketObject);
 
 
 void socket_list_prune(SocketList socketList);

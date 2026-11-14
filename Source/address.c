@@ -1,14 +1,65 @@
 #include "address.h"
 
 
-DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+struct sockaddr_storage *MArgument_getAddressStorage(WolframLibraryData libData, MArgument arg)
 {
-    char *host = MArgument_getUTF8String(Args[0]);        // remote host (can be NULL)
-    char *port = MArgument_getUTF8String(Args[1]);        // port as string
-    int ai_family = (int)MArgument_getInteger(Args[2]);   // AF_UNSPEC, AF_INET, AF_INET6
-    int ai_socktype = (int)MArgument_getInteger(Args[3]); // SOCK_STREAM, SOCK_DGRAM
-    int ai_protocol = (int)MArgument_getInteger(Args[4]); // 0, IPPROTO_TCP, IPPROTO_UDP
-    char *localIP = MArgument_getUTF8String(Args[5]);     // local IP for binding
+    MNumericArray addressArray = MArgument_getMNumericArray(arg);
+    if (libData->numericarrayLibraryFunctions->MNumericArray_getFlattenedLength(addressArray) < sizeof(struct sockaddr_storage)) {
+        libData->Message("AddressStorage: invalid buffer size");
+        return NULL;
+    }
+    struct sockaddr_storage *addressStorage = (struct sockaddr_storage *)libData->numericarrayLibraryFunctions->MNumericArray_getData(addressArray);
+    return addressStorage;
+}
+
+
+void MArgument_setAddressStorage(WolframLibraryData libData, MArgument res, struct addrinfo *addressInfo)
+{
+    mint length = (mint)sizeof(struct sockaddr_storage);
+    MNumericArray addressArray;
+    libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &length, &addressArray);
+
+    struct sockaddr_storage *addressStorage = (struct sockaddr_storage*)libData->numericarrayLibraryFunctions->MNumericArray_getData(addressArray);
+    ZeroMemory(addressStorage, sizeof(struct sockaddr_storage));
+
+    size_t addressSize = addressInfo->ai_addrlen;
+    if (addressSize > sizeof(struct sockaddr_storage)) {
+        addressSize = sizeof(struct sockaddr_storage);
+    }
+
+    memcpy(addressStorage, addressInfo->ai_addr, addressSize);
+
+    MArgument_setMNumericArray(res, addressArray);
+}
+
+
+void DataStore_addAddressStorage(WolframLibraryData libData, DataStore dataStore, struct sockaddr_storage *addressStorage)
+{
+    mint length = (mint)sizeof(struct sockaddr_storage);
+    MNumericArray addressArray;
+    libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &length, &addressArray);
+
+    struct sockaddr_storage *arrayData = (struct sockaddr_storage*)libData->numericarrayLibraryFunctions->MNumericArray_getData(addressArray);
+    ZeroMemory(arrayData, sizeof(struct sockaddr_storage));
+    memcpy(arrayData, addressStorage, sizeof(struct sockaddr_storage));
+
+    libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, addressArray);
+}
+
+
+DLLEXPORT int socketAddressStorageCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    if (Argc != 6) {
+        libData->Message("socketAddressStorageCreate: invalid argument count");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    char *host = MArgument_getUTF8String(Args[0]);
+    char *port = MArgument_getUTF8String(Args[1]);
+    int ai_family = (int)MArgument_getInteger(Args[2]);
+    int ai_socktype = (int)MArgument_getInteger(Args[3]);
+    int ai_protocol = (int)MArgument_getInteger(Args[4]);
+    char *localIP = MArgument_getUTF8String(Args[5]);
 
     int result;
     struct addrinfo *address = NULL;
@@ -42,25 +93,61 @@ DLLEXPORT int socketAddressInfoCreate(WolframLibraryData libData, mint Argc, MAr
     if (port) libData->UTF8String_disown(port);
     if (localIP) libData->UTF8String_disown(localIP);
 
-    if (result != 0) {
+    if (result != 0 || address == NULL) {
+        if (address) {
+            freeaddrinfo(address);
+        }
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    mint addressPtr = (mint)(uintptr_t)address;
-    MArgument_setInteger(Res, addressPtr);
+    MArgument_setAddressStorage(libData, Res, address);
+    freeaddrinfo(address);
     return LIBRARY_NO_ERROR;
 }
 
 
-DLLEXPORT int socketAddressInfoRemove(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+DLLEXPORT int socketAddressStorageHost(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    uintptr_t addressPtr = (uintptr_t)MArgument_getInteger(Args[0]); // address pointer as integer
-    struct addrinfo *address = (struct addrinfo*)addressPtr;
+    if (Argc != 1) return LIBRARY_FUNCTION_ERROR;
+    struct sockaddr_storage *addressStorage = MArgument_getAddressStorage(libData, Args[0]);
+    if (!addressStorage) return LIBRARY_FUNCTION_ERROR;
 
-    if (address == NULL) {
+    /* LibraryLink reads the result after this function returns. */
+    static char host[INET6_ADDRSTRLEN];
+    unsigned short port;
+    if (!socket_address_to_host(addressStorage, host, sizeof(host), &port)) {
+        libData->Message("AddressStorage: unsupported address family or invalid address");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+    MArgument_setUTF8String(Res, host);
+    return LIBRARY_NO_ERROR;
+}
+
+
+DLLEXPORT int socketAddressStorageInspect(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    if (Argc != 1) return LIBRARY_FUNCTION_ERROR;
+    struct sockaddr_storage *addressStorage = MArgument_getAddressStorage(libData, Args[0]);
+    if (!addressStorage) return LIBRARY_FUNCTION_ERROR;
+
+    mint values[2];
+    if (addressStorage->ss_family == AF_INET) {
+        const struct sockaddr_in *address = (const struct sockaddr_in *)addressStorage;
+        values[0] = 4;
+        values[1] = ntohs(address->sin_port);
+    } else if (addressStorage->ss_family == AF_INET6) {
+        const struct sockaddr_in6 *address = (const struct sockaddr_in6 *)addressStorage;
+        values[0] = 6;
+        values[1] = ntohs(address->sin6_port);
+    } else {
+        libData->Message("AddressStorage: unsupported address family");
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    freeaddrinfo(address);
+    mint dims[1] = {2};
+    MTensor properties;
+    if (libData->MTensor_new(MType_Integer, 1, dims, &properties)) return LIBRARY_MEMORY_ERROR;
+    memcpy(libData->MTensor_getIntegerData(properties), values, sizeof(values));
+    MArgument_setMTensor(Res, properties);
     return LIBRARY_NO_ERROR;
 }
