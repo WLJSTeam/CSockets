@@ -30,7 +30,6 @@ const SocketObject *MArgument_getSocketObject(WolframLibraryData libData, MArgum
 }
 
 
-/* Shared passing is selected by this accessor's name in Build.wls. */
 SocketObject *MArgument_getSocketObjectRef(WolframLibraryData libData, MArgument arg)
 {
     return (SocketObject *)MArgument_getSocketObject(libData, arg);
@@ -461,18 +460,23 @@ DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Arg
 
 DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    if (Argc != 3) {
+    if (Argc != 2) {
         libData->Message("socketRecv: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
     const SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
     if (!socketObject) return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, 1);
-    BYTE *buffer = MArgument_getByteArray(libData, Args[1]);
-    mint bufferSize = MArgument_getInteger(Args[2]);
+    MNumericArray buffer = MArgument_getMNumericArray(Args[1]);
+    mint bufferSize = libData->numericarrayLibraryFunctions->MNumericArray_getFlattenedLength(buffer);
+    if (bufferSize > INT_MAX) {
+        libData->Message("socketRecv: buffer too large");
+        return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, 1);
+    }
+    BYTE *bufferData = libData->numericarrayLibraryFunctions->MNumericArray_getData(buffer);
 
-    int result = recv((SOCKET)socketObject->socket, buffer, bufferSize, 0);
+    int result = recv((SOCKET)socketObject->socket, (char *)bufferData, (int)bufferSize, 0);
     if (result >= 0) {
-        MArgument_setByteArray(libData, Res, buffer, result);
+        MArgument_setByteArray(libData, Res, bufferData, result);
         return socket_call_result(libData, Args, LIBRARY_NO_ERROR, 1);
     }
 
@@ -485,44 +489,59 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
 
 DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    if (Argc != 4) {
+    if (Argc != 2) {
         libData->Message("socketRecvFrom: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
     const SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
-    if (!socketObject) return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, 2);
-    struct sockaddr_storage *addressStorage = MArgument_getAddressStorage(libData, Args[1]);
-    BYTE *buffer = MArgument_getByteArray(libData, Args[2]);
-    mint bufferSize = MArgument_getInteger(Args[3]);
+    if (!socketObject) return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, 1);
+    MNumericArray buffer = MArgument_getMNumericArray(Args[1]);
+    mint bufferSize = libData->numericarrayLibraryFunctions->MNumericArray_getFlattenedLength(buffer);
+    if (bufferSize > INT_MAX) {
+        libData->Message("socketRecvFrom: buffer too large");
+        return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, 1);
+    }
+    BYTE *bufferData = libData->numericarrayLibraryFunctions->MNumericArray_getData(buffer);
 
-    if (addressStorage == NULL) {
-        libData->Message("socketRecvFrom: invalid address data");
-        return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, 2);
+    struct sockaddr_storage addressStorage;
+    ZeroMemory(&addressStorage, sizeof(addressStorage));
+    socklen_t addressLength = sizeof(addressStorage);
+    int result = recvfrom((SOCKET)socketObject->socket, (char *)bufferData, (int)bufferSize, 0,
+        (struct sockaddr *)&addressStorage, &addressLength);
+    if (result < 0) {
+        char errorMsg[32];
+        snprintf(errorMsg, sizeof(errorMsg), "socketrecvfromerror:%d", GETSOCKETERRNO());
+        libData->Message(errorMsg);
+        return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, 1);
     }
 
-    socklen_t addrLen = 0;
-    switch (addressStorage->ss_family) {
-    case AF_INET:
-        addrLen = sizeof(struct sockaddr_in);
-        break;
-    case AF_INET6:
-        addrLen = sizeof(struct sockaddr_in6);
-        break;
-    default:
-        libData->Message("socketRecvFrom: unsupported address family");
-        return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, 2);
+    mint dataLength = (mint)result;
+    MNumericArray receivedData;
+    if (libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &dataLength, &receivedData)) {
+        return socket_call_result(libData, Args, LIBRARY_MEMORY_ERROR, 1);
+    }
+    if (dataLength > 0) {
+        memcpy(libData->numericarrayLibraryFunctions->MNumericArray_getData(receivedData), bufferData, (size_t)dataLength);
     }
 
-    int result = recvfrom((SOCKET)socketObject->socket, buffer, bufferSize, 0, (struct sockaddr *)addressStorage, &addrLen);
-    if (result >= 0) {
-        MArgument_setByteArray(libData, Res, buffer, (mint)result);
-        return socket_call_result(libData, Args, LIBRARY_NO_ERROR, 2);
+    mint storageLength = sizeof(addressStorage);
+    MNumericArray receivedAddress;
+    if (libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &storageLength, &receivedAddress)) {
+        libData->numericarrayLibraryFunctions->MNumericArray_free(receivedData);
+        return socket_call_result(libData, Args, LIBRARY_MEMORY_ERROR, 1);
     }
+    memcpy(libData->numericarrayLibraryFunctions->MNumericArray_getData(receivedAddress), &addressStorage, sizeof(addressStorage));
 
-    char errorMsg[32];
-    snprintf(errorMsg, sizeof(errorMsg), "socketrecvfromerror:%d", GETSOCKETERRNO());
-    libData->Message(errorMsg);
-    return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, 2);
+    DataStore dataStore = libData->ioLibraryFunctions->createDataStore();
+    if (!dataStore) {
+        libData->numericarrayLibraryFunctions->MNumericArray_free(receivedData);
+        libData->numericarrayLibraryFunctions->MNumericArray_free(receivedAddress);
+        return socket_call_result(libData, Args, LIBRARY_MEMORY_ERROR, 1);
+    }
+    libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, receivedData);
+    libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, receivedAddress);
+    MArgument_setDataStore(Res, dataStore);
+    return socket_call_result(libData, Args, LIBRARY_NO_ERROR, 1);
 }
 
 
@@ -545,29 +564,6 @@ DLLEXPORT int socketSend(WolframLibraryData libData, mint Argc, MArgument *Args,
 
     MArgument_setInteger(Res, sentLength);
     return socket_call_result(libData, Args, LIBRARY_NO_ERROR, 1);
-}
-
-
-DLLEXPORT int socketSendString(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    if (Argc != 2) {
-        libData->Message("socketSendString: invalid argument count");
-        return LIBRARY_FUNCTION_ERROR;
-    }
-    const SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
-    if (!socketObject) return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, -1);
-    char *text = MArgument_getUTF8String(Args[1]);
-    size_t length = strlen(text);
-
-    int sentLength = send((SOCKET)socketObject->socket, text, (int)length, 0);
-    libData->UTF8String_disown(text);
-
-    if (sentLength < 0) {
-        return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, -1);
-    }
-
-    MArgument_setInteger(Res, sentLength);
-    return socket_call_result(libData, Args, LIBRARY_NO_ERROR, -1);
 }
 
 
@@ -645,46 +641,6 @@ DLLEXPORT int socketSendToAddressStorage(WolframLibraryData libData, mint Argc, 
     if (sentLength == SOCKET_ERROR) return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, 2);
     MArgument_setInteger(Res, sentLength);
     return socket_call_result(libData, Args, LIBRARY_NO_ERROR, 2);
-}
-
-
-DLLEXPORT int socketSendStringTo(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
-{
-    if (Argc != 4) {
-        libData->Message("socketSendStringTo: invalid argument count");
-        return LIBRARY_FUNCTION_ERROR;
-    }
-    const SocketObject *socketObject = MArgument_getSocketObject(libData, Args[0]);
-    if (!socketObject) return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, -1);
-
-    char *host = MArgument_getUTF8String(Args[1]);
-    unsigned short port = (unsigned short)MArgument_getInteger(Args[2]);
-
-    char *text = MArgument_getUTF8String(Args[3]);
-    size_t length = strlen(text);
-
-    struct sockaddr_storage address;
-    socklen_t addressLength;
-
-    if (!socket_address_from_host(host, port, &address, &addressLength))
-    {
-        libData->UTF8String_disown(host);
-        libData->UTF8String_disown(text);
-        return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, -1);
-    }
-
-    int sentLength = sendto((SOCKET)socketObject->socket, text, (int)length, 0, (const struct sockaddr *)&address, addressLength);
-
-    libData->UTF8String_disown(host);
-    libData->UTF8String_disown(text);
-
-    if (sentLength < 0)
-    {
-        return socket_call_result(libData, Args, LIBRARY_FUNCTION_ERROR, -1);
-    }
-
-    MArgument_setInteger(Res, sentLength);
-    return socket_call_result(libData, Args, LIBRARY_NO_ERROR, -1);
 }
 
 

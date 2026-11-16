@@ -103,12 +103,12 @@ socketHandlerTests = {
   ],
 
   VerificationTest[
-   With[{handler = WLJS`CSockets`CSocketHandler[]},
-    handler["Logger", "Received"] = "combined";
-    handler["Logger", "Received"] === "combined"
+   With[{handler = WLJS`CSockets`CSocketHandler[], logger = Function[value, {"logged", value}]},
+    handler["Logger"] = logger;
+    handler["Logger"] === logger
    ],
    True,
-   TestID -> "handler-setter-updates-nested-key"
+   TestID -> "handler-setter-stores-logger-function"
   ],
 
   VerificationTest[
@@ -122,15 +122,13 @@ socketHandlerTests = {
   VerificationTest[
    Block[
     {
-     WLJS`CSockets`Private`socketSendString = Function[{socketData, text}, {"text", socketData, text}],
      WLJS`CSockets`Private`socketSend = Function[{socketId, byteArray, len}, {"bytes", socketId, Length[byteArray], len}],
-     handler = WLJS`CSockets`CSocketHandler[],
      client = WLJS`CSockets`CSocketObject[{33, 6, 1, 2, 1, 0}]
     },
     And[
-     WLJS`CSockets`Private`sendResponse[handler, <|"SourceSocket" -> client|>, "ok"] === {"text", {33, 6, 1, 2, 1, 0}, "ok"},
-     WLJS`CSockets`Private`sendResponse[handler, <|"SourceSocket" -> client|>, ByteArray[{1, 2}]] === {"bytes", {33, 6, 1, 2, 1, 0}, 2, 2},
-     WLJS`CSockets`Private`sendResponse[handler, <|"SourceSocket" -> client|>, Null] === Null
+     WLJS`CSockets`Private`sendResponse[<|"SourceSocket" -> client, "Result" -> "ok"|>] === {"bytes", {33, 6, 1, 2, 1, 0}, 2, 2},
+     WLJS`CSockets`Private`sendResponse[<|"SourceSocket" -> client, "Result" -> ByteArray[{1, 2}]|>] === {"bytes", {33, 6, 1, 2, 1, 0}, 2, 2},
+     WLJS`CSockets`Private`sendResponse[<|"SourceSocket" -> client, "Result" -> Null|>] === Null
     ]
    ],
    True,
@@ -139,7 +137,10 @@ socketHandlerTests = {
 
   VerificationTest[
    Block[
-    {message = WLJS`CSockets`Private`conditionApply[<|True -> Function[x, x + 1], False -> Function[x, x - 1]|>]},
+    {message = WLJS`CSockets`Private`conditionApply[<|
+     "plus" :> Function[x, True] :> Function[x, x + 1],
+     "minus" :> Function[x, False] :> Function[x, x - 1]
+    |>]},
     And[
      message[10] === 11,
      WLJS`CSockets`Private`conditionApply[<||>, Function[Null]][123] === Null

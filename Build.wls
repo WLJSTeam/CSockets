@@ -102,6 +102,7 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
             "AddressStorage" -> "\"ByteArray\"",
             "MNumericArray" -> {"\"ByteArray\"", "\"Shared\""},
             "ByteArray" -> {"\"ByteArray\"", "\"Shared\""},
+            "DataStore" -> "\"DataStore\"",
             "MTensor" -> {Integer, 1}
         })
     ][[1]]&] @ $argLines;
@@ -127,6 +128,7 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
             "AddressStorage" -> "\"ByteArray\"",
             "MNumericArray" -> "\"ByteArray\"",
             "ByteArray" -> "\"ByteArray\"",
+            "DataStore" -> "\"DataStore\"",
             "MTensor" -> {Integer, 1}
         })][[1]],
         $resultType = "\"Void\""

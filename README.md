@@ -28,8 +28,11 @@ client = CSocketConnect["localhost", 8080]
 ### Send and receive data
 
 ```wl
+listener = SocketListen[server, CSocketHandler[
+  "Received" -> (#["DataByteArray"] &)
+]];
 WriteString[client, "hello"]
-message = SocketReadMessage[server]
+message = SocketReadMessage[client]
 ```
 
 For binary data, use `BinaryWrite`:
@@ -41,6 +44,7 @@ BinaryWrite[client, ByteArray[{104, 101, 108, 108, 111}]]
 ### Close the socket
 
 ```wl
+RemoveAsynchronousTask[listener];
 Close[client]
 Close[server]
 ```
@@ -125,6 +129,34 @@ CSocketList[{socket1, socket2, ...}]
 
 Creates a socket list object for polling multiple sockets at once.
 
+### Sending and reading
+
+```wl
+BinaryWrite[socket, bytes]
+BinaryWrite[socket, addressStorage, bytes]
+WriteString[socket, text]
+WriteString[socket, addressStorage, text]
+```
+
+The address argument is an `AddressStorage[ByteArray[...]]` object. It selects
+the destination of a UDP datagram. Strings are converted to UTF-8 bytes before
+sending. The wrappers recursively send any remaining bytes and return the total
+number sent; an error stops sending, and zero progress returns `$Failed`.
+
+`SocketReadMessage[socket]` returns a `ByteArray` for TCP. For both UDP clients
+and UDP servers it returns `{data, address}` directly from the native result,
+with `NumericArray` values. Empty UDP data is returned as `{}`.
+
+```wl
+{data, address} = SocketReadMessage[udpSocket];
+BinaryWrite[udpSocket, AddressStorage[ByteArray[address]], ByteArray[data]];
+```
+
+The private native functions are `socketRecv[socketRow, buffer]` and
+`socketRecvFrom[socketRow, buffer]`; both infer the capacity of the byte buffer.
+`socketRecvFrom` returns a ``Developer`DataStore`` containing data followed by
+the sender address. `SocketReadMessage` converts that container to a list.
+
 ### `SocketReadyQ`
 
 `SocketReadyQ[socket, timeout]` checks whether a socket has pending activity.
@@ -179,16 +211,45 @@ The callback receives event associations such as:
 `CSocketHandler[]` creates a mutable handler object.
 The handler stores callbacks and helper functions under named keys.
 
+Calling `handler[packet]` returns the packet association with an added `"Result"`
+field for completed messages. Each packet carries its `"Handler"`. For
+`"Received"` and `"ReceivedFrom"`, the handler first calculates `"DataLength"`,
+`"ExpectedLength"`, `"StoredLength"`, and `"Completed"`. Incomplete packets are
+buffered and logged without invoking the deserializer, callback, or sender.
+TCP buffers are separated by socket; UDP buffers are also separated by sender
+address. Multiple complete messages in one read are processed separately, and
+any trailing fragment stays buffered.
+
+Once complete, `"DataByteArray"` and `"DataBytes"` hold the assembled message and
+`"Data"` is the result of `"Deserializer"` applied to those bytes. Its default
+is the identity function, so use `"Deserializer" -> ByteArrayToString` for text.
+The callback result is passed through
+`"Serializer"`, stored in `"Result"`, and sent to `"SourceSocket"`. If the packet
+has `"AddressStorage"`, that address is passed to `BinaryWrite` or `WriteString`.
+A callback may return a string, `ByteArray`, or `Null`; `Null` means no reply.
+
+`"Logger"` receives the complete packet after sending. All incoming fields,
+including raw request data and any length metadata, are retained. Its return
+value does not replace the packet. Callbacks for other events also have their
+return value stored in `"Result"` and are logged, but do not send a reply.
+
+Internally, `sendResponse[packet]` takes only the packet. A missing `"Result"`
+or a `Null` result causes no send.
+
+Handler keys are flat. For example, `handler["Logger"] = Function[p, Print[p]]`
+sets the logger, and `handler["Logger", packet]` invokes it.
+
 ### Options
 
 | Option | Default | Meaning |
 | ---               | --- | --- |
-| `"Logger"`      | `Function[#]` | Called for logging or tracing. |
-| `"Buffer"`       | `CreateDataStructure["HashTable"]` | Per-socket accumulation buffer. |
+| `"Logger"`      | `Function[#]` | Receives the final packet after sending. |
+| `"Buffer"`       | `CreateDataStructure["HashTable"]` | Stores incomplete message fragments. |
 | `"Serializer"`    | `Function[#]` | Postprocesses handler results before they are sent. |
-| `"Deserializer"` | `Function[#]` | Converts incoming bytes into higher-level data. |
-| `"Accumulator"` | `Function[Length[#DataByteArray]]` | Computes the expected message length from an incoming packet. |
+| `"Deserializer"` | `Function[#]` | Converts the complete message bytes into `"Data"`. |
+| `"Accumulator"` | `Function[Length[#DataByteArray]]` | Computes expected message length from the first fragment. |
 | `"Received"` | `Function[Null]` | Callback for received data. |
+| `"ReceivedFrom"` | `Function[Null]` | Callback for UDP data, including the sender's `"AddressStorage"`. |
 | `"Accepted"` | `Function[Null]` | Callback for accepted connections. |
 | `"Closed"` | `Function[Null]` | Callback for socket close events. |
 | `"Error"` | `Function[Null]` | Callback for error events. |
@@ -220,7 +281,9 @@ Run the Wolfram tests with:
 wolframscript -file Tests/AddressTest.wlt
 ```
 
-The test file checks the public object accessors, event conversion helpers, handler defaults, and packet length calculation logic.
+The `Tests/` directory covers socket I/O, UDP addresses and replies, asynchronous
+events, shared ownership, partial sends, and final packet logging. Run Wolfram
+test processes sequentially.
 
 ## Demo scripts
 

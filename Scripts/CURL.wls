@@ -39,7 +39,7 @@ HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
         Return[$Failed];
     ];
 
-    socketSendString[socketId, message];
+    WriteString[CSocketObject[socketId], message];
 
     If[socketsSelect[{socketId}, 1, 5 * 10^6, 1] =!= {socketId},
         Message[HTTPRequestEvaluate::timeout, absolutePath];
@@ -50,7 +50,7 @@ HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
     response = ByteArray[{}];
 
     While[socketsSelect[{socketId}, 1, 1, 1] === {socketId},
-        response = Join[response, socketRecv[socketId, buffer, 4096]];
+        response = Join[response, socketRecv[socketId, buffer]];
     ];
 
     socketClose[socketId];

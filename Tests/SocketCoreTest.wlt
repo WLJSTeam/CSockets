@@ -3,6 +3,18 @@ baseDir = DirectoryName[$InputFileName, 2];
 Get[FileNameJoin[{baseDir, "Kernel", "CSockets.wl"}]];
 TestReport[{
  VerificationTest[
+  Module[{server, client, accepted, received, result},
+   server = CSocketOpen["127.0.0.1", 0];
+   client = CSocketConnect["127.0.0.1", server["DestinationPort"], "TCP", "Wait" -> True];
+   accepted = CSocketObject[WLJS`CSockets`Private`socketAccept[First[server]]];
+   BinaryWrite[client, ByteArray[{1, 2, 3, 4, 5}]];
+   received = WLJS`CSockets`Private`socketRecv[First[accepted], ByteArray[{0, 0}]];
+   result = received === ByteArray[{1, 2}] && SocketReadyQ[accepted, 1] &&
+    WLJS`CSockets`Private`socketRecv[First[accepted], ByteArray[{0, 0, 0}]] === ByteArray[{3, 4, 5}];
+   Scan[Close, {accepted, client, server}];
+   result
+  ], True, TestID -> "recv-infers-capacity-from-each-buffer"],
+ VerificationTest[
   With[{tcp = CSocketObject[{10, 0, 1, 1, 1, 0}], udp = CSocketObject[{11, 0, 2, 2, 1, 1}]},
    {tcp["DirectionType"], tcp["Protocol"], tcp["Scheme"], tcp["UUID"], tcp["InprocQ"], udp["DirectionType"], udp["Protocol"], udp["Scheme"], udp["UUID"]}],
   {"Server", "TCP", "tcp", 10, False, "Client", "UDP", "udp", 11}, TestID -> "accessors-use-role-type-and-descriptor"],
@@ -43,10 +55,9 @@ TestReport[{
    Scan[Close, {accepted, client, server}]; result
   ], True, TestID -> "tcp-six-field-roundtrip-and-bulk-operations"],
  VerificationTest[
-  Block[{WLJS`CSockets`Private`socketSendString = Function[{row, text}, {row, text}],
-    WLJS`CSockets`Private`socketSend = Function[{row, bytes, len}, {row, Length[bytes], len}]},
+  Block[{WLJS`CSockets`Private`socketSend = Function[{row, bytes, len}, {row, Length[bytes], len}]},
    With[{row = {42, 17, 2, 2, 1, 1}},
-    {WriteString[CSocketObject[row], "hi"], BinaryWrite[CSocketObject[row], ByteArray[{1, 2}]]} === {{row, "hi"}, {row, 2, 2}}]],
+    {WriteString[CSocketObject[row], "hi"], BinaryWrite[CSocketObject[row], ByteArray[{1, 2}]]} === {{row, 2, 2}, {row, 2, 2}}]],
   True, TestID -> "write-wrappers-pass-all-six-fields"],
  VerificationTest[
   Block[{WLJS`CSockets`Private`socketsSelect = Function[{rows, count, timeout, mode}, rows]},

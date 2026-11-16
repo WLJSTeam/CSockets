@@ -349,14 +349,46 @@ CSocketObject /: WriteString[
     CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}],
     text_String
 ] :=
-socketSendString[socketData, text];
+BinaryWrite[CSocketObject[socketData], StringToByteArray[text]];
+
+
+CSocketObject /: WriteString[
+    socketObject_CSocketObject,
+    addressStorage_AddressStorage,
+    text_String
+] :=
+BinaryWrite[socketObject, addressStorage, StringToByteArray[text]];
 
 
 CSocketObject /: BinaryWrite[
     CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}],
     bytes_ByteArray
 ] :=
-socketSend[socketData, bytes, Length[bytes]];
+Module[{length = Length[bytes], sent, remaining},
+    sent = socketSend[socketData, bytes, length];
+    If[!IntegerQ[sent], Return[sent]];
+    If[sent === length, Return[sent]];
+    If[sent <= 0 || sent > length, Return[$Failed]];
+
+    remaining = BinaryWrite[CSocketObject[socketData], bytes[[sent + 1 ;;]]];
+    If[IntegerQ[remaining], sent + remaining, remaining]
+];
+
+
+CSocketObject /: BinaryWrite[
+    socketObject: CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}],
+    addressStorage: AddressStorage[storage_ByteArray],
+    bytes_ByteArray
+] :=
+Module[{length = Length[bytes], sent, remaining},
+    sent = socketSendToAddressStorage[socketData, storage, bytes];
+    If[!IntegerQ[sent], Return[sent]];
+    If[sent === length, Return[sent]];
+    If[sent <= 0 || sent > length, Return[$Failed]];
+
+    remaining = BinaryWrite[socketObject, addressStorage, bytes[[sent + 1 ;;]]];
+    If[IntegerQ[remaining], sent + remaining, remaining]
+];
 
 
 CSocketObject /: SocketReadyQ[
@@ -371,11 +403,15 @@ Module[{events},
 ];
 
 
-CSocketObject /: SocketReadMessage[
-    CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}]
-] :=
-With[{buffer = ByteArray[ConstantArray[0, 64 * 1024]]},
-    socketRecv[socketData, buffer, Length[buffer]]
+With[{readMessageBuffer = ByteArray[ConstantArray[0, 64 * 1024]]}, 
+    CSocketObject /: SocketReadMessage[
+        CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}]
+    ] :=
+    If[socketData[[3]] =!= $SOCKDGRAM,
+        socketRecv[socketData, readMessageBuffer], 
+    (*Else*)
+        Apply[List][socketRecvFrom[socketData, readMessageBuffer]]
+    ]
 ];
 
 
@@ -560,85 +596,102 @@ Module[{above, below},
 
 
 (handler_CSocketHandler)[packet_Association] :=
-Module[{result, eventHandler},
-    eventHandler = handler[packet["Event"]];
-
-    If[MemberQ[{handler["Received"], handler["ReceivedFrom"]}, eventHandler],
-        result = handler["Serializer"] @ eventHandler[packet];
-        sendResponse[handler, packet, result];
-        Return[result];
+Module[{
+    processedPacket = Append[KeyDrop[packet, "Result"], "Handler" -> handler], 
+    event = packet["Event"], bytes, remaining
+},
+    If[!MemberQ[{"Received", "ReceivedFrom"}, packet["Event"]],
+        processedPacket["Result"] = handler[packet["Event"]][processedPacket];
+        handler["Logger"][processedPacket];
+        Return[processedPacket]
     ];
 
-    eventHandler[packet]
-];
-
-
-getExtendedPacket[handler_CSocketHandler, packet_Association] :=
-With[{uuid = packet["SourceSocket"]["UUID"]},
-    Module[{
-        dataLength,
-        last,
-        expectedLength,
-        storedLength,
-        completed,
-        buffer
-    },
-        dataLength = Length[packet["DataByteArray"]];
-        buffer = handler["Buffer"]["Lookup", uuid]; (*DataStructure[DynamicArray]*)
-
-        If[!MissingQ[buffer] && buffer["Length"] > 0,
-            last = buffer["Part", -1]; (*Association[]*)
-            expectedLength = last["ExpectedLength"];
-            storedLength = last["StoredLength"];,
-
-        (*Else*)
-            expectedLength = conditionApply[handler["Accumulator"]][packet];
-            storedLength = 0;
+    While[True,
+        processedPacket = getExtendedPacket[processedPacket];
+        If[processedPacket === $Failed, Return[$Failed]];
+        If[!TrueQ[processedPacket["Completed"]],
+            savePacketToBuffer[processedPacket];
+            handler["Logger"][processedPacket];
+            Return[processedPacket]
         ];
 
-        completed = storedLength + dataLength >= expectedLength;
+        bytes = getMessage[processedPacket];
+        remaining = bytes[[processedPacket["ExpectedLength"] + 1 ;;]];
+        processedPacket["DataByteArray"] = bytes[[1 ;; processedPacket["ExpectedLength"]]];
+        processedPacket["DataBytes"] = Normal[processedPacket["DataByteArray"]];
+        clearBuffer[processedPacket];
+        processedPacket["Data"] = handler["Deserializer"][processedPacket["DataByteArray"]];
+        processedPacket = invokeHandler[processedPacket];
+        sendResponse[processedPacket];
+        handler["Logger"][processedPacket];
 
-        (*Return: Association[]*)
-        Join[
-            packet,
-            <|
-                "Completed" -> completed,
-                "ExpectedLength" -> expectedLength,
-                "StoredLength" -> storedLength + dataLength,
-                "DataLength" -> dataLength
-            |>
-        ]
+        If[Length[remaining] === 0, Return[processedPacket]];
+        processedPacket = Join[KeyDrop[packet, "Result"], <|
+            "Handler" -> handler,
+            "DataByteArray" -> remaining,
+            "DataBytes" -> Normal[remaining],
+            "Data" -> ByteArrayToString[remaining]
+        |>]
     ]
 ];
 
 
-getMessage[handler_CSocketHandler, extendedPacket_Association] :=
-With[{
-    buffer = handler["Buffer"]["Lookup", extendedPacket["SourceSocket"]["UUID"]],
-    expectedLength = extendedPacket["ExpectedLength"]
-},
+packetBufferKey[packet_Association] :=
+If[KeyExistsQ[packet, "AddressStorage"],
+    {packet["SourceSocket"]["UUID"], packet["AddressStorage"]},
+    packet["SourceSocket"]["UUID"]
+];
+
+
+CSocketHandler::length =
+"Accumulator returned invalid expected length `1`.";
+
+
+getExtendedPacket[packet_Association] :=
+With[{handler = packet["Handler"], key = packetBufferKey[packet]},
+    Module[{dataLength, last, expectedLength, storedLength = 0, buffer, accumulator},
+        dataLength = Length[packet["DataByteArray"]];
+        buffer = handler["Buffer"]["Lookup", key];
+
+        If[!MissingQ[buffer] && buffer["Length"] > 0,
+            last = buffer["Part", -1];
+            expectedLength = last["ExpectedLength"];
+            storedLength = last["StoredLength"],
+        (*Else*)
+            accumulator = handler["Accumulator"];
+            expectedLength = If[AssociationQ[accumulator], conditionApply[accumulator][packet], accumulator[packet]]
+        ];
+
+        If[!IntegerQ[expectedLength] || expectedLength < 0 || (expectedLength === 0 && dataLength > 0),
+            Message[CSocketHandler::length, expectedLength];
+            Return[$Failed]
+        ];
+
+        Join[packet, <|
+            "Completed" -> (storedLength + dataLength >= expectedLength),
+            "ExpectedLength" -> expectedLength,
+            "StoredLength" -> storedLength + dataLength,
+            "DataLength" -> dataLength
+        |>]
+    ]
+];
+
+
+getMessage[packet_Association] :=
+With[{buffer = packet["Handler"]["Buffer"]["Lookup", packetBufferKey[packet]]},
     If[!MissingQ[buffer] && buffer["Length"] > 0,
-
-        (*Return: _ByteArray*)
-        Part[#, 1 ;; expectedLength]& @
-        Apply[Join] @
-        Append[extendedPacket["DataByteArray"]] @
-        buffer["Elements"][[All, "DataByteArray"]],
-
-    (*Else*)
-
-        (*Return: _ByteArray*)
-        extendedPacket["DataByteArray"][[1 ;; expectedLength]]
+        Apply[Join, Append[buffer["Elements"][[All, "DataByteArray"]], packet["DataByteArray"]]],
+        packet["DataByteArray"]
     ]
 ];
 
 
-invokeHandler[handler_CSocketHandler, packet_Association] :=
-Module[{messageHandler, defaultMessageHandler},
-    messageHandler = handler["Received"];
-
-    (*Return: ByteArray[] | _String | Null*)
-    conditionApply[messageHandler, defaultMessageHandler][packet]
+invokeHandler[packet_Association] :=
+Module[{processedPacket = packet, handler = packet["Handler"], callback},
+    callback = handler[packet["Event"]];
+    processedPacket["Result"] = If[AssociationQ[callback], conditionApply[callback][packet], callback[packet]];
+    processedPacket["Result"] = handler["Serializer"][processedPacket["Result"]];
+    processedPacket
 ];
 
 
@@ -646,68 +699,57 @@ CSocketHandler::cntsnd =
 "Can't send result to the client\n `1`";
 
 
-sendResponse[
-    handler_CSocketHandler,
-    packet_Association /; KeyExistsQ[packet, "AddressStorage"],
-    result: _ByteArray | _String | Null
-] :=
-sendResponse[handler, packet, result, packet["AddressStorage"][[1]]];
+CSocketHandler::packet =
+"Cannot send response: invalid or missing `1` in packet.";
 
 
-sendResponse[
-    _CSocketHandler,
-    packet_Association,
-    result: _ByteArray | _String | Null,
-    addressStorage_ByteArray
-] :=
-With[{socketObject = packet["SourceSocket"][[1]]},
-    Switch[result,
-        _String,
-            socketSendToAddressStorage[socketObject, addressStorage, StringToByteArray[result]],
+sendResponse[packet_Association] :=
+Module[{result, write},
+    If[!KeyExistsQ[packet, "Result"], Return[Null]];
 
-        _ByteArray,
-            socketSendToAddressStorage[socketObject, addressStorage, result],
+    result = packet["Result"];
+    
+    If[result === Null, Return[Null]];
+    
+    If[!MatchQ[result, _ByteArray | _String],
+        Message[CSocketHandler::cntsnd, result];
+        Return[$Failed]
+    ];
+    
+    If[!MatchQ[Lookup[packet, "SourceSocket"], _CSocketObject],
+        Message[CSocketHandler::packet, "SourceSocket"];
+        Return[$Failed]
+    ];
+    
+    write = If[StringQ[result], WriteString, BinaryWrite];
 
-        Null,
-            Null
+    If[KeyExistsQ[packet, "AddressStorage"],
+        If[!MatchQ[packet["AddressStorage"], AddressStorage[_ByteArray]],
+            Message[CSocketHandler::packet, "AddressStorage"];
+            Return[$Failed]
+        ];
+
+        write[packet["SourceSocket"], packet["AddressStorage"], result],
+    (*Else*)
+        write[packet["SourceSocket"], result]
     ]
 ];
 
 
-sendResponse[handler_CSocketHandler, packet_Association, result: _ByteArray | _String | Null] :=
-With[{client = packet["SourceSocket"]},
-    Switch[result,
-        _String,
-            WriteString[client, result],
-
-        _ByteArray,
-            BinaryWrite[client, result],
-
-        Null,
-            Null
+savePacketToBuffer[packet_Association] :=
+With[{handler = packet["Handler"], key = packetBufferKey[packet]},
+    With[{buffer = handler["Buffer"]["Lookup", key]},
+        If[!MissingQ[buffer],
+            buffer["Append", packet],
+            handler["Buffer"]["Insert", key -> CreateDataStructure["DynamicArray", {packet}]]
+        ]
     ]
 ];
 
 
-sendResponse[_CSocketHandler, _Association, result_] :=
-Message[CSocketHandler::cntsnd, result];
-
-
-savePacketToBuffer[handler_CSocketHandler, extendedPacket_Association] :=
-With[{
-    buffer = handler["Buffer"]["Lookup", extendedPacket["SourceSocket"]["UUID"]],
-    uuid = extendedPacket["SourceSocket"]["UUID"]
-},
-    If[!MissingQ[buffer],
-        buffer["Append", extendedPacket],
-        handler["Buffer"]["Insert", uuid -> CreateDataStructure["DynamicArray", {extendedPacket}]]
-    ]
-];
-
-
-clearBuffer[handler_CSocketHandler, packet_Association] :=
-With[{buffer = handler["Buffer"]["Lookup", packet["SourceSocket"]["UUID"]]},
-    buffer["DropAll"];
+clearBuffer[packet_Association] :=
+With[{buffer = packet["Handler"]["Buffer"]["Lookup", packetBufferKey[packet]]},
+    If[!MissingQ[buffer], buffer["DropAll"]]
 ];
 
 
@@ -1204,19 +1246,19 @@ LibraryFunctionLoad[$library, "socketAccept", {{Integer, 1}}, {Integer, 1}];
 
 
 socketRecv::usage =
-"socketRecv[socketObject, buffer, bufferSize] -> buffer.";
+"socketRecv[socketObject, buffer] -> bufferData.";
 
 
 socketRecv =
-LibraryFunctionLoad[$library, "socketRecv", {{Integer, 1}, {"ByteArray", "Shared"}, Integer}, "ByteArray"];
+LibraryFunctionLoad[$library, "socketRecv", {{Integer, 1}, {"ByteArray", "Shared"}}, "ByteArray"];
 
 
 socketRecvFrom::usage =
-"socketRecvFrom[socketObject, addressStorage, buffer, bufferSize] -> buffer.";
+"socketRecvFrom[socketObject, buffer] -> dataStore.";
 
 
 socketRecvFrom =
-LibraryFunctionLoad[$library, "socketRecvFrom", {{Integer, 1}, "ByteArray", {"ByteArray", "Shared"}, Integer}, "ByteArray"];
+LibraryFunctionLoad[$library, "socketRecvFrom", {{Integer, 1}, {"ByteArray", "Shared"}}, "DataStore"];
 
 
 socketSend::usage =
@@ -1225,14 +1267,6 @@ socketSend::usage =
 
 socketSend =
 LibraryFunctionLoad[$library, "socketSend", {{Integer, 1}, {"ByteArray", "Shared"}, Integer}, Integer];
-
-
-socketSendString::usage =
-"socketSendString[socketObject, text] -> sentLength.";
-
-
-socketSendString =
-LibraryFunctionLoad[$library, "socketSendString", {{Integer, 1}, String}, Integer];
 
 
 socketSendTo::usage =
@@ -1249,14 +1283,6 @@ socketSendToAddressStorage::usage =
 
 socketSendToAddressStorage =
 LibraryFunctionLoad[$library, "socketSendToAddressStorage", {{Integer, 1}, "ByteArray", {"ByteArray", "Shared"}}, Integer];
-
-
-socketSendStringTo::usage =
-"socketSendStringTo[socketObject, host, port, text] -> sentLength.";
-
-
-socketSendStringTo =
-LibraryFunctionLoad[$library, "socketSendStringTo", {{Integer, 1}, String, Integer, String}, Integer];
 
 
 socketsCheck::usage =
@@ -1289,6 +1315,14 @@ socketsPoll::usage =
 
 socketsPoll =
 LibraryFunctionLoad[$library, "socketsPoll", {{Integer, 2}, Integer, Integer, Integer}, {Integer, 2}];
+
+
+test::usage =
+"test[] -> result.";
+
+
+test =
+LibraryFunctionLoad[$library, "test", {}, "DataStore"];
 
 
 End[];
