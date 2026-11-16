@@ -317,15 +317,15 @@ With[{id = First[socketData]},
 
 
 CSocketObject /: WriteString[
-    socketObject: CSocketObject[socketData: sockeDataPattern],
+    socketObject_CSocketObject,
     text_String
 ] :=
 BinaryWrite[socketObject, StringToByteArray[text]];
 
 
 CSocketObject /: WriteString[
-    socketObject: CSocketObject[socketData: sockeDataPattern],
-    addressStorage: AddressStorage[storage_ByteArray],
+    socketObject_CSocketObject,
+    addressStorage_AddressStorage,
     text_String
 ] :=
 BinaryWrite[socketObject, addressStorage, StringToByteArray[text]];
@@ -337,8 +337,7 @@ CSocketObject /: BinaryWrite[
 ] :=
 Module[{length = Length[bytes], sent, remaining},
     sent = socketSend[socketData, bytes, length];
-    If[!IntegerQ[sent], Return[sent]];
-    If[sent === length, Return[sent]];
+    If[!IntegerQ[sent] || sent === length, Return[sent]];
     If[sent <= 0 || sent > length, Return[$Failed]];
 
     remaining = BinaryWrite[socketObject, bytes[[sent + 1 ;;]]];
@@ -384,9 +383,6 @@ With[{readMessageBuffer = ByteArray[ConstantArray[0, 64 * 1024]]},
         Apply[List][socketRecvFrom[socketData, readMessageBuffer]]
     ]
 ];
-
-
-If[Not[ListQ[$ListenCSockets]], $ListenCSockets = {}];
 
 
 CSocketList[initialSockets: {__CSocketObject}] :=
