@@ -32,36 +32,6 @@ AddressStorage::usage =
 "AddressStorage[storage] wraps native sockaddr_storage bytes and exposes address properties.";
 
 
-(*SocketWaitNext::overrirde*)
-
-
-(*SocketWaitNext[socketList, timeout=10^10]*)
-
-
-(*SocketWaitAll::overrirde*)
-
-
-(*SocketWaitAll[socketList, timeout=10^10]*)
-
-
-(*SocketReadyQ::overrirde*)
-
-
-(*SocketReadyQ[socketObject, timeout=10^10]*)
-
-
-(*Close::overrirde*)
-
-
-(*Close[socketObject]*)
-
-
-(*DeleteObject::overrirde*)
-
-
-(*DeleteObject[socketListener]*)
-
-
 $CSockets::usage =
 "$CSockets - internal variable for storing socket objects.";
 
@@ -131,7 +101,7 @@ CSocketOpen::open =
 
 CSocketOpen[host_String: "localhost", port_Integer: 0, protocol: "TCP" | "UDP": "TCP"] :=
 With[{
-    addressStorage = Quiet[Check[
+    addressStorage = Check[
         socketAddressStorageCreate[
             host, ToString[port],
             $AFINET,
@@ -139,38 +109,40 @@ With[{
             $IPPROTOAUTO, ""
         ],
         $Failed
-    ]]
+    ]
 },
-    If[!MatchQ[addressStorage, _ByteArray],
+    If[!ByteArrayQ[addressStorage],
         Message[CSocketOpen::open, host, port, protocol, "address resolution"];
         Return[$Failed]
     ];
 
     With[{
-        socketObject = Quiet[Check[
+        socketObject = Check[
             socketCreate[
                 $AFINET,
                 protocol /. {"TCP" -> $SOCKSTREAM, "UDP" -> $SOCKDGRAM},
                 $IPPROTOAUTO
             ],
             $Failed
-        ]]
+        ]
     },
-        If[!MatchQ[socketObject, {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}],
+        If[!MatchQ[socketObject, socketDataPattern],
             Message[CSocketOpen::open, host, port, protocol, "socket creation"];
             Return[$Failed]
         ];
 
-        If[Quiet[Check[socketBind[socketObject, addressStorage], $Failed]] =!= Null,
-            Quiet[socketClose[socketObject]];
+        Check[socketBind[socketObject, addressStorage],
+            socketClose[socketObject];
             Message[CSocketOpen::open, host, port, protocol, "bind"];
             Return[$Failed]
         ];
 
-        If[protocol === "TCP" && Quiet[Check[socketListen[socketObject, $SOMAXCONN], $Failed]] =!= Null,
-            Quiet[socketClose[socketObject]];
-            Message[CSocketOpen::open, host, port, protocol, "listen"];
-            Return[$Failed]
+        If[protocol === "TCP", 
+            Check[socketListen[socketObject, $SOMAXCONN],
+                socketClose[socketObject];
+                Message[CSocketOpen::open, host, port, protocol, "listen"];
+                Return[$Failed]
+            ]
         ];
 
         $CSockets[First[socketObject]] = CSocketObject[socketObject]
@@ -208,7 +180,7 @@ With[{
     ];
 
     With[{
-        addressStorage = Quiet[Check[
+        addressStorage = Check[
             socketAddressStorageCreate[
                 host, ToString[port],
                 $AFINET,
@@ -216,44 +188,46 @@ With[{
                 $IPPROTOAUTO, ""
             ],
             $Failed
-        ]]
+        ]
     },
-        If[!MatchQ[addressStorage, _ByteArray],
+        If[!ByteArrayQ[addressStorage],
             Message[CSocketConnect::connect, host, port, protocol, "address resolution"];
             Return[$Failed]
         ];
 
         With[{
-            socketObject = Quiet[Check[
+            socketObject = Check[
                 socketCreate[
                     $AFINET,
                     protocol /. {"TCP" -> $SOCKSTREAM, "UDP" -> $SOCKDGRAM},
                     $IPPROTOAUTO
                 ],
                 $Failed
-            ]]
+            ]
         },
-            If[!MatchQ[socketObject, {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}],
+            If[!MatchQ[socketObject, socketDataPattern],
                 Message[CSocketConnect::connect, host, port, protocol, "socket creation"];
                 Return[$Failed]
             ];
 
             If[(!blocking || !wait) && Quiet[Check[socketSetNonBlockingMode[socketObject], $Failed]] =!= Null,
-                Quiet[socketClose[socketObject]];
+                socketClose[socketObject];
                 Message[CSocketConnect::connect, host, port, protocol, "setting nonblocking mode"];
                 Return[$Failed]
             ];
 
-            If[Quiet[Check[socketConnect[socketObject, addressStorage], $Failed]] =!= Null,
-                Quiet[socketClose[socketObject]];
+            Check[socketConnect[socketObject, addressStorage],
+                socketClose[socketObject];
                 Message[CSocketConnect::connect, host, port, protocol, "connect"];
                 Return[$Failed]
             ];
 
-            If[!wait && blocking && Quiet[Check[socketSetBlockingMode[socketObject], $Failed]] =!= Null,
-                Quiet[socketClose[socketObject]];
-                Message[CSocketConnect::connect, host, port, protocol, "restoring blocking mode"];
-                Return[$Failed]
+            If[!wait && blocking, 
+                Check[socketSetBlockingMode[socketObject],
+                    socketClose[socketObject];
+                    Message[CSocketConnect::connect, host, port, protocol, "restoring blocking mode"];
+                    Return[$Failed]
+                ]
             ];
 
             $CSockets[First[socketObject]] = CSocketObject[socketObject]
@@ -302,66 +276,63 @@ With[{
 ];
 
 
-CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}]["Host"] :=
+socketDataPattern = 
+{_Integer, _Integer, _Integer, _Integer, _Integer, _Integer};
+
+
+CSocketObject[socketData: sockeDataPattern]["Host"] :=
 socketGetHost[socketData];
 
 
 
-CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}]["DestinationPort"] :=
+CSocketObject[socketData: sockeDataPattern]["DestinationPort"] :=
 socketGetPort[socketData];
 
 
-CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}]["DirectionType"] :=
+CSocketObject[socketData: sockeDataPattern]["DirectionType"] :=
 If[socketData[[4]] === 1, "Server", "Client"];
 
 
-CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}]["InprocQ"] :=
+CSocketObject[socketData: sockeDataPattern]["InprocQ"] :=
 False;
 
 
-CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}]["Protocol"] :=
+CSocketObject[socketData: sockeDataPattern]["Protocol"] :=
 If[socketData[[3]] === $SOCKDGRAM, "UDP", "TCP"];
 
 
-CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}]["Scheme"] :=
+CSocketObject[socketData: sockeDataPattern]["Scheme"] :=
 If[socketData[[3]] === $SOCKDGRAM, "udp", "tcp"];
 
 
-CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}]["UUID"] :=
+CSocketObject[socketData: sockeDataPattern]["UUID"] :=
 First[socketData];
 
 
-CSocketObject /: Close[CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}]] :=
-Module[{
-    id = First[socketData],
-    object = CSocketObject[socketData],
-    result
-},
-    result = socketClose[socketData];
-    If[result === Null,
-        KeyDropFrom[$CSockets, {id, object}]
-    ];
-    result
+CSocketObject /: Close[socketObject: CSocketObject[socketData: sockeDataPattern]] :=
+With[{id = First[socketData]},
+    Check[socketClose[socketData], Return[$Failed]];
+    KeyDropFrom[$CSockets, {id, socketObject}];
 ];
 
 
 CSocketObject /: WriteString[
-    CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}],
+    socketObject: CSocketObject[socketData: sockeDataPattern],
     text_String
 ] :=
-BinaryWrite[CSocketObject[socketData], StringToByteArray[text]];
+BinaryWrite[socketObject, StringToByteArray[text]];
 
 
 CSocketObject /: WriteString[
-    socketObject_CSocketObject,
-    addressStorage_AddressStorage,
+    socketObject: CSocketObject[socketData: sockeDataPattern],
+    addressStorage: AddressStorage[storage_ByteArray],
     text_String
 ] :=
 BinaryWrite[socketObject, addressStorage, StringToByteArray[text]];
 
 
 CSocketObject /: BinaryWrite[
-    CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}],
+    socketObject: CSocketObject[socketData: sockeDataPattern],
     bytes_ByteArray
 ] :=
 Module[{length = Length[bytes], sent, remaining},
@@ -370,13 +341,13 @@ Module[{length = Length[bytes], sent, remaining},
     If[sent === length, Return[sent]];
     If[sent <= 0 || sent > length, Return[$Failed]];
 
-    remaining = BinaryWrite[CSocketObject[socketData], bytes[[sent + 1 ;;]]];
+    remaining = BinaryWrite[socketObject, bytes[[sent + 1 ;;]]];
     If[IntegerQ[remaining], sent + remaining, remaining]
 ];
 
 
 CSocketObject /: BinaryWrite[
-    socketObject: CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}],
+    socketObject: CSocketObject[socketData: sockeDataPattern],
     addressStorage: AddressStorage[storage_ByteArray],
     bytes_ByteArray
 ] :=
@@ -392,7 +363,7 @@ Module[{length = Length[bytes], sent, remaining},
 
 
 CSocketObject /: SocketReadyQ[
-    CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}],
+    CSocketObject[socketData: sockeDataPattern],
     t_: 0
 ] :=
 Module[{events},
@@ -405,7 +376,7 @@ Module[{events},
 
 With[{readMessageBuffer = ByteArray[ConstantArray[0, 64 * 1024]]}, 
     CSocketObject /: SocketReadMessage[
-        CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}]
+        CSocketObject[socketData: sockeDataPattern]
     ] :=
     If[socketData[[3]] =!= $SOCKDGRAM,
         socketRecv[socketData, readMessageBuffer], 
@@ -427,14 +398,14 @@ Module[{socketListId = socketListCreate[], socketList},
 
 
 CSocketObject /: SocketWaitNext[
-    CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}]
+    CSocketObject[socketData: sockeDataPattern]
 ] :=
 socketsSelect[{socketData}, 1, 2 ^ 10, 1];
 
 
 CSocketList /: Append[
     CSocketList[socketListId_Integer],
-    CSocketObject[socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}]
+    CSocketObject[socketData: sockeDataPattern]
 ] :=
 socketListAdd[socketListId, socketData];
 
@@ -464,7 +435,7 @@ SocketListen[CSocketList[{serverSocket}], handler];
 createEvent[
     task_AsynchronousTaskObject,
     eventName_String,
-    {socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}, data___}
+    {socketData: sockeDataPattern, data___}
 ] :=
 Join[
     <|
@@ -479,8 +450,8 @@ Join[
 
 createEventData[
     "Accepted",
-    listenData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer},
-    acceptedData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}
+    listenData: sockeDataPattern,
+    acceptedData: sockeDataPattern
 ] :=
 With[{
     listenSocket = CSocketObject[listenData],
@@ -492,17 +463,17 @@ With[{
 ];
 
 
-createEventData["Closed", socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}, ___] :=
+createEventData["Closed", socketData: sockeDataPattern, ___] :=
 <|"ClosedSocket" -> CSocketObject[ReplacePart[socketData, 5 -> 0]]|>;
 
 
-createEventData["Error", socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer}, errorCode_Integer] :=
+createEventData["Error", socketData: sockeDataPattern, errorCode_Integer] :=
 <|"ErrorSocket" -> CSocketObject[socketData], "ErrorCode" -> errorCode|>;
 
 
 createEventData[
     "ReceivedFrom",
-    socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer},
+    socketData: sockeDataPattern,
     address: (_ByteArray | _NumericArray),
     bytes: (_List | _ByteArray | _NumericArray | 0): {}
 ] :=
@@ -511,7 +482,7 @@ Join[createEventData["Received", socketData, bytes], <|"AddressStorage" -> Addre
 
 createEventData[
     "Received",
-    socketData: {_Integer, _Integer, _Integer, _Integer, _Integer, _Integer},
+    socketData: sockeDataPattern,
     bytes: (_List | _ByteArray | _NumericArray | 0)
 ] :=
 With[{
