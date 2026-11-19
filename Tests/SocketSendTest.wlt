@@ -12,7 +12,7 @@ TestReport[{
                 Min[2, length]
             ]
         },
-            {BinaryWrite[CSocketObject[{42, 6, 1, 2, 1, 0}], ByteArray[{1, 2, 3, 4, 5}]], calls}
+            {BinaryWrite[CSocketObject[42], ByteArray[{1, 2, 3, 4, 5}]], calls}
         ],
         {5, {{1, 2, 3, 4, 5}, {3, 4, 5}, {5}}},
         TestID -> "binary-write-recursively-sends-remainder"
@@ -25,7 +25,7 @@ TestReport[{
                 Min[1, length]
             ]
         },
-            {WriteString[CSocketObject[{42, 6, 1, 2, 1, 0}], FromCharacterCode[233]], calls}
+            {WriteString[CSocketObject[42], FromCharacterCode[233]], calls}
         ],
         {2, {{195, 169}, {169}}},
         TestID -> "write-string-resumes-inside-utf8-character"
@@ -38,7 +38,7 @@ TestReport[{
                 length
             ]
         },
-            {WriteString[CSocketObject[{42, 6, 1, 2, 1, 0}], FromCharacterCode[{97, 0, 98}]], calls}
+            {WriteString[CSocketObject[42], FromCharacterCode[{97, 0, 98}]], calls}
         ],
         {3, {{97, 0, 98}}},
         TestID -> "write-string-preserves-embedded-null"
@@ -52,7 +52,7 @@ TestReport[{
                     If[calls === 1, 1, failure]
                 ]
             },
-                {BinaryWrite[CSocketObject[{42, 6, 1, 2, 1, 0}], ByteArray[{1, 2, 3}]], calls}
+                {BinaryWrite[CSocketObject[42], ByteArray[{1, 2, 3}]], calls}
             ],
             {failure, {0, LibraryFunctionError["send", 6]}}
         ],
@@ -62,38 +62,38 @@ TestReport[{
     VerificationTest[
         Block[{
             calls = {},
-            WLJS`CSockets`Private`socketSendToAddressStorage = Function[{row, address, bytes},
-                AppendTo[calls, {address, Normal[bytes]}];
+            WLJS`CSockets`Private`socketSendTo = Function[{row, host, port, bytes},
+                AppendTo[calls, {host <> ":" <> port, Normal[bytes]}];
                 Min[2, Length[bytes]]
             ]
         },
             {BinaryWrite[
-                CSocketObject[{42, 17, 2, 1, 1, 0}],
-                AddressStorage[ByteArray[{9}]], ByteArray[{1, 2, 3}]
+                CSocketObject[42],
+                "127.0.0.1:9000", ByteArray[{1, 2, 3}]
             ], calls}
         ],
-        {3, {{ByteArray[{9}], {1, 2, 3}}, {ByteArray[{9}], {3}}}},
+        {3, {{"127.0.0.1:9000", {1, 2, 3}}, {"127.0.0.1:9000", {3}}}},
         TestID -> "udp-binary-write-resends-remainder-to-same-address"
     ],
     VerificationTest[
         Block[{
             calls = {},
-            WLJS`CSockets`Private`socketSendToAddressStorage = Function[{row, address, bytes},
-                AppendTo[calls, {address, Normal[bytes]}];
+            WLJS`CSockets`Private`socketSendTo = Function[{row, host, port, bytes},
+                AppendTo[calls, {host <> ":" <> port, Normal[bytes]}];
                 Min[1, Length[bytes]]
             ]
         },
             {WriteString[
-                CSocketObject[{42, 17, 2, 1, 1, 0}],
-                AddressStorage[ByteArray[{9}]], FromCharacterCode[233]
+                CSocketObject[42],
+                "127.0.0.1:9000", FromCharacterCode[233]
             ], calls}
         ],
-        {2, {{ByteArray[{9}], {195, 169}}, {ByteArray[{9}], {169}}}},
+        {2, {{"127.0.0.1:9000", {195, 169}}, {"127.0.0.1:9000", {169}}}},
         TestID -> "udp-write-string-converts-utf8-and-resends-remainder"
     ],
     VerificationTest[
         Block[{WLJS`CSockets`Private`socketSend = Function[{row, bytes, length}, length]},
-            BinaryWrite[CSocketObject[{42, 6, 1, 2, 1, 0}], ByteArray[{}]]
+            BinaryWrite[CSocketObject[42], ByteArray[{}]]
         ],
         0,
         TestID -> "empty-send-completes-with-zero"

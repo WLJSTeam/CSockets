@@ -5,48 +5,27 @@
 #include "socket.h"
 
 
-typedef enum {
-    INTERUPTER,
-    TCP_SERVER,
-    UDP_SERVER,
-    TCP_CLIENT,
-    UDP_CLIENT,
-    TCP_ACCEPTED
-} SOCKET_TYPE;
-
-
-typedef struct SocketList_st
-{
-    SocketObject *sockets;
-    POLL_FD *pollfds;
+typedef struct SocketList_st {
+    SOCKET *sockets;
     size_t length;
     size_t capacity;
+    size_t references;
+    bool deleted;
+#ifdef _WIN32
+    CRITICAL_SECTION lock;
+#else
+    pthread_mutex_t lock;
+#endif
 } *SocketList;
 
 
-static inline SOCKET_TYPE socket_list_socket_type(SocketObject socketObject)
-{
-    switch ((SocketRole)socketObject.role) {
-    case SOCKET_ROLE_LISTENER:
-        return (socketObject.type == SOCKET_TYPE_DGRAM) ? UDP_SERVER : TCP_SERVER;
-    case SOCKET_ROLE_CONNECTED:
-        return (socketObject.type == SOCKET_TYPE_DGRAM) ? UDP_CLIENT : TCP_CLIENT;
-    case SOCKET_ROLE_ACCEPTED:
-        return TCP_ACCEPTED;
-    case SOCKET_ROLE_INTERRUPTER:
-    default:
-        return INTERUPTER;
-    }
-}
-
-
-bool socket_list_add(SocketList socketList, SocketObject socketObject);
-
-
-void socket_list_prune(SocketList socketList);
-
-
-void socket_list_free(SocketList socketList);
+void socket_list_lock(SocketList list);
+void socket_list_unlock(SocketList list);
+bool socket_list_add(SocketList list, SOCKET socketId);
+bool socket_list_retain(SocketList list);
+void socket_list_release(SocketList list);
+/* Returns an owned copy, allowing polling without holding the list lock. */
+int socket_list_snapshot(SocketList list, SOCKET **sockets, mint *length);
 
 
 #endif

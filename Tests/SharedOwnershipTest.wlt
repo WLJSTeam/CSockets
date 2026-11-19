@@ -7,61 +7,37 @@ probeLibrary = CreateLibrary[
     "csockets_ownership_probe",
     "TargetDirectory" -> $TemporaryDirectory
 ];
-tensorShares = LibraryFunctionLoad[probeLibrary, "tensorShares", {{Integer, 1, "Shared"}}, Integer];
 arrayShares = LibraryFunctionLoad[probeLibrary, "arrayShares", {{"ByteArray", "Shared"}}, Integer];
-retainTensor = LibraryFunctionLoad[probeLibrary, "retainTensor", {{Integer, 1, "Shared"}}, "Void"];
 
 
 TestReport[{
     VerificationTest[
-        With[{server = CSocketOpen["127.0.0.1", 0]},
-            With[{row = First[server]},
-                Module[{before = tensorShares[row], result},
-                    Do[
-                        WLJS`CSockets`Private`socketGetPort[row];
-                        WLJS`CSockets`Private`socketGetHost[row];
-                        WLJS`CSockets`Private`socketSetNonBlockingMode[row];
-                        WLJS`CSockets`Private`socketSetBlockingMode[row];
-                        Quiet[WLJS`CSockets`Private`socketBind[row, ByteArray[{}]]],
-                        {50}
-                    ];
-                    result = tensorShares[row] === before && row[[6]] === 0;
-                    Close[server];
-                    result && row[[5]] === 0
-                ]
-            ]
+        Module[{server, bytes = ByteArray[{1, 2, 3}], before, result},
+            server = CSocketOpen["127.0.0.1", 0, "UDP"];
+            before = arrayShares[bytes];
+            Do[
+                Quiet[WLJS`CSockets`Private`socketSendTo[First[server], "invalid", "1", bytes]];
+                Quiet[WLJS`CSockets`Private`socketSendTo[First[server], "127.0.0.1", "invalid", bytes]],
+                {50}
+            ];
+            result = arrayShares[bytes] === before && IntegerQ[First[server]];
+            Close[server];
+            result
         ],
         True,
-        TestID -> "ordinary-calls-release-shares-and-preserve-identity"
+        TestID -> "descriptor-calls-release-byte-array-shares-on-errors"
     ],
     VerificationTest[
-        With[{server = CSocketOpen["127.0.0.1", 0, "UDP"], bytes = ByteArray[{1, 2, 3}]},
-            With[{row = First[server]},
-                Module[{before = {tensorShares[row], arrayShares[bytes]}, result},
-                    Do[
-                        Quiet[WLJS`CSockets`Private`socketSendTo[row, "invalid", 1, bytes, Length[bytes]]];
-                        Quiet[WLJS`CSockets`Private`socketSendToAddressStorage[row, ByteArray[{}], bytes]],
-                        {50}
-                    ];
-                    result = {tensorShares[row], arrayShares[bytes]} === before;
-                    Close[server];
-                    result
-                ]
-            ]
+        Module[{server, client, bytes = ByteArray[{1, 2}], before, result},
+            server = CSocketOpen["127.0.0.1", 0, "UDP"];
+            client = CSocketConnect["127.0.0.1", server["DestinationPort"], "UDP", "Wait" -> True];
+            before = arrayShares[bytes];
+            result = BinaryWrite[client, bytes] === 2 && arrayShares[bytes] === before;
+            result = result && ByteArray[First[SocketReadMessage[server]]] === bytes;
+            Scan[Close, {client, server}];
+            result
         ],
         True,
-        TestID -> "error-paths-release-socket-and-byte-array-shares"
-    ],
-    VerificationTest[
-        With[{server = CSocketOpen["127.0.0.1", 0]},
-            With[{row = First[server]},
-                retainTensor[row];
-                retainTensor[row];
-                Close[server];
-                tensorShares[row] === 1 && row[[5]] === 0
-            ]
-        ],
-        True,
-        TestID -> "close-releases-all-retained-shares"
+        TestID -> "descriptor-send-releases-byte-array-share-on-success"
     ]
 }]

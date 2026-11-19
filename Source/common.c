@@ -1,9 +1,6 @@
 #include "common.h"
 
 
-WolframLibraryData csocketsLibData = NULL;
-
-
 void print(const char* format, ...)
 {
     #ifdef _DEBUG
@@ -83,7 +80,7 @@ void set_blocking_mode(SOCKET socketId)
 }
 
 
-void set_non_blocking_mode(SOCKET socketId)
+void set_nonblocking_mode(SOCKET socketId)
 {
     #ifdef _WIN32
     u_long mode = 1;
@@ -95,55 +92,14 @@ void set_non_blocking_mode(SOCKET socketId)
 }
 
 
-bool is_non_blocking_mode(SOCKET socketId)
-{
-    #ifdef _WIN32
-    u_long mode;
-    ioctlsocket(socketId, FIONBIO, &mode);
-    return mode; // True - blocking, False - non blocking
-    #else
-    int flags = fcntl(socketId, F_GETFL, 0);
-    return (flags & O_NONBLOCK);
-    #endif
-}
-
-
+/* Descriptor validity is independent of connection state; SO_ERROR would
+ * consume a pending connection error and must not be used for this check. */
 bool is_valid_socket(SOCKET socketId)
 {
-    if (socketId == INVALID_SOCKET) {
-        return false;
-    }
-
-    #ifdef _WIN32
-    int opt = 0;
-    socklen_t len = sizeof(opt);
-    int result = getsockopt(socketId, SOL_SOCKET, SO_TYPE, (char*)&opt, &len);
-
-    if (result == 0) {
-        int error = 0;
-        len = sizeof(error);
-        if (getsockopt(socketId, SOL_SOCKET, SO_ERROR, (char*)&error, &len) == 0) {
-            return error == 0;
-        }
-        return true;
-    }
-
-    int err = WSAGetLastError();
-    return err != WSAENOTSOCK;
-
-    #else
-    int flags = fcntl(socketId, F_GETFL);
-    if (flags >= 0) {
-        int error = 0;
-        socklen_t len = sizeof(error);
-        if (getsockopt(socketId, SOL_SOCKET, SO_ERROR, (char*)&error, &len) == 0) {
-            return error == 0;
-        }
-        return true;
-    }
-
-    return errno != EBADF;
-    #endif
+    if (!ISVALIDSOCKET(socketId)) return false;
+    int type;
+    socklen_t length = sizeof(type);
+    return getsockopt(socketId, SOL_SOCKET, SO_TYPE, (char *)&type, &length) == 0;
 }
 
 
@@ -157,86 +113,21 @@ bool is_would_block_err(int err)
 }
 
 
-struct timeval new_tv(long long usec)
-{
-    struct timeval tv = {
-        .tv_sec = (long)(usec / USEC_PER_SEC),
-        .tv_usec = (long)(usec % USEC_PER_SEC)
-    };
-    return tv;
-}
-
-
-size_t filter_fd_set_to_array(fd_set *set, SOCKET *input, SOCKET *result, size_t length)
-{
-    SOCKET socketId;
-    size_t j = 0;
-    for (size_t i = 0; i < length; i++) {
-        socketId = input[i];
-        if (FD_ISSET(socketId, set)) {
-            result[j] = socketId;
-            j++;
-        }
-    }
-    return j;
-}
-
-
-size_t filter_fd_set_to_tensor(WolframLibraryData libData, fd_set *set, SOCKET *input, MTensor result, size_t length)
-{
-    mint *data = libData->MTensor_getIntegerData(result);
-    SOCKET socketId;
-    size_t j = 0;
-    for (size_t i = 0; i < length; i++) {
-        socketId = input[i];
-        if (FD_ISSET(socketId, set)) {
-            data[j] = (mint)socketId;
-            j++;
-        }
-    }
-    return j;
-}
-
-
-SOCKET fill_fd_set_from_array(fd_set *set, SOCKET *sockets, size_t length, SOCKET initmaxfd)
-{
-    SOCKET maxfd = initmaxfd;
-    SOCKET socketId;
-
-    for (size_t i = 0; i < length; i++) {
-        socketId = sockets[i];
-        FD_SET(socketId, set);
-        if (maxfd < socketId) {
-            maxfd = socketId;
-        }
-    }
-
-    return maxfd;
-}
-
-
-void copy_tensor_to_socket_array(WolframLibraryData libData, MTensor tensor, SOCKET *result, size_t length)
-{
-    mint *data = libData->MTensor_getIntegerData(tensor);
-    for (size_t i = 0; i < length; i++) {
-        result[i] = (SOCKET)data[i];
-    }
-}
-
-
 // Wrapper for poll/WSAPoll to handle timeout conversion and platform differences
 // timeout_us: -1 for infinite, 0 for non-blocking, >0 for timeout in microseconds
 // returns: number of fds with events, 0 for timeout, -1 for error
 int sockets_poll(POLL_FD *fds, mint length, mint timeout_us)
 {
-    int timeout_ms;
-    if (timeout_us == -1) {
-        timeout_ms = -1;
-    } else {
-        timeout_ms = (int)(timeout_us / 1000);
-        if (timeout_us > 0 && timeout_ms == 0) {
-            timeout_ms = 1;  // 1 is min for poll
-        }
+    if (length < 0 || length > INT_MAX || timeout_us < -1) return -1;
+    mint milliseconds = timeout_us < 0 ? -1 : timeout_us / 1000 + (timeout_us % 1000 != 0);
+    int timeout_ms = milliseconds > INT_MAX ? INT_MAX : (int)milliseconds;
+    if (length == 0) {
+#ifdef _WIN32
+        Sleep(timeout_ms < 0 ? INFINITE : (DWORD)timeout_ms);
+        return 0;
+#else
+        return poll(NULL, 0, timeout_ms);
+#endif
     }
 
     #ifdef _WIN32
@@ -372,7 +263,6 @@ DLLEXPORT mint WolframLibrary_getVersion()
 
 DLLEXPORT int WolframLibrary_initialize(WolframLibraryData libData)
 {
-    csocketsLibData = libData;
     init_wsa();
     return LIBRARY_NO_ERROR;
 }
@@ -380,6 +270,55 @@ DLLEXPORT int WolframLibrary_initialize(WolframLibraryData libData)
 DLLEXPORT void WolframLibrary_uninitialize(WolframLibraryData libData)
 {
     cleanup_wsa();
-    csocketsLibData = NULL;
     (void)libData;
+}
+
+
+struct sockaddr_storage create_sockaddr_storage(const char *numerichost, const char *port)
+{
+    struct sockaddr_storage storage = {0};
+    struct addrinfo *address = NULL;
+    struct addrinfo hints;
+    ZeroMemory(&hints, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = 0;
+    hints.ai_protocol = 0;
+    hints.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV;
+
+    if (!numerichost || !numerichost[0] || !port || !port[0]) return storage;
+    int result = getaddrinfo(numerichost, port, &hints, &address);
+    if (result == 0 && address && address->ai_addr && address->ai_addrlen <= sizeof(storage) &&
+        (address->ai_family == AF_INET || address->ai_family == AF_INET6)) {
+        memcpy(&storage, address->ai_addr, address->ai_addrlen);
+    }
+    if (address) freeaddrinfo(address);
+    return storage;
+}
+
+
+char *sockaddr_storage_to_string(struct sockaddr_storage address)
+{
+    #ifdef _WIN32
+    static __declspec(thread) char endpoint[INET6_ADDRSTRLEN + 32];
+    #else
+    static _Thread_local char endpoint[INET6_ADDRSTRLEN + 32];
+    #endif
+    char host[INET6_ADDRSTRLEN];
+    unsigned short port;
+    if (!socket_address_to_host(&address, host, sizeof(host), &port)) return NULL;
+
+    int length;
+    if (address.ss_family == AF_INET6) {
+        const struct sockaddr_in6 *ipv6 = (const struct sockaddr_in6 *)&address;
+        if (ipv6->sin6_scope_id != 0) {
+            length = snprintf(endpoint, sizeof(endpoint), "[%s%%%lu]:%u", host,
+                (unsigned long)ipv6->sin6_scope_id, (unsigned int)port);
+        } else {
+            length = snprintf(endpoint, sizeof(endpoint), "[%s]:%u", host, (unsigned int)port);
+        }
+    } else {
+        length = snprintf(endpoint, sizeof(endpoint), "%s:%u", host, (unsigned int)port);
+    }
+    if (length < 0 || (size_t)length >= sizeof(endpoint)) return NULL;
+    return endpoint;
 }

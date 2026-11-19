@@ -7,9 +7,9 @@ Get["WLJS`CSockets`"];
 
 
 udpEcho[packet_Association] :=
-With[{address = packet["AddressStorage"]},
+With[{address = packet["Address"]},
     Print[
-        address["Host"], ":", address["Port"],
+        address,
         " received ", Length[packet["DataByteArray"]], " bytes"
     ];
     packet["DataByteArray"]

@@ -14,7 +14,7 @@ Get["WLJS`CSockets`"]
 ### Open a TCP server
 
 ```wl
-server = CSocketOpen["localhost", 8080]
+server = CSocketOpen["127.0.0.1", 8080]
 ```
 
 This creates a listening socket and stores it in the internal socket registry.
@@ -22,7 +22,7 @@ This creates a listening socket and stores it in the internal socket registry.
 ### Connect a TCP client
 
 ```wl
-client = CSocketConnect["localhost", 8080]
+client = CSocketConnect["127.0.0.1", 8080]
 ```
 
 ### Send and receive data
@@ -58,7 +58,7 @@ CSocketOpen[host, port, protocol]
 ```
 
 Creates a server socket bound to `host` and `port`.
-The default host is `"localhost"`, the default port is `0`, and the default protocol is `"TCP"`.
+The default host is `"127.0.0.1"`, the default port is `0`, and the default protocol is `"TCP"`.
 
 #### Examples
 
@@ -75,6 +75,7 @@ CSocketConnect[host, port, protocol, opts]
 ```
 
 Creates a client socket connected to the remote endpoint.
+Pass a numeric IP address; resolve hostnames beforehand with `HostLookup`.
 The protocol can be `"TCP"` or `"UDP"`.
 
 #### Options
@@ -87,15 +88,17 @@ The protocol can be `"TCP"` or `"UDP"`.
 #### Examples
 
 ```wl
-CSocketConnect["localhost", 8080]
-CSocketConnect["localhost", 8080, "TCP", "Wait" -> True]
-CSocketConnect["localhost", 8080, "TCP", "Blocking" -> False]
+CSocketConnect["127.0.0.1", 8080]
+CSocketConnect["127.0.0.1", 8080, "TCP", "Wait" -> True]
+CSocketConnect["127.0.0.1", 8080, "TCP", "Blocking" -> False]
 CSocketConnect["127.0.0.1", 8080, "UDP"]
 ```
 
 ### `CSocketObject`
 
-`CSocketObject[{socket, protocol, type, role, state, mode}]` wraps the six-integer native socket structure. Bulk native functions accept an N x 6 integer matrix; `socketsCheck` and `socketsSelect` return rows in the same format. `socketsPoll` returns N x 7 rows: six socket fields followed by the event mask. Asynchronous events carry a six-field socket row (and a second row for accepted connections).
+`CSocketObject[socketId]` wraps a numeric native descriptor. The `$CSockets` association maps each ID to an association with `"Object"`, `"Protocol"`, `"BlockingMode"`, `"LocalAddress"`, `"RemoteAddress"`, `"State"` and `"Role"`. Closed sockets retain their last addresses and `"State" -> "Closed"` until the descriptor is reused. Native functions receive only the descriptor. `socketsCheck[ids]` filters a list of descriptors; `socketsPoll[ids, timeout, eventsMask]` returns pairs `{socketId, eventMask}`.
+
+Native asynchronous polling reports `"Polled"` with the same pairs. The WL wrappers perform accept/read/close and deliver `"Accepted"`, `"Received"`, `"ReceivedFrom"`, `"Closed"` and `"Error"` events to handlers. Listening switches the monitored sockets to nonblocking mode. Close a `CSocketList` to stop its task and release the list without closing its sockets. Closing a socket passed directly to `SocketListen` also releases its internally created list.
 
 Common properties:
 
@@ -106,12 +109,18 @@ Common properties:
 | `"Protocol"` | `"TCP"` or `"UDP"`. |
 | `"Scheme"` | `"tcp"` or `"udp"`. |
 | `"UUID"` | Socket identifier. |
+| `"Role"` | `"Undefined"`, `"Binded"`, `"Connected"` or `"Accepted"`. |
+| `"State"` | `"Alive"` or `"Closed"`. |
+| `"BlockingMode"` | `"Blocking"` or `"NonBlocking"`. |
+| `"Blocking"` | Boolean shorthand for blocking mode. |
+| `"LocalAddress"`, `"RemoteAddress"` | Stored local and remote endpoints. |
+| `"Addresses"` | `{localEndpoint, remoteEndpoint}`; missing endpoints are `""`. |
 | `"InprocQ"` | Always `False` in this implementation. |
 
 #### Example
 
 ```wl
-socket = CSocketOpen["localhost", 8080];
+socket = CSocketOpen["127.0.0.1", 8080];
 {
   socket["DestinationPort"],
   socket["DirectionType"],
@@ -133,23 +142,23 @@ Creates a socket list object for polling multiple sockets at once.
 
 ```wl
 BinaryWrite[socket, bytes]
-BinaryWrite[socket, addressStorage, bytes]
+BinaryWrite[socket, address, bytes]
 WriteString[socket, text]
-WriteString[socket, addressStorage, text]
+WriteString[socket, address, text]
 ```
 
-The address argument is an `AddressStorage[ByteArray[...]]` object. It selects
+The address argument is a string such as `"127.0.0.1:8080"` or `"[::1]:8080"`. It selects
 the destination of a UDP datagram. Strings are converted to UTF-8 bytes before
 sending. The wrappers recursively send any remaining bytes and return the total
 number sent; an error stops sending, and zero progress returns `$Failed`.
 
 `SocketReadMessage[socket]` returns a `ByteArray` for TCP. For both UDP clients
 and UDP servers it returns `{data, address}` directly from the native result,
-with `NumericArray` values. Empty UDP data is returned as `{}`.
+where `data` is a `NumericArray` and `address` is a string. Empty UDP data is returned as `{}`.
 
 ```wl
 {data, address} = SocketReadMessage[udpSocket];
-BinaryWrite[udpSocket, AddressStorage[ByteArray[address]], ByteArray[data]];
+BinaryWrite[udpSocket, address, ByteArray[data]];
 ```
 
 The private native functions are `socketRecv[socketRow, buffer]` and
@@ -225,7 +234,7 @@ Once complete, `"DataByteArray"` and `"DataBytes"` hold the assembled message an
 is the identity function, so use `"Deserializer" -> ByteArrayToString` for text.
 The callback result is passed through
 `"Serializer"`, stored in `"Result"`, and sent to `"SourceSocket"`. If the packet
-has `"AddressStorage"`, that address is passed to `BinaryWrite` or `WriteString`.
+has `"Address"`, that address is passed to `BinaryWrite` or `WriteString`.
 A callback may return a string, `ByteArray`, or `Null`; `Null` means no reply.
 
 `"Logger"` receives the complete packet after sending. All incoming fields,
@@ -249,7 +258,7 @@ sets the logger, and `handler["Logger", packet]` invokes it.
 | `"Deserializer"` | `Function[#]` | Converts the complete message bytes into `"Data"`. |
 | `"Accumulator"` | `Function[Length[#DataByteArray]]` | Computes expected message length from the first fragment. |
 | `"Received"` | `Function[Null]` | Callback for received data. |
-| `"ReceivedFrom"` | `Function[Null]` | Callback for UDP data, including the sender's `"AddressStorage"`. |
+| `"ReceivedFrom"` | `Function[Null]` | Callback for UDP data, including the sender's `"Address"`. |
 | `"Accepted"` | `Function[Null]` | Callback for accepted connections. |
 | `"Closed"` | `Function[Null]` | Callback for socket close events. |
 | `"Error"` | `Function[Null]` | Callback for error events. |
@@ -293,19 +302,16 @@ wolframscript -f Example.wls -p 8080
 
 The `Scripts/` folder also contains sample programs such as `Echo.wls`, `HTTPEcho.wls`, `TCPStreamingServer.wls`, and `SpeedTestServer.wls`.
 
-## Address storage
+## Address strings
 
-UDP `ReceivedFrom` events include `"AddressStorage" -> AddressStorage[storage]`.
-The wrapper reads native address bytes through LibraryLink:
+UDP `ReceivedFrom` events include `"Address" -> "127.0.0.1:8080"` or an IPv6
+endpoint such as `"[::1]:8080"`. Scoped IPv6 addresses retain their numeric scope,
+for example `"[fe80::1%3]:8080"`.
 
 ```wl
-address = event["AddressStorage"];
-address["Host"]
-address["Port"]
-address["Family"]
+address = event["Address"];
+BinaryWrite[event["SourceSocket"], address, ByteArray[{1, 2, 3}]];
 ```
 
-`"Host"` is a numeric IPv4/IPv6 address without reverse DNS or an IPv6 zone suffix.
-`"Family"` is `"IPv4"` or `"IPv6"`.
-Raw `sockaddr_storage` bytes use the current platform's ABI and should not be
-exchanged between platforms as a portable address format.
+The native `socketBind`, `socketConnect`, and `socketSendTo` functions take
+separate numeric host and port strings. Address structures remain internal to C.

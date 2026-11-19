@@ -99,17 +99,12 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
             "Complex" -> Complex,
             "SocketObject" -> {Integer, 1},
             "SocketObjectRef" -> {Integer, 1, "\"Shared\""},
-            "AddressStorage" -> "\"ByteArray\"",
             "MNumericArray" -> {"\"ByteArray\"", "\"Shared\""},
             "ByteArray" -> {"\"ByteArray\"", "\"Shared\""},
             "DataStore" -> "\"DataStore\"",
             "MTensor" -> {Integer, 1}
         })
     ][[1]]&] @ $argLines;
-
-    If[MemberQ[{"socketsCheck", "socketsSelect", "socketsPoll", "socketsSelectAsync"}, $name],
-        $argTypes[[1]] = {Integer, 2}
-    ];
 
     $argNumbers = Map[StringCases[#,
         Shortest["MArgument_get" ~~ __ ~~ {"(libData, Args[", "(Args["} ~~ num__ ~~ "]"] :> ToExpression[num]
@@ -125,7 +120,6 @@ Module[{$name, $argTypes, $argNames, $argNumbers, $argLines, $resultLines},
             "Boolean" -> True | False,
             "Complex" -> Complex,
             "SocketObject" -> {Integer, 1},
-            "AddressStorage" -> "\"ByteArray\"",
             "MNumericArray" -> "\"ByteArray\"",
             "ByteArray" -> "\"ByteArray\"",
             "DataStore" -> "\"DataStore\"",

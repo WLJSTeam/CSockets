@@ -1,69 +1,105 @@
 Needs["MUnit`"];
-baseDir = DirectoryName[$InputFileName, 2];
-Get[FileNameJoin[{baseDir, "Kernel", "CSockets.wl"}]];
+Get[FileNameJoin[{DirectoryName[$InputFileName, 2], "Kernel", "CSockets.wl"}]];
+
+
 TestReport[{
- VerificationTest[
-  Module[{server, client, accepted, received, result},
-   server = CSocketOpen["127.0.0.1", 0];
-   client = CSocketConnect["127.0.0.1", server["DestinationPort"], "TCP", "Wait" -> True];
-   accepted = CSocketObject[WLJS`CSockets`Private`socketAccept[First[server]]];
-   BinaryWrite[client, ByteArray[{1, 2, 3, 4, 5}]];
-   received = WLJS`CSockets`Private`socketRecv[First[accepted], ByteArray[{0, 0}]];
-   result = received === ByteArray[{1, 2}] && SocketReadyQ[accepted, 1] &&
-    WLJS`CSockets`Private`socketRecv[First[accepted], ByteArray[{0, 0, 0}]] === ByteArray[{3, 4, 5}];
-   Scan[Close, {accepted, client, server}];
-   result
-  ], True, TestID -> "recv-infers-capacity-from-each-buffer"],
- VerificationTest[
-  With[{tcp = CSocketObject[{10, 0, 1, 1, 1, 0}], udp = CSocketObject[{11, 0, 2, 2, 1, 1}]},
-   {tcp["DirectionType"], tcp["Protocol"], tcp["Scheme"], tcp["UUID"], tcp["InprocQ"], udp["DirectionType"], udp["Protocol"], udp["Scheme"], udp["UUID"]}],
-  {"Server", "TCP", "tcp", 10, False, "Client", "UDP", "udp", 11}, TestID -> "accessors-use-role-type-and-descriptor"],
- VerificationTest[
-  Quiet[CSocketConnect["localhost", 80, "TCP", "Wait" -> "invalid"]], $Failed,
-  TestID -> "invalid-options-rejected-before-native-call"],
- VerificationTest[
-  Module[{server, data, result}, server = CSocketOpen["127.0.0.1", 0]; data = First[server];
-   WLJS`CSockets`Private`socketSetNonBlockingMode[data]; result = data[[6]] === 1;
-   WLJS`CSockets`Private`socketSetBlockingMode[data]; result = result && data[[6]] === 0;
-   Close[server]; result && data[[5]] === 0], True, TestID -> "shared-row-tracks-mode-and-close"],
- VerificationTest[
-  Module[{server, client, result}, server = CSocketOpen["127.0.0.1", 0];
-   client = CSocketConnect["127.0.0.1", server["DestinationPort"]];
-   result = MatchQ[client, CSocketObject[{_Integer, _Integer, 1, 2, 1, 0}]];
-   Scan[Close, {client, server}]; result], True, TestID -> "default-connect-updates-role"],
- VerificationTest[
-  Module[{server, client, accepted, port, data, list, rows, result},
-   server = CSocketOpen["127.0.0.1", 0]; port = server["DestinationPort"];
-   client = CSocketConnect["127.0.0.1", port, "TCP", "Wait" -> True];
-   data = WLJS`CSockets`Private`socketAccept[First[server]];
-   accepted = CSocketObject[data];
-   list = CSocketList[{server, client, accepted}];
-   rows = WLJS`CSockets`Private`socketListGetAll[First[list]];
-   WriteString[client, "hello"];
-   result = And[
-    MatchQ[server, CSocketObject[{_Integer, _Integer, 1, 1, 1, 0}]],
-    MatchQ[client, CSocketObject[{_Integer, _Integer, 1, 2, 1, 0}]],
-    MatchQ[accepted, CSocketObject[{_Integer, 6, 1, 3, 1, 0}]],
-    Dimensions[rows] === {3, 6}, rows === (First /@ {server, client, accepted}),
-    server["Protocol"] === "TCP", client["DirectionType"] === "Client",
-    SocketReadyQ[accepted, 1] === True,
-    WLJS`CSockets`Private`socketsSelect[{data}, 1, 1000000, 1] === {data},
-    Dimensions[WLJS`CSockets`Private`socketsPoll[{data}, 1, 0, 1]] === {1, 7},
-    SocketReadMessage[accepted] === ByteArray[ToCharacterCode["hello"]]
-   ];
-   WLJS`CSockets`Private`socketListDelete[First[list]];
-   Scan[Close, {accepted, client, server}]; result
-  ], True, TestID -> "tcp-six-field-roundtrip-and-bulk-operations"],
- VerificationTest[
-  Block[{WLJS`CSockets`Private`socketSend = Function[{row, bytes, len}, {row, Length[bytes], len}]},
-   With[{row = {42, 17, 2, 2, 1, 1}},
-    {WriteString[CSocketObject[row], "hi"], BinaryWrite[CSocketObject[row], ByteArray[{1, 2}]]} === {{row, 2, 2}, {row, 2, 2}}]],
-  True, TestID -> "write-wrappers-pass-all-six-fields"],
- VerificationTest[
-  Block[{WLJS`CSockets`Private`socketsSelect = Function[{rows, count, timeout, mode}, rows]},
-   SocketWaitNext[CSocketObject[{42, 6, 1, 2, 1, 0}]]],
-  {{42, 6, 1, 2, 1, 0}}, TestID -> "wait-passes-six-field-row"],
- VerificationTest[
-  Quiet[WLJS`CSockets`Private`socketGetPort[{1, 2}]], _LibraryFunctionError,
-  SameTest -> MatchQ, TestID -> "native-boundary-rejects-short-row"]
+    VerificationTest[
+        Module[{server, client, events = {}, accepted, closed, result},
+            server = CSocketOpen["127.0.0.1", 0];
+            SocketListen[server, (AppendTo[events, #])&];
+            client = CSocketConnect["127.0.0.1", server["DestinationPort"], "TCP", "Wait" -> True, "Blocking" -> False];
+            Do[Pause[0.02]; If[AnyTrue[events, #["Event"] === "Accepted"&], Break[]], {100}];
+            accepted = Lookup[SelectFirst[events, #["Event"] === "Accepted"&, <||>], "AcceptedSocket", $Failed];
+            result = MatchQ[accepted, CSocketObject[_Integer]] && !client["Blocking"];
+            Close[client];
+            Do[Pause[0.02]; If[AnyTrue[events, #["Event"] === "Closed"&], Break[]], {100}];
+            closed = Lookup[SelectFirst[events, #["Event"] === "Closed"&, <||>], "ClosedSocket", $Failed];
+            result = result && closed === accepted && accepted["State"] === "Closed";
+            Close[server];
+            result && !KeyExistsQ[WLJS`CSockets`Private`$ownedSocketLists, First[server]] &&
+                WLJS`CSockets`$CSockets[First[server]]["State"] === "Closed"
+        ],
+        True,
+        TestID -> "async-peer-close-updates-metadata-and-owned-list-is-released"
+    ],
+    VerificationTest[
+        Module[{server, client, events = {}, result},
+            server = CSocketOpen["127.0.0.1", 0, "UDP"];
+            SocketListen[server, (AppendTo[events, #]; Close[server])&];
+            client = CSocketConnect["127.0.0.1", server["DestinationPort"], "UDP", "Wait" -> True];
+            BinaryWrite[client, ByteArray[{}]];
+            Do[Pause[0.02]; If[Length[events] > 0, Break[]], {100}];
+            result = Length[events] === 1 && events[[1]]["Event"] === "ReceivedFrom" &&
+                events[[1]]["DataBytes"] === {} && server["State"] === "Closed";
+            Close[client];
+            Close[server];
+            Pause[0.1];
+            result && Length[events] === 1 && !KeyExistsQ[WLJS`CSockets`Private`$ownedSocketLists, First[server]]
+        ],
+        True,
+        TestID -> "empty-udp-datagram-and-close-inside-callback"
+    ],
+    VerificationTest[
+        Module[{server, client, accepted, id, result, addresses},
+            server = CSocketOpen["127.0.0.1", 0];
+            client = CSocketConnect["127.0.0.1", server["DestinationPort"], "TCP", "Wait" -> True];
+            id = WLJS`CSockets`Private`socketAccept[First[server], False];
+            accepted = WLJS`CSockets`Private`registerSocket[id, "TCP", "Accepted", True];
+            addresses = accepted["Addresses"];
+            result = MatchQ[server, CSocketObject[_Integer]] && server["Role"] === "Binded" &&
+                client["Role"] === "Connected" && accepted["Role"] === "Accepted" &&
+                server["Protocol"] === "TCP" && client["Blocking"] &&
+                addresses === Reverse[client["Addresses"]] && server["Addresses"][[2]] === "";
+            BinaryWrite[client, ByteArray[{1, 2, 3, 4, 5}]];
+            result = result && WLJS`CSockets`Private`socketRecv[id, ByteArray[{0, 0}]] === ByteArray[{1, 2}] &&
+                SocketReadyQ[accepted, 1] && SocketWaitNext[accepted] === {{id, 1}} &&
+                SocketReadMessage[accepted] === ByteArray[{3, 4, 5}];
+            Scan[Close, {accepted, client, server}];
+            result && server["State"] === "Closed" && server["Addresses"][[1]] =!= "" && Close[server] === Null
+        ],
+        True,
+        TestID -> "tcp-objects-use-id-and-wl-metadata-with-both-endpoints"
+    ],
+    VerificationTest[
+        Module[{server, alias, list, result},
+            server = CSocketOpen["127.0.0.1", 0, "UDP"];
+            alias = server;
+            list = CSocketList[{server}];
+            result = WLJS`CSockets`Private`socketListGetAll[First[list]] === {First[server]} && alias["Blocking"];
+            WLJS`CSockets`Private`setSocketBlocking[First[server], False];
+            result = result && !alias["Blocking"];
+            Close[list];
+            result = result && SocketReadyQ[server] === False;
+            Close[server];
+            result && alias["State"] === "Closed" && BinaryWrite[alias, ByteArray[{1}]] === $Failed && Close[list] === Null
+        ],
+        True,
+        TestID -> "metadata-is-shared-by-aliases-and-list-close-does-not-close-sockets"
+    ],
+    VerificationTest[
+        Quiet[CSocketConnect["localhost", 80, "TCP", "Wait" -> "invalid"]],
+        $Failed,
+        TestID -> "invalid-options-rejected-before-native-call"
+    ],
+    VerificationTest[
+        Module[{server, client, result},
+            server = CSocketOpen["127.0.0.1", 0];
+            client = CSocketConnect["127.0.0.1", server["DestinationPort"]];
+            result = MatchQ[client, CSocketObject[_Integer]] && client["Role"] === "Connected" && client["Blocking"];
+            Scan[Close, {client, server}];
+            result
+        ],
+        True,
+        TestID -> "default-connect-registers-role-and-final-mode"
+    ],
+    VerificationTest[
+        Block[{
+            WLJS`CSockets`Private`socketSend = Function[{id, bytes, length}, {id, Length[bytes], length}],
+            WLJS`CSockets`$CSockets = <||>
+        },
+            WriteString[CSocketObject[42], "hi"]
+        ],
+        {42, 2, 2},
+        TestID -> "writes-pass-only-numeric-id"
+    ]
 }]

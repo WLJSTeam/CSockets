@@ -16,7 +16,7 @@ TestReport[{
                     "Received" -> Function[p, ToUpperCase[p["Data"]]],
                     "Logger" -> Function[p, AppendTo[logged, p]]
                 ];
-                packet = <|"Event" -> "Received", "SourceSocket" -> CSocketObject[{42, 6, 1, 2, 1, 0}]|>;
+                packet = <|"Event" -> "Received", "SourceSocket" -> CSocketObject[42]|>;
                 first = handler[Append[packet, "DataByteArray" -> StringToByteArray["ab"]]];
                 before = sent === {} && decoded === {} && !first["Completed"] &&
                     first["StoredLength"] === 2 && !KeyExistsQ[first, "Result"];
@@ -39,7 +39,7 @@ TestReport[{
                 "Deserializer" -> ByteArrayToString,
                 "Received" -> <|"collect" :> Function[p, True] :> Function[p, AppendTo[messages, p["Data"]]; Null]|>
             ];
-            packet = <|"Event" -> "Received", "SourceSocket" -> CSocketObject[{42, 6, 1, 2, 1, 0}]|>;
+            packet = <|"Event" -> "Received", "SourceSocket" -> CSocketObject[42]|>;
             result = handler[Append[packet, "DataByteArray" -> StringToByteArray["abcdefg"]]];
             messages === {"abc", "def"} && !result["Completed"] && result["StoredLength"] === 1 &&
                 With[{last = handler[Append[packet, "DataByteArray" -> StringToByteArray["hi"]]]},
@@ -54,16 +54,16 @@ TestReport[{
             handler = CSocketHandler[
                 "Accumulator" -> Function[p, 2],
                 "Deserializer" -> ByteArrayToString,
-                "ReceivedFrom" -> Function[p, AppendTo[received, {p["AddressStorage"], p["Data"]}]; Null]
+                "ReceivedFrom" -> Function[p, AppendTo[received, {p["Address"], p["Data"]}]; Null]
             ];
-            packet = <|"Event" -> "ReceivedFrom", "SourceSocket" -> CSocketObject[{42, 17, 2, 1, 1, 0}]|>;
-            first = Append[packet, "AddressStorage" -> AddressStorage[ByteArray[{1}]]];
-            second = Append[packet, "AddressStorage" -> AddressStorage[ByteArray[{2}]]];
+            packet = <|"Event" -> "ReceivedFrom", "SourceSocket" -> CSocketObject[42]|>;
+            first = Append[packet, "Address" -> "127.0.0.1:1"];
+            second = Append[packet, "Address" -> "127.0.0.1:2"];
             handler[Append[first, "DataByteArray" -> StringToByteArray["a"]]];
             handler[Append[second, "DataByteArray" -> StringToByteArray["x"]]];
             handler[Append[first, "DataByteArray" -> StringToByteArray["b"]]];
             handler[Append[second, "DataByteArray" -> StringToByteArray["y"]]];
-            received === {{first["AddressStorage"], "ab"}, {second["AddressStorage"], "xy"}}
+            received === {{first["Address"], "ab"}, {second["Address"], "xy"}}
         ],
         True,
         TestID -> "udp-fragment-buffers-are-separated-by-sender"
