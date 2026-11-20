@@ -40,7 +40,7 @@ bool fill_fds_from_socket_list(SocketList socketList, POLL_FD **fds, size_t *len
         (*fds)[i].events = events;
         (*fds)[i].revents = 0;
 
-        if (socketList->roles[i] == SOCKET_ROLE_UNDEFINED) {
+        if (socketList->roles[i] == SOCKET_ROLE_TCP_UNSPEC || socketList->roles[i] == SOCKET_ROLE_UDP_UNSPEC) {
             (*fds)[i].events = 0;
         }
     }

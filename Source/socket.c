@@ -222,24 +222,38 @@ DLLEXPORT int socketGetAddresses(WolframLibraryData libData, mint Argc, MArgumen
     struct sockaddr_storage addressStorage[2] = {0};
 
     switch (role) {
-        case SOCKET_ROLE_UNDEFINED:
+        case SOCKET_ROLE_TCP_UNSPEC:
+        case SOCKET_ROLE_UDP_UNSPEC:
             break;
 
-        case SOCKET_ROLE_BINDED:
-        case SOCKET_ROLE_ACCEPTED:
-        case SOCKET_ROLE_CONNECTED: {
-            socklen_t length = sizeof(addressStorage[0]);
-            if (getsockname(socketId, (struct sockaddr *)&addressStorage[0], &length) == SOCKET_ERROR) {
-                ZeroMemory(&addressStorage[0], sizeof(addressStorage[0]));
+        case SOCKET_ROLE_TCP_BOUND:
+        case SOCKET_ROLE_UDP_BOUND:
+            {
+                socklen_t length = sizeof(addressStorage[0]);
+
+                if (getsockname(socketId, (struct sockaddr *)&addressStorage[0], &length) == SOCKET_ERROR) {
+                    ZeroMemory(&addressStorage[0], sizeof(addressStorage[0]));
+                }
             }
-            if (role == SOCKET_ROLE_ACCEPTED || role == SOCKET_ROLE_CONNECTED) {
+            break;
+
+        case SOCKET_ROLE_TCP_ACCEPTED:
+        case SOCKET_ROLE_TCP_CONNECTED:
+        case SOCKET_ROLE_UDP_CONNECTED:
+            {
+                socklen_t length = sizeof(addressStorage[0]);
+
+                if (getsockname(socketId, (struct sockaddr *)&addressStorage[0], &length) == SOCKET_ERROR) {
+                    ZeroMemory(&addressStorage[0], sizeof(addressStorage[0]));
+                }
+
                 length = sizeof(addressStorage[1]);
+
                 if (getpeername(socketId, (struct sockaddr *)&addressStorage[1], &length) == SOCKET_ERROR) {
                     ZeroMemory(&addressStorage[1], sizeof(addressStorage[1]));
                 }
             }
             break;
-        }
 
         default:
             libData->Message("socketGetAddresses: invalid role");

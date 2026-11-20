@@ -65,6 +65,15 @@ If[!AssociationQ[$socketListTasks], $socketListTasks = <||>];
 If[!AssociationQ[$ownedSocketLists], $ownedSocketLists = <||>];
 
 
+$SOCKETROLETCPUNSPEC = 0;
+$SOCKETROLETCPBOUND = 1;
+$SOCKETROLETCPCONNECTED = 2;
+$SOCKETROLETCPACCEPTED = 3;
+$SOCKETROLEUDPUNSPEC = 4;
+$SOCKETROLEUDPBOUND = 5;
+$SOCKETROLEUDPCONNECTED = 6;
+
+
 registerSocket[id_Integer, protocol_String, role_String, blocking: True | False] :=
 Module[{object = CSocketObject[id]},
     $CSockets[id] = <|
@@ -89,10 +98,28 @@ setSocketProperty[id_Integer, key_String, value_] :=
 ($CSockets[id] = Append[Lookup[$CSockets, id, <||>], key -> value]);
 
 
+socketRoleCode[protocol_String, role_String] :=
+Switch[{protocol, role},
+    {"TCP", $SOCKETROLETCPUNSPEC}, $SOCKETROLETCPUNSPEC,
+    {"TCP", $SOCKETROLETCPBOUND}, $SOCKETROLETCPBOUND,
+    {"TCP", $SOCKETROLETCPCONNECTED}, $SOCKETROLETCPCONNECTED,
+    {"TCP", $SOCKETROLETCPACCEPTED}, $SOCKETROLETCPACCEPTED,
+    {"UDP", $SOCKETROLEUDPUNSPEC}, $SOCKETROLEUDPUNSPEC,
+    {"UDP", $SOCKETROLEUDPBOUND}, $SOCKETROLEUDPBOUND,
+    {"UDP", $SOCKETROLEUDPCONNECTED}, $SOCKETROLEUDPCONNECTED,
+    {"UDP", _}, $SOCKETROLEUDPUNSPEC,
+    _, $SOCKETROLETCPUNSPEC
+];
+
+
+socketRoleCode[id_Integer] :=
+socketRoleCode[socketProperty[id, "Protocol"], socketProperty[id, "Role"]];
+
+
 refreshSocketAddresses[id_Integer] :=
-Module[{addresses, role = socketProperty[id, "Role"]},
+Module[{addresses, role = socketRoleCode[id]},
     If[socketProperty[id, "State"] =!= "Alive", Return[Null]];
-    addresses = Quiet[Check[List @@ socketGetAddresses[id, Replace[role, {"Undefined" -> 0, "Binded" -> 1, "Connected" -> 2, "Accepted" -> 3}]], $Failed]];
+    addresses = Quiet[Check[List @@ socketGetAddresses[id, role], $Failed]];
     If[MatchQ[addresses, {_String, _String}],
         setSocketProperty[id, "LocalAddress", addresses[[1]]];
         setSocketProperty[id, "RemoteAddress", addresses[[2]]]
@@ -119,7 +146,7 @@ createSocket[family_Integer, protocol: "TCP" | "UDP"] :=
 Module[{id},
     id = Quiet[Check[socketCreate[family, protocol /. {"TCP" -> $IPPROTOTCP, "UDP" -> $IPPROTOUDP}], $Failed]];
     If[!IntegerQ[id], Return[$Failed]];
-    registerSocket[id, protocol, "Undefined", True];
+    registerSocket[id, protocol, $SOCKETROLETCPUNSPEC, True];
     id
 ];
 
@@ -129,7 +156,7 @@ Module[{result},
     If[!socketAliveQ[id], Return[$Failed]];
     result = Quiet[Check[socketBind[id, host, ToString[port]], $Failed]];
     If[result =!= Null, Return[$Failed]];
-    setSocketProperty[id, "Role", "Binded"];
+    setSocketProperty[id, "Role", $SOCKETROLETCPBOUND];
     refreshSocketAddresses[id];
     Null
 ];
@@ -140,7 +167,7 @@ Module[{result},
     If[!socketAliveQ[id], Return[$Failed]];
     result = Quiet[Check[socketConnect[id, host, ToString[port]], $Failed]];
     If[result =!= Null, Return[$Failed]];
-    setSocketProperty[id, "Role", "Connected"];
+    setSocketProperty[id, "Role", $SOCKETROLETCPCONNECTED];
     refreshSocketAddresses[id];
     Null
 ];
@@ -151,7 +178,7 @@ Module[{acceptedId},
     If[!socketAliveQ[id], Return[$Failed]];
     acceptedId = Quiet[Check[socketAccept[id], $Failed]];
     If[!IntegerQ[acceptedId], Return[$Failed]];
-    registerSocket[acceptedId, "TCP", "Accepted", blocking];
+    registerSocket[acceptedId, "TCP", $SOCKETROLETCPACCEPTED, blocking];
     setSocketProperty[acceptedId, "ListenSocket", CSocketObject[id]];
     refreshSocketAddresses[id];
     acceptedId
@@ -252,7 +279,7 @@ Module[{above, below},
 
 
 CSocketObject[id_Integer]["DirectionType"] :=
-If[socketProperty[id, "Role"] === "Binded", "Server", "Client"];
+If[socketProperty[id, "Role"] === $SOCKETROLETCPBOUND || socketProperty[id, "Role"] === $SOCKETROLEUDPBOUND, "Server", "Client"];
 
 
 CSocketObject[id_Integer]["InprocQ"] :=
@@ -371,7 +398,7 @@ CSocketList /: Append[CSocketList[listId_Integer], CSocketObject[id_Integer]] :=
 If[!socketAliveQ[id], $Failed,
     If[KeyExistsQ[$socketListTasks, listId] && setSocketBlocking[id, False] === $Failed,
         $Failed,
-        socketListAdd[listId, id, Replace[socketProperty[id, "Role"], {"Undefined" -> 0, "Binded" -> 1, "Connected" -> 2, "Accepted" -> 3}]]
+        socketListAdd[listId, id, socketRoleCode[id]]
     ]
 ];
 
@@ -435,6 +462,10 @@ createEventData["Error", id_Integer, code_] :=
 <|"ErrorSocket" -> CSocketObject[id], "ErrorCode" -> code|>;
 
 
+createEventData["Polled", data_List] :=
+<|"Events" -> data|>;
+
+
 createEventData["ReceivedFrom", id_Integer, address_String, bytes: (_List | _ByteArray | _NumericArray | 0): {}] :=
 Join[createEventData["Received", id, bytes], <|"Address" -> address|>];
 
@@ -458,7 +489,7 @@ Module[{id, acceptedId},
     Switch[name,
         "Accepted",
             acceptedId = data[[2]];
-            registerSocket[acceptedId, "TCP", "Accepted", False];
+            registerSocket[acceptedId, "TCP", $socketRoleTCPAccepted, False];
             setSocketProperty[acceptedId, "ListenSocket", CSocketObject[id]],
         "Closed",
             setSocketProperty[id, "State", "Closed"],
