@@ -1,6 +1,54 @@
 #include "list.h"
 
 
+bool fill_fds_from_socket_list(SocketList socketList, POLL_FD **fds, size_t *length, int events)
+{
+    if (!socketList || !fds || !length) {
+        return false;
+    }
+
+    size_t newLength = socketList->length;
+    size_t maxLength = SIZE_MAX / sizeof(POLL_FD);
+
+    if (newLength > maxLength || newLength > INT_MAX) {
+        return false;
+    }
+
+    if (newLength != *length) {
+        POLL_FD *newFds = NULL;
+
+        if (newLength > 0) {
+            newFds = realloc(*fds, newLength * sizeof(POLL_FD));
+
+            if (!newFds) {
+                return false;
+            }
+        } else {
+            free(*fds);
+        }
+
+        *fds = newFds;
+        *length = newLength;
+    }
+
+    if (newLength > 0 && !*fds) {
+        return false;
+    }
+
+    for (size_t i = 0; i < newLength; i++) {
+        (*fds)[i].fd = socketList->sockets[i];
+        (*fds)[i].events = events;
+        (*fds)[i].revents = 0;
+
+        if (socketList->roles[i] == SOCKET_ROLE_UNDEFINED) {
+            (*fds)[i].events = 0;
+        }
+    }
+
+    return true;
+}
+
+
 bool socket_list_add(SocketList list, SOCKET socketId, SOCKET_ROLE role)
 {
     if (!list) {

@@ -10,7 +10,6 @@ static void socketsPollLoop(mint taskId, void *taskArgs)
     POLL_FD *fds = NULL;
     size_t length = 0;
 
-    bool needRefresh = true;
     bool needPrune = false;
     bool failed = false;
 
@@ -21,54 +20,13 @@ static void socketsPollLoop(mint taskId, void *taskArgs)
         if (needPrune) {
             socket_list_prune(socketList);
             needPrune = false;
-            needRefresh = true;
         }
 
-        if (length != socketList->length) {
-            needRefresh = true;
-        }
+        bool filled = fill_fds_from_socket_list(socketList, &fds, &length, nativeEvents);
 
-        if (needRefresh) {
-            size_t newLength = socketList->length;
-            size_t maxLength = SIZE_MAX / sizeof(POLL_FD);
-
-            if (newLength > maxLength || newLength > INT_MAX) {
-                failed = true;
-                break;
-            }
-
-            if (newLength != length) {
-                POLL_FD *newFds = NULL;
-
-                if (newLength > 0) {
-                    newFds = realloc(fds, newLength * sizeof(POLL_FD));
-
-                    if (!newFds) {
-                        failed = true;
-                        break;
-                    }
-                } else {
-                    free(fds);
-                }
-
-                fds = newFds;
-                length = newLength;
-            }
-
-            for (size_t i = 0; i < length; i++) {
-                fds[i].fd = socketList->sockets[i];
-                fds[i].events = nativeEvents;
-
-                if (socketList->roles[i] == SOCKET_ROLE_UNDEFINED) {
-                    fds[i].events = 0;
-                }
-            }
-
-            needRefresh = false;
-        }
-
-        for (size_t i = 0; i < length; i++) {
-            fds[i].revents = 0;
+        if (!filled) {
+            failed = true;
+            break;
         }
 
         int count = sockets_poll(fds, (mint)length, args->timeout);
@@ -146,7 +104,6 @@ static void socketsPollLoop(mint taskId, void *taskArgs)
                         bool added = socket_list_add(socketList, acceptedSocket, SOCKET_ROLE_ACCEPTED);
 
                         if (added) {
-                            needRefresh = true;
                             event = "Accepted";
                         } else {
                             CLOSESOCKET(acceptedSocket);

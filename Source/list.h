@@ -13,6 +13,11 @@ typedef struct SocketList_st {
 } *SocketList;
 
 
+/* length is the allocated element count; events contains native poll flags.
+   On allocation failure, fds and length retain their previous values. */
+bool fill_fds_from_socket_list(SocketList socketList, POLL_FD **fds, size_t *length, int events);
+
+
 bool socket_list_add(SocketList list, SOCKET socketId, SOCKET_ROLE role);
 
 
