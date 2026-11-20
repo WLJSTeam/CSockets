@@ -7,25 +7,16 @@
 
 typedef struct SocketList_st {
     SOCKET *sockets;
-    size_t length;
+    SOCKET_ROLE *roles;
     size_t capacity;
-    size_t references;
-    bool deleted;
-#ifdef _WIN32
-    CRITICAL_SECTION lock;
-#else
-    pthread_mutex_t lock;
-#endif
+    size_t length;
 } *SocketList;
 
 
-void socket_list_lock(SocketList list);
-void socket_list_unlock(SocketList list);
-bool socket_list_add(SocketList list, SOCKET socketId);
-bool socket_list_retain(SocketList list);
-void socket_list_release(SocketList list);
-/* Returns an owned copy, allowing polling without holding the list lock. */
-int socket_list_snapshot(SocketList list, SOCKET **sockets, mint *length);
+bool socket_list_add(SocketList list, SOCKET socketId, SOCKET_ROLE role);
+
+
+bool socket_list_prune(SocketList list);
 
 
 #endif

@@ -28,7 +28,7 @@ handler = CSocketHandler["ReceivedFrom" -> udpEcho];
 listener = SocketListen[server, handler];
 
 
-Print["UDP echo server listening on ", server["Host"], ":", server["DestinationPort"]];
+Print["UDP echo server listening on ", server["Addresses"]];
 
 
 CheckAbort[

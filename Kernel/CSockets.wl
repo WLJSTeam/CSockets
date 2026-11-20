@@ -149,7 +149,7 @@ Module[{result},
 acceptSocket[id_Integer, blocking: True | False] :=
 Module[{acceptedId},
     If[!socketAliveQ[id], Return[$Failed]];
-    acceptedId = Quiet[Check[socketAccept[id, !blocking], $Failed]];
+    acceptedId = Quiet[Check[socketAccept[id], $Failed]];
     If[!IntegerQ[acceptedId], Return[$Failed]];
     registerSocket[acceptedId, "TCP", "Accepted", blocking];
     setSocketProperty[acceptedId, "ListenSocket", CSocketObject[id]];
@@ -243,23 +243,11 @@ CSocketObject /: MakeBoxes[object: CSocketObject[id_Integer], form: (StandardFor
 Module[{above, below},
     above = {
         {BoxForm`SummaryItem[{"SocketID: ", id}], SpanFromLeft},
-        {BoxForm`SummaryItem[{"Host: ", object["Host"]}], SpanFromLeft},
-        {BoxForm`SummaryItem[{"Port: ", object["DestinationPort"]}], SpanFromLeft}
+        {BoxForm`SummaryItem[{"Local: ", object["LocalAddress"]}], SpanFromLeft},
+        {BoxForm`SummaryItem[{"Remote: ", object["RemoteAddress"]}], SpanFromLeft}
     };
     below = Map[{BoxForm`SummaryItem[{# <> ": ", object[#]}], SpanFromLeft}&, {"Protocol", "State", "Role", "BlockingMode"}];
     BoxForm`ArrangeSummaryBox[CSocketObject, object, $socketObjectIcon, above, below, form, "Interpretable" -> Automatic]
-];
-
-
-CSocketObject[id_Integer]["Host"] :=
-With[{parts = splitAddress[CSocketObject[id]["LocalAddress"]]},
-    If[ListQ[parts], First[parts], Missing["NotAvailable"]]
-];
-
-
-CSocketObject[id_Integer]["DestinationPort"] :=
-With[{parts = splitAddress[CSocketObject[id]["LocalAddress"]]},
-    If[ListQ[parts], FromDigits[Last[parts]], Missing["NotAvailable"]]
 ];
 
 
@@ -366,7 +354,7 @@ With[{readMessageBuffer = ByteArray[ConstantArray[0, 64 * 1024]]},
 
 
 CSocketList[initialSockets: {___CSocketObject}] :=
-Module[{id = socketListCreate[], list},
+Module[{id = socketListCreate[{}, {}], list},
     If[!IntegerQ[id], Return[$Failed]];
     list = CSocketList[id];
     $socketLists[id] = True;
@@ -383,7 +371,7 @@ CSocketList /: Append[CSocketList[listId_Integer], CSocketObject[id_Integer]] :=
 If[!socketAliveQ[id], $Failed,
     If[KeyExistsQ[$socketListTasks, listId] && setSocketBlocking[id, False] === $Failed,
         $Failed,
-        socketListAdd[listId, id]
+        socketListAdd[listId, id, Replace[socketProperty[id, "Role"], {"Undefined" -> 0, "Binded" -> 1, "Connected" -> 2, "Accepted" -> 3}]]
     ]
 ];
 
@@ -463,54 +451,21 @@ With[{byteArray = If[bytes === 0, ByteArray[{}], ByteArray[bytes]], source = CSo
 ];
 
 
-(* Poll notifications may already be queued after another callback drained a
-   socket. Recheck readiness and use nonblocking IO before consuming data. *)
-dispatchPollEvent[listId_Integer, handler_, task_AsynchronousTaskObject, "Polled", {rows_List}] :=
-If[KeyExistsQ[$socketLists, listId], Scan[processSocketEvent[listId, handler, task, #]&, rows]];
-
-
-dispatchPollEvent[listId_Integer, handler_, task_AsynchronousTaskObject, "Error", {code_Integer}] :=
-handler[<|"Timestamp" -> Now, "Task" -> task, "Event" -> "Error", "ErrorCode" -> code|>];
-
-
-processSocketEvent[listId_Integer, handler_, task_AsynchronousTaskObject, {id_Integer, mask_Integer}] :=
-Module[{object = CSocketObject[id], ready, accepted, data, event, protocol, role},
-    If[!KeyExistsQ[$socketLists, listId] || !socketAliveQ[id], Return[Null]];
-    protocol = socketProperty[id, "Protocol"];
-    role = socketProperty[id, "Role"];
-    If[BitAnd[mask, $POLLIN] != 0,
-        ready = Quiet[Check[socketsPoll[{id}, 0, $POLLIN], $Failed]];
-        If[!ListQ[ready] || ready === {}, Return[Null]];
-        If[setSocketBlocking[id, False] === $Failed, Return[Null]];
-        If[protocol === "TCP" && role === "Binded",
-            accepted = acceptSocket[id, False];
-            If[!IntegerQ[accepted], Return[Null]];
-            event = makeSocketEvent[task, "Accepted", id, accepted];
-            If[socketListAdd[listId, accepted] =!= Null, Close[CSocketObject[accepted]]; Return[$Failed]];
-            handler[event];
-            Return[Null]
-        ];
-        data = Quiet[Check[SocketReadMessage[object], $Failed]];
-        If[MatchQ[data, _ByteArray],
-            If[Length[data] > 0,
-                handler[makeSocketEvent[task, "Received", id, data]],
-                Close[object];
-                handler[makeSocketEvent[task, "Closed", id]];
-                If[KeyExistsQ[$socketLists, listId], socketListPrune[listId]]
-            ];
-            Return[Null]
-        ];
-        If[MatchQ[data, {(_ByteArray | _NumericArray | {}), _String}],
-            handler[makeSocketEvent[task, "ReceivedFrom", id, data[[2]], data[[1]]]];
-            Return[Null]
-        ];
+dispatchPollEvent[listId_Integer, handler_, task_AsynchronousTaskObject, name_String, data_List] :=
+Module[{id, acceptedId},
+    If[!KeyExistsQ[$socketLists, listId] || data === {}, Return[Null]];
+    id = First[data];
+    Switch[name,
+        "Accepted",
+            acceptedId = data[[2]];
+            registerSocket[acceptedId, "TCP", "Accepted", False];
+            setSocketProperty[acceptedId, "ListenSocket", CSocketObject[id]],
+        "Closed",
+            setSocketProperty[id, "State", "Closed"],
+        "Error",
+            If[!MemberQ[socketListGetAll[listId], id], setSocketProperty[id, "State", "Closed"]]
     ];
-    If[BitAnd[mask, $POLLERR + $POLLHUP + $POLLNVAL] != 0,
-        Close[object];
-        If[KeyExistsQ[$socketLists, listId], socketListPrune[listId]];
-        handler[makeSocketEvent[task, If[BitAnd[mask, $POLLERR + $POLLNVAL] != 0, "Error", "Closed"], id, mask]]
-    ];
-    Null
+    handler[makeSocketEvent[task, name, Sequence @@ data]]
 ];
 
 
@@ -1030,14 +985,6 @@ $library = FileNameJoin[
 (* :LibraryLoad: *)
 
 
-socketsPollAsync::usage =
-"socketsPollAsync[socketIds, timeout, eventsMask] -> taskId.";
-
-
-socketsPollAsync =
-LibraryFunctionLoad[$library, "socketsPollAsync", {{Integer, 1}, Integer, Integer}, Integer];
-
-
 createSocketsPollLoop::usage =
 "createSocketsPollLoop[list, timeout, eventsMask] -> taskId.";
 
@@ -1047,19 +994,19 @@ LibraryFunctionLoad[$library, "createSocketsPollLoop", {Integer, Integer, Intege
 
 
 socketListCreate::usage =
-"socketListCreate[] -> socketListId.";
+"socketListCreate[socketIds, socketRoles] -> socketListId.";
 
 
 socketListCreate =
-LibraryFunctionLoad[$library, "socketListCreate", {}, Integer];
+LibraryFunctionLoad[$library, "socketListCreate", {{Integer, 1}, {Integer, 1}}, Integer];
 
 
 socketListAdd::usage =
-"socketListAdd[list, socketId].";
+"socketListAdd[list, socketId, role].";
 
 
 socketListAdd =
-LibraryFunctionLoad[$library, "socketListAdd", {Integer, Integer}, "Void"];
+LibraryFunctionLoad[$library, "socketListAdd", {Integer, Integer, Integer}, "Void"];
 
 
 socketListGetAll::usage =
@@ -1150,22 +1097,6 @@ socketGetAddresses =
 LibraryFunctionLoad[$library, "socketGetAddresses", {Integer, Integer}, "DataStore"];
 
 
-socketGetPort::usage =
-"socketGetPort[socketId] -> port.";
-
-
-socketGetPort =
-LibraryFunctionLoad[$library, "socketGetPort", {Integer}, Integer];
-
-
-socketGetHost::usage =
-"socketGetHost[socketId] -> host.";
-
-
-socketGetHost =
-LibraryFunctionLoad[$library, "socketGetHost", {Integer}, String];
-
-
 socketListen::usage =
 "socketListen[socketId, backlog].";
 
@@ -1183,15 +1114,15 @@ LibraryFunctionLoad[$library, "socketConnect", {Integer, String, String}, "Void"
 
 
 socketAccept::usage =
-"socketAccept[socketId, nonBlocking] -> acceptedId.";
+"socketAccept[socketId] -> acceptedId.";
 
 
 socketAccept =
-LibraryFunctionLoad[$library, "socketAccept", {Integer, Alternatives[True, False]}, Integer];
+LibraryFunctionLoad[$library, "socketAccept", {Integer}, Integer];
 
 
 socketRecv::usage =
-"socketRecv[socketId, buffer] -> receivedData.";
+"socketRecv[socketId, buffer] -> bufferData.";
 
 
 socketRecv =
@@ -1207,11 +1138,11 @@ LibraryFunctionLoad[$library, "socketRecvFrom", {Integer, {"ByteArray", "Shared"
 
 
 socketSend::usage =
-"socketSend[socketId, bytes, length] -> sentLength.";
+"socketSend[socketId, bytes] -> sentLength.";
 
 
 socketSend =
-LibraryFunctionLoad[$library, "socketSend", {Integer, {"ByteArray", "Shared"}, Integer}, Integer];
+LibraryFunctionLoad[$library, "socketSend", {Integer, {"ByteArray", "Shared"}}, Integer];
 
 
 socketSendTo::usage =
@@ -1231,11 +1162,27 @@ LibraryFunctionLoad[$library, "socketsCheck", {{Integer, 1}}, {Integer, 1}];
 
 
 socketConnectedQ::usage =
-"socketConnectedQ[socketId, blockingMode] -> False.";
+"socketConnectedQ[socketId] -> getpeername(socketId.";
 
 
 socketConnectedQ =
-LibraryFunctionLoad[$library, "socketConnectedQ", {Integer, Alternatives[True, False]}, Alternatives[True, False]];
+LibraryFunctionLoad[$library, "socketConnectedQ", {Integer}, Alternatives[True, False]];
+
+
+socketConnectionAliveQ::usage =
+"socketConnectionAliveQ[socketId] -> False.";
+
+
+socketConnectionAliveQ =
+LibraryFunctionLoad[$library, "socketConnectionAliveQ", {Integer}, Alternatives[True, False]];
+
+
+socketValidQ::usage =
+"socketValidQ[socketId] -> validState.";
+
+
+socketValidQ =
+LibraryFunctionLoad[$library, "socketValidQ", {Integer}, Alternatives[True, False]];
 
 
 socketsPoll::usage =

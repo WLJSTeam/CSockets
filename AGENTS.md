@@ -139,6 +139,40 @@ Swicth[x,
 ];
 ```
 
+## C Code Style Guide
+
+- Apply these rules consistently to all C functions.
+- Always write conditions and loops as multiline blocks with braces, even when the body contains only one statement. Do not use single-line `if`, `else`, `for`, `while`, or `do` bodies.
+- Keep conditions simple. Perform function calls and complex calculations first, store their results in local variables, and then test those variables. For example, use `int status = connect(...);` followed by `if (status == ERROR) { ... }`, rather than calling `connect` inside the condition. Apply the same rule to loop conditions.
+- Separate conditional and loop blocks from surrounding statements with a blank line before and after the block. Do not add blank lines between a block and its associated `else` or the trailing `while` of a `do` loop.
+- Group logically related statements without blank lines between them, and separate logical groups with a blank line. For example, keep argument extraction statements together, then leave a blank line before declarations of other local variables.
+- Always declare and initialize each argument obtained with `MArgument_get*` in a single statement on one physical line, such as `mint socketId = MArgument_getInteger(Args[0]);`. Do not separate the declaration from the argument extraction. This format is required by the bindings parser.
+- The result argument in `MArgument_set*(Res, result)` must be a single variable name. Compute the result and perform any casts in a preceding variable declaration or assignment; do not put casts, calculations, or function calls inside `MArgument_set*`. This allows the bindings parser to identify the result name reliably.
+- Every error check in a `DLLEXPORT` function must print a diagnostic through `libData->Message` before returning an error.
+
+```c
+DLLEXPORT int example(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    if (Argc != 1) {
+        libData->Message("example: invalid argument count");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    mint socketId = MArgument_getInteger(Args[0]);
+
+    bool valid = ISVALIDSOCKET((SOCKET)socketId);
+
+    if (!valid) {
+        libData->Message("example: invalid socket");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    mint result = (mint)socketId;
+    MArgument_setInteger(Res, result);
+    return LIBRARY_NO_ERROR;
+}
+```
+
 ## Build
 
 - Build the project from the repository root with `wolframscript -f Build.wls`.

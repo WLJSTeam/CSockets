@@ -8,7 +8,7 @@ Begin["WLJS`CSockets`Private`"];
 nativeSocketReport = TestReport[{
     VerificationTest[
         Module[{list, task, events = {}, result},
-            list = socketListCreate[];
+            list = socketListCreate[{}, {}];
             task = Internal`CreateAsynchronousTask[createSocketsPollLoop, {list, -1, 1}, (AppendTo[events, {#2, #3}])&];
             Pause[0.05];
             RemoveAsynchronousTask[task];
@@ -44,7 +44,7 @@ nativeSocketReport = TestReport[{
         Module[{a, b, list, result},
             a = socketCreate[2, 17];
             b = socketCreate[2, 6];
-            list = socketListCreate[];
+            list = socketListCreate[{}, {}];
             socketListAdd[list, a];
             socketListAdd[list, b];
             socketListAdd[list, a];
@@ -108,7 +108,7 @@ nativeSocketReport = TestReport[{
             receiver = socketCreate[2, 17];
             sender = socketCreate[2, 17];
             socketBind[receiver, "127.0.0.1", "0"];
-            list = socketListCreate[];
+            list = socketListCreate[{}, {}];
             task = Internal`CreateAsynchronousTask[
                 createSocketsPollLoop,
                 {list, -1, 1},

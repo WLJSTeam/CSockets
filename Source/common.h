@@ -104,6 +104,20 @@
 #include "WolframImageLibrary.h"
 
 
+BYTE *MArgument_getByteArray(WolframLibraryData libData, MArgument arg);
+
+
+/* Copies data into a new result array; returns a LibraryLink status code. */
+int MArgument_setByteArray(WolframLibraryData libData, MArgument res, const BYTE *data, mint length);
+
+
+/* Releases the share acquired by a Shared LibraryLink argument. */
+void MArgument_disownByteArray(WolframLibraryData libData, MArgument arg);
+
+
+char *format(const char *fmt, ...);
+
+
 void print(const char* format, ...);
 
 
@@ -136,10 +150,10 @@ struct sockaddr_storage create_sockaddr_storage(const char *numerichost, const c
 char *sockaddr_storage_to_string(struct sockaddr_storage address);
 
 
-bool is_valid_socket(SOCKET socketId);
-
-
 bool is_would_block_err(int err);
+
+
+bool is_connect_pending_err(int err);
 
 
 int sockets_poll(POLL_FD *fds, mint length, mint timeout_us);

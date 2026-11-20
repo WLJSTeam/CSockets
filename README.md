@@ -104,7 +104,6 @@ Common properties:
 
 | Property | Result |
 | --- | --- |
-| `"DestinationPort"` | Bound port number. |
 | `"DirectionType"` | `"Server"` or `"Client"`. |
 | `"Protocol"` | `"TCP"` or `"UDP"`. |
 | `"Scheme"` | `"tcp"` or `"udp"`. |
@@ -122,7 +121,7 @@ Common properties:
 ```wl
 socket = CSocketOpen["127.0.0.1", 8080];
 {
-  socket["DestinationPort"],
+  socket["Addresses"],
   socket["DirectionType"],
   socket["Protocol"],
   socket["Scheme"],

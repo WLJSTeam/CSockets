@@ -7,11 +7,9 @@
 
 typedef struct SocketsPollArgs_st {
     WolframLibraryData libData;
-    SOCKET *sockets;
-    mint length;
-    mint timeout;
+    SocketList socketList;
     mint eventsMask;
-    SocketList list;
+    mint timeout;
 } *SocketsPollArgs;
 
 

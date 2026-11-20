@@ -1,6 +1,45 @@
 #include "common.h"
 
 
+BYTE *MArgument_getByteArray(WolframLibraryData libData, MArgument arg)
+{
+    MNumericArray array = MArgument_getMNumericArray(arg);
+    return libData->numericarrayLibraryFunctions->MNumericArray_getData(array);
+}
+
+
+int MArgument_setByteArray(WolframLibraryData libData, MArgument res, const BYTE *data, mint length)
+{
+    if (length < 0 || (length > 0 && !data)) return LIBRARY_FUNCTION_ERROR;
+    MNumericArray array;
+    if (libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &length, &array)) {
+        return LIBRARY_MEMORY_ERROR;
+    }
+    if (length > 0) {
+        memcpy(libData->numericarrayLibraryFunctions->MNumericArray_getData(array), data, (size_t)length);
+    }
+    MArgument_setMNumericArray(res, array);
+    return LIBRARY_NO_ERROR;
+}
+
+
+void MArgument_disownByteArray(WolframLibraryData libData, MArgument arg)
+{
+    libData->numericarrayLibraryFunctions->MNumericArray_disown(MArgument_getMNumericArray(arg));
+}
+
+
+char *format(const char *fmt, ...)
+{
+    static char buffer[32];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+    return buffer;
+}
+
+
 void print(const char* format, ...)
 {
     #ifdef _DEBUG
@@ -92,23 +131,22 @@ void set_nonblocking_mode(SOCKET socketId)
 }
 
 
-/* Descriptor validity is independent of connection state; SO_ERROR would
- * consume a pending connection error and must not be used for this check. */
-bool is_valid_socket(SOCKET socketId)
-{
-    if (!ISVALIDSOCKET(socketId)) return false;
-    int type;
-    socklen_t length = sizeof(type);
-    return getsockopt(socketId, SOL_SOCKET, SO_TYPE, (char *)&type, &length) == 0;
-}
-
-
 bool is_would_block_err(int err)
 {
     #ifdef _WIN32
     return err == WSAEWOULDBLOCK;
     #else
     return err == EAGAIN || err == EWOULDBLOCK;
+    #endif
+}
+
+
+bool is_connect_pending_err(int err)
+{
+    #ifdef _WIN32
+    return err == WSAEWOULDBLOCK || err == WSAEINPROGRESS || err == WSAEALREADY;
+    #else
+    return err == EINPROGRESS || err == EALREADY;
     #endif
 }
 
