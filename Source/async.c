@@ -161,18 +161,7 @@ static void socketsPollLoop(mint taskId, void *taskArgs)
             bool socketError = (mask & WL_POLLERR) != 0;
             bool hangup = (mask & WL_POLLHUP) != 0;
 
-            if (invalid || socketError || hangup) {
-                error = (int)mask;
-                removeSocket = true;
-
-                if (socketError || invalid) {
-                    if (!raiseError(libData, taskId, socketId, error)) {
-                        eventFailed = true;
-                    }
-                } else if (!raiseClosed(libData, taskId, socketId)) {
-                    eventFailed = true;
-                }
-            } else if (readable) {
+            if (readable) {
                 switch (role) {
                     case SOCKET_ROLE_TCP_BOUND:
                         acceptedSocket = accept(socketId, NULL, NULL);
@@ -294,6 +283,17 @@ static void socketsPollLoop(mint taskId, void *taskArgs)
 
                     default:
                         break;
+                }
+            } else if (invalid || socketError || hangup) {
+                error = (int)mask;
+                removeSocket = true;
+
+                if (socketError || invalid) {
+                    if (!raiseError(libData, taskId, socketId, error)) {
+                        eventFailed = true;
+                    }
+                } else if (!raiseClosed(libData, taskId, socketId)) {
+                    eventFailed = true;
                 }
             }
 

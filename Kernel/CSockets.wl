@@ -46,16 +46,6 @@ DirectoryName[$InputFileName, 2];
 If[!AssociationQ[$CSockets], $CSockets = <||>];
 
 
-splitAddress[address_String] :=
-Module[{parts},
-    parts = StringCases[address, {
-        StartOfString ~~ "[" ~~ host: Except["]"].. ~~ "]:" ~~ port: DigitCharacter.. ~~ EndOfString :> {host, port},
-        StartOfString ~~ host: Except[":"].. ~~ ":" ~~ port: DigitCharacter.. ~~ EndOfString :> {host, port}
-    }];
-    If[Length[parts] === 1, First[parts], $Failed]
-];
-
-
 If[!AssociationQ[$socketLists], $socketLists = <||>];
 
 
@@ -194,13 +184,43 @@ CSocketOpen::open =
 "Cannot open `3` socket at `1`:`2`: `4` failed.";
 
 
-CSocketOpen[host_String: "127.0.0.1", port_Integer: 0, protocol: "TCP" | "UDP": "TCP"] :=
-Module[{id},
+$IPv4NumericHostPattern :=
+Repeated[Repeated[CharacterRange["0", "9"], {1, 3}] ~~ ".", {3}] ~~ Repeated[CharacterRange["0", "9"], {1, 3}];
+
+
+hex = Flatten[{CharacterRange["0", "9"], CharacterRange["a", "f"], CharacterRange["A", "F"]}];
+
+
+h16 = Repeated[hex, {1, 4}];
+
+
+$IPv6NumericHostPattern =
+  (Repeated[h16 ~~ ":", {7}] ~~ h16) |                                       (* 1234:5678:90ab:cdef:1234:5678:90ab:cdef*)
+  ("::" ~~ Repeated[h16 ~~ ":", {0, 6}] ~~ h16) |                            (*    ::5678:90ab:cdef:1234:5678:90ab:cdef*)
+  (Repeated[h16 ~~ ":", {1, 7}] ~~ ":") |                                    (* 1234:5678:90ab:cdef:1234:5678:90ab::   *)
+  (h16 ~~ "::" ~~ Repeated[h16 ~~ ":", {0, 5}] ~~ h16) |
+  (Repeated[h16 ~~ ":", {2}] ~~ ":" ~~ Repeated[h16 ~~ ":", {0, 4}] ~~ h16) |
+  (Repeated[h16 ~~ ":", {3}] ~~ ":" ~~ Repeated[h16 ~~ ":", {0, 3}] ~~ h16) |
+  (Repeated[h16 ~~ ":", {4}] ~~ ":" ~~ Repeated[h16 ~~ ":", {0, 2}] ~~ h16) |
+  (Repeated[h16 ~~ ":", {5}] ~~ ":" ~~ Repeated[h16 ~~ ":", {0, 1}] ~~ h16) |
+  (Repeated[h16 ~~ ":", {6}] ~~ ":" ~~ h16) |
+  "::";
+
+
+numericHostQ[host_String] :=
+StringMatchQ[host, $IPv4NumericHostPattern] ||
+StringMatchQ[host, $IPv6NumericHostPattern];
+
+
+CSocketOpen[host: _String?numericHostQ: "127.0.0.1", portnum_Integer: Automatic, protocol: "TCP" | "UDP": "TCP"] :=
+Module[{id, port = If[IntegerQ[portnum] && portnum >= 0, portnum, RandomInteger[20000, 60000]]},
     id = createSocket[If[StringContainsQ[host, ":"], $AFINET6, $AFINET], protocol];
+
     If[!IntegerQ[id],
         Message[CSocketOpen::open, host, port, protocol, "socket creation"];
         Return[$Failed]
     ];
+
     If[bindSocket[id, host, port] =!= Null,
         discardSocket[id];
         Message[CSocketOpen::open, host, port, protocol, "bind"];
@@ -443,6 +463,16 @@ Module[{list, task},
     If[!MatchQ[task, _AsynchronousTaskObject], Close[list]; Return[$Failed]];
     $ownedSocketLists[id] = list;
     task
+];
+
+
+splitAddress[address_String] :=
+Module[{parts},
+    parts = StringCases[address, {
+        StartOfString ~~ "[" ~~ host: Except["]"].. ~~ "]:" ~~ port: DigitCharacter.. ~~ EndOfString :> {host, port},
+        StartOfString ~~ host: Except[":"].. ~~ ":" ~~ port: DigitCharacter.. ~~ EndOfString :> {host, port}
+    }];
+    If[Length[parts] === 1, First[parts], $Failed]
 ];
 
 
