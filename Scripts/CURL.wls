@@ -6,7 +6,7 @@ PacletDirectoryLoad[DirectoryName[$InputFileName, 2]];
 Get["WLJS`CSockets`"];
 
 
-buffer = socketBufferCreate[4096];
+buffer = ByteArray[ConstantArray[0, 4096]];
 
 
 HTTPRequestEvaluate::invalidURL = "The URL `1` is invalid or not supported.";
@@ -29,32 +29,36 @@ HTTPRequestEvaluate[httpRequest_HTTPRequest] := Module[{
     host = URLParse[parsedURL]["Domain"];
     port = URLParse[parsedURL]["Port"] /. None -> 80;
 
-    socketId = socketCreate[2, 1, 0]; (* AF_INET, SOCK_STREAM, AUTO *)
-    addressInfo = socketAddressInfoCreate[host, ToString[port], 2, 1, 0, ""]; (* AF_INET, SOCK_STREAM, AUTO *)
-    socketConnect[socketId, addressInfo];
+    socketId = WLJS`CSockets`Private`socketCreate[2, 6]; (* AF_INET, TCP *)
+    WLJS`CSockets`Private`socketConnect[socketId,
+        FirstCase[HostLookup[host], (IPAddress[ip_String] /; !StringContainsQ[ip, ":"]) :> ip],
+        ToString[port]
+    ];
 
-    If[socketsSelect[{socketId}, 1, 10^5, 2] =!= {socketId},
+    If[WLJS`CSockets`Private`socketsPoll[{socketId}, 10 ^ 5, 2] === {},
         Message[HTTPRequestEvaluate::timeout, absolutePath];
-        socketClose[socketId];
+        WLJS`CSockets`Private`socketClose[socketId];
         Return[$Failed];
     ];
 
-    socketSendString[socketId, message, StringLength[message]];
+    WriteString[CSocketObject[socketId], message];
 
-    If[socketsSelect[{socketId}, 1, 5 * 10^6, 1] =!= {socketId},
+    If[WLJS`CSockets`Private`socketsPoll[{socketId}, 5 * 10 ^ 6, 1] === {},
         Message[HTTPRequestEvaluate::timeout, absolutePath];
-        socketClose[socketId];
+        WLJS`CSockets`Private`socketClose[socketId];
         Return[$Failed];
     ];
 
     response = ByteArray[{}];
 
-    While[socketsSelect[{socketId}, 1, 1, 1] === {socketId},
-        response = Join[response, socketRecv[socketId, buffer, 4096]];
+    While[WLJS`CSockets`Private`socketsPoll[{socketId}, 1, 1] =!= {},
+        With[{chunk = WLJS`CSockets`Private`socketRecv[socketId, buffer]},
+            If[!MatchQ[chunk, _ByteArray] || Length[chunk] === 0, Break[]];
+            response = Join[response, chunk]
+        ];
     ];
 
-    socketClose[socketId];
-    socketAddressInfoRemove[addressInfo];
+    WLJS`CSockets`Private`socketClose[socketId];
 
     (*Return*)
     ImportByteArray[response, "HTTPResponse"]

@@ -29,7 +29,10 @@ broadcastData = ConsoleEcho["Accept"][
 ]&;
 
 
-setNewParameters = ConsoleEcho["Receive"][#]&;
+setNewParameters = Function[
+    ConsoleEcho["Receive"][#];
+    Null
+];
 
 
 $T = 300.0;

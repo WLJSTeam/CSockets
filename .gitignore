@@ -1,5 +1,8 @@
 /build
 /.vscode
+/.codex
+/.idea
+/.claude
 /LibraryResources
 .DS_Store
 *.exe

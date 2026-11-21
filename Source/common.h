@@ -33,7 +33,6 @@
     #define GETSOCKETERRNO() (WSAGetLastError())
     #pragma comment (lib, "Ws2_32.lib")
     typedef HANDLE Mutex;
-    extern Mutex globalMutex;
     #define MUTEX_INITIALIZER NULL
     #define SLEEP Sleep
     #define ms 1
@@ -70,7 +69,6 @@
     #define BOOL int
     typedef pthread_mutex_t Mutex;
     #define MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
-    extern Mutex globalMutex;
     #define SLEEP usleep
     #include <poll.h>
     #define POLL_FD struct pollfd
@@ -87,6 +85,7 @@
 #define WL_POLLNVAL 0x0010   // 16 - invalid socket
 
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -105,6 +104,20 @@
 #include "WolframImageLibrary.h"
 
 
+BYTE *MArgument_getByteArray(WolframLibraryData libData, MArgument arg);
+
+
+/* Copies data into a new result array; returns a LibraryLink status code. */
+int MArgument_setByteArray(WolframLibraryData libData, MArgument res, const BYTE *data, mint length);
+
+
+/* Releases the share acquired by a Shared LibraryLink argument. */
+void MArgument_disownByteArray(WolframLibraryData libData, MArgument arg);
+
+
+char *format(const char *fmt, ...);
+
+
 void print(const char* format, ...);
 
 
@@ -117,34 +130,33 @@ void init_wsa();
 void cleanup_wsa();
 
 
+typedef enum SOCKET_ROLE {
+    SOCKET_ROLE_TCP_UNSPEC = 0,
+    SOCKET_ROLE_TCP_BOUND = 1,
+    SOCKET_ROLE_TCP_CONNECTED = 2,
+    SOCKET_ROLE_TCP_ACCEPTED = 3,
+    SOCKET_ROLE_UDP_UNSPEC = 4,
+    SOCKET_ROLE_UDP_BOUND = 5,
+    SOCKET_ROLE_UDP_CONNECTED = 6
+} SOCKET_ROLE;
+
+
 void set_blocking_mode(SOCKET socketId);
 
 
-void set_non_blocking_mode(SOCKET socketId);
+void set_nonblocking_mode(SOCKET socketId);
 
 
-bool is_non_blocking_mode(SOCKET socketId);
+struct sockaddr_storage create_sockaddr_storage(const char *numerichost, const char *port);
 
 
-bool is_valid_socket(SOCKET socketId);
+char *sockaddr_storage_to_string(struct sockaddr_storage address);
 
 
-bool is_wouldblock_err(int err);
+bool is_would_block_err(int err);
 
 
-struct timeval new_tv(long long usec);
-
-
-size_t filter_fd_set_to_array(fd_set *set, SOCKET *input, SOCKET *result, size_t length);
-
-
-size_t filter_fd_set_to_tensor(WolframLibraryData libData, fd_set *set, SOCKET *input, MTensor result, size_t length);
-
-
-SOCKET fill_fd_set_from_array(fd_set *set, SOCKET *sockets, size_t length, SOCKET initmaxfd);
-
-
-void copy_tensor_to_socket_array(WolframLibraryData libData, MTensor tensor, SOCKET *result, size_t length);
+bool is_connect_pending_err(int err);
 
 
 int sockets_poll(POLL_FD *fds, mint length, mint timeout_us);

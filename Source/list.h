@@ -2,40 +2,26 @@
 #define LIST_H
 
 
-#include "common.h"
+#include "socket.h"
 
 
-typedef enum {
-    INTERUPTER,
-    TCP_SERVER,
-    UDP_SERVER,
-    TCP_CLIENT,
-    UDP_CLIENT,
-    TCP_ACCEPTED
-} SOCKET_TYPE;
-
-
-typedef struct SocketList_st
-{
-    POLL_FD *pollfds;
-    struct addrinfo **addrinfos;
-    SOCKET_TYPE *sockettypes;
-
-    mint capacity;
-    mint length;
+typedef struct SocketList_st {
+    SOCKET *sockets;
+    SOCKET_ROLE *roles;
+    size_t capacity;
+    size_t length;
 } *SocketList;
 
 
-SocketList socket_list_create(mint *sockets, mint *types, size_t length);
+/* length is the allocated element count; events contains native poll flags.
+   On allocation failure, fds and length retain their previous values. */
+bool fill_fds_from_socket_list(SocketList socketList, POLL_FD **fds, size_t *length, int events);
 
 
-bool socket_list_add(SocketList socketList, SOCKET socketId, SOCKET_TYPE socketType);
+bool socket_list_add(SocketList list, SOCKET socketId, SOCKET_ROLE role);
 
 
-void socket_list_prune(SocketList socketList);
-
-
-void socket_list_free(SocketList socketList);
+bool socket_list_prune(SocketList list);
 
 
 #endif

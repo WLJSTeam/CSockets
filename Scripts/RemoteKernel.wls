@@ -7,7 +7,7 @@ Get["WLJS`CSockets`"];
 
 
 RemoteKernelStart[port_Integer] :=
-With[{handler = CSocketHandler["DefaultHandler" -> evaluate]},
+With[{handler = CSocketHandler["Received" -> evaluate]},
     SocketListen[CSocketOpen[port], handler];
 ]
 
@@ -34,11 +34,9 @@ Module[{client},
     BinarySerialize @
     HoldComplete[expr];
 
-    buffer = socketBufferCreate[1024];
-
     Echo[#, "REMOTE RESULT:"]& @
     BinaryDeserialize @
-    socketRecv[client[[1]], buffer, 1024]
+    SocketReadMessage[client]
 ];
 
 

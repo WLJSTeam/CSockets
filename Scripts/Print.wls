@@ -6,7 +6,7 @@ PacletDirectoryLoad[DirectoryName[$InputFileName, 2]];
 Get["WLJS`CSockets`"];
 
 
-SocketListen[CSocketOpen[8080], (
+Echo @ SocketListen[CSocketOpen[8080], (
     Print[#];
     If[KeyExistsQ[#, "Data"],
         Print[#["Data"]];

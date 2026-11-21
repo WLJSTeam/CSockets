@@ -7,7 +7,7 @@ Get["WLJS`CSockets`"];
 
 
 HTTPEchoStart[port_Integer] :=
-With[{handler = CSocketHandler["Received" -> echo]},
+With[{handler = CSocketHandler["Deserializer" -> ByteArrayToString, "Received" -> echo]},
     SocketListen[CSocketOpen[port], handler];
 ];
 

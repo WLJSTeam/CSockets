@@ -5,30 +5,57 @@ Get[FileNameJoin[{baseDir, "Kernel", "CSockets.wl"}]];
 
 socketHandlerTests = {
   VerificationTest[
-   Lookup[WLJS`CSockets`Private`createEventData["Accepted", 10, 1, 20, 3], "AcceptedSocket"] ===
-    WLJS`CSockets`CSocketObject[20, 3],
+   Lookup[WLJS`CSockets`Private`createEventData["Accepted", 10, 20], "AcceptedSocket"] ===
+    WLJS`CSockets`CSocketObject[20],
    True,
    TestID -> "accepted-event-structure"
   ],
 
   VerificationTest[
-   Lookup[WLJS`CSockets`Private`createEventData["Closed", 1, 2, Null], "ClosedSocket"] ===
-    WLJS`CSockets`CSocketObject[1, 2],
+   Lookup[WLJS`CSockets`Private`createEventData["Closed", 1, Null], "ClosedSocket"] ===
+    WLJS`CSockets`CSocketObject[1],
    True,
    TestID -> "closed-event-structure"
   ],
 
   VerificationTest[
-   Lookup[WLJS`CSockets`Private`createEventData["Error", 4, 5, 99], "ErrorCode"] === 99,
+   Lookup[WLJS`CSockets`Private`createEventData["Error", 4, 99], "ErrorCode"] === 99,
    True,
    TestID -> "error-event-carries-code"
   ],
 
   VerificationTest[
    With[
-    {event = WLJS`CSockets`Private`createEventData["Received", 7, WLJS`CSockets`$TCPSERVER, {65, 66, 67}]},
+    {event = WLJS`CSockets`Private`createEventData["ReceivedFrom", 7, "127.0.0.1:123"]},
     And[
-     Lookup[event, "SourceSocket"] === WLJS`CSockets`CSocketObject[7, WLJS`CSockets`$TCPSERVER],
+     Lookup[event, "SourceSocket"] === WLJS`CSockets`CSocketObject[7],
+     Lookup[event, "Address"] === "127.0.0.1:123"
+    ]
+   ],
+   True,
+   TestID -> "receivedfrom-address-only-conversion"
+  ],
+
+  VerificationTest[
+   With[
+    {event = WLJS`CSockets`Private`createEventData["ReceivedFrom", 7, "127.0.0.1:123", {65, 66, 67}]},
+    And[
+     Lookup[event, "SourceSocket"] === WLJS`CSockets`CSocketObject[7],
+     Lookup[event, "Address"] === "127.0.0.1:123",
+     Lookup[event, "Data"] === "ABC",
+     Lookup[event, "DataBytes"] === {65, 66, 67},
+     Lookup[event, "DataByteArray"] === ByteArray[{65, 66, 67}]
+    ]
+   ],
+   True,
+   TestID -> "receivedfrom-address-and-data-conversion"
+  ],
+
+  VerificationTest[
+   With[
+    {event = WLJS`CSockets`Private`createEventData["Received", 7, {65, 66, 67}]},
+    And[
+     Lookup[event, "SourceSocket"] === WLJS`CSockets`CSocketObject[7],
      Lookup[event, "Data"] === "ABC",
      Lookup[event, "DataBytes"] === {65, 66, 67},
      Lookup[event, "DataByteArray"] === ByteArray[{65, 66, 67}]
@@ -76,12 +103,12 @@ socketHandlerTests = {
   ],
 
   VerificationTest[
-   Module[{handler = WLJS`CSockets`CSocketHandler[]},
-    handler["Logger", "Received"] = "combined";
-    handler["Logger", "Received"] === "combined"
+   With[{handler = WLJS`CSockets`CSocketHandler[], logger = Function[value, {"logged", value}]},
+    handler["Logger"] = logger;
+    handler["Logger"] === logger
    ],
    True,
-   TestID -> "handler-setter-updates-nested-key"
+   TestID -> "handler-setter-stores-logger-function"
   ],
 
   VerificationTest[
@@ -95,15 +122,13 @@ socketHandlerTests = {
   VerificationTest[
    Block[
     {
-     WLJS`CSockets`Private`socketSendString = Function[{socketId, text, len}, {"text", socketId, text, len}],
      WLJS`CSockets`Private`socketSend = Function[{socketId, byteArray, len}, {"bytes", socketId, Length[byteArray], len}],
-     handler = WLJS`CSockets`CSocketHandler[],
-     client = WLJS`CSockets`CSocketObject[33, WLJS`CSockets`$TCPCLIENT]
+     client = WLJS`CSockets`CSocketObject[33]
     },
     And[
-     WLJS`CSockets`Private`sendResponse[handler, <|"SourceSocket" -> client|>, "ok"] === {"text", 33, "ok", 2},
-     WLJS`CSockets`Private`sendResponse[handler, <|"SourceSocket" -> client|>, ByteArray[{1, 2}]] === {"bytes", 33, 2, 2},
-     WLJS`CSockets`Private`sendResponse[handler, <|"SourceSocket" -> client|>, Null] === Null
+     WLJS`CSockets`Private`sendResponse[<|"SourceSocket" -> client, "Result" -> "ok"|>] === {"bytes", 33, 2, 2},
+     WLJS`CSockets`Private`sendResponse[<|"SourceSocket" -> client, "Result" -> ByteArray[{1, 2}]|>] === {"bytes", 33, 2, 2},
+     WLJS`CSockets`Private`sendResponse[<|"SourceSocket" -> client, "Result" -> Null|>] === Null
     ]
    ],
    True,
@@ -112,7 +137,10 @@ socketHandlerTests = {
 
   VerificationTest[
    Block[
-    {message = WLJS`CSockets`Private`conditionApply[<|True -> Function[x, x + 1], False -> Function[x, x - 1]|>]},
+    {message = WLJS`CSockets`Private`conditionApply[<|
+     "plus" :> Function[x, True] :> Function[x, x + 1],
+     "minus" :> Function[x, False] :> Function[x, x - 1]
+    |>]},
     And[
      message[10] === 11,
      WLJS`CSockets`Private`conditionApply[<||>, Function[Null]][123] === Null

@@ -19,7 +19,7 @@ server = CSocketOpen[port];
 svg = ExportString[Graphics[{Red, Disk[{0, 0}, 0.5], Blue, Thick,Circle[{0, 0}, 0.75]}], "SVG"];
 
 
-handler = CSocketHandler["Received" -> Function[
+handler = CSocketHandler["Deserializer" -> ByteArrayToString, "Received" -> Function[
     ConsoleEcho["RECEIVED"][#Data];
     "HTTP/1.1 200 OK\r\nContent-Type: image/svg+xml\r\nContent-Length: " <> ToString[StringLength[svg]] <> "\r\n\r\n" <> svg
 ]];

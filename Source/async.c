@@ -1,272 +1,376 @@
 #include "async.h"
 
 
-void socketsSelectTask(mint taskId, void *taskArgs)
+static bool raiseError(WolframLibraryData libData, mint taskId, SOCKET socketId, int error)
 {
-    SocketsSelectArgs socketsSelectTaskArgs = (SocketsSelectArgs)taskArgs;
-    WolframLibraryData libData = socketsSelectTaskArgs->libData;
-    SOCKET *sockets = socketsSelectTaskArgs->sockets;
-    size_t length = socketsSelectTaskArgs->length;
-    mint timeout = socketsSelectTaskArgs->timeout;
+    DataStore store = libData->ioLibraryFunctions->createDataStore();
 
-    SOCKET socketId;
-    SOCKET maxfd;
-    MTensor readySockets;
-    mint dims;
-    struct timeval tv = new_tv(timeout);
-
-    fd_set readfd;
-    FD_ZERO(&readfd);
-    maxfd = fill_fd_set_from_array(&readfd, sockets, length, 0);
-
-    int result = select((int)(maxfd + 1), &readfd, NULL, NULL, &tv);
-    if (result >= 0) {
-        mint dims = (mint)result;
-        libData->MTensor_new(MType_Integer, 1, &dims, &readySockets);
-
-        filter_fd_set_to_tensor(libData, &readfd, sockets, readySockets, length);
-
-        DataStore dataStore = libData->ioLibraryFunctions->createDataStore();
-        libData->ioLibraryFunctions->DataStore_addMTensor(dataStore, readySockets);
-        libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Selected", dataStore);
-        libData->MTensor_free(readySockets);
+    if (!store) {
+        return false;
     }
 
-    free(sockets);
-    free(taskArgs);
+    libData->ioLibraryFunctions->DataStore_addInteger(store, (mint)socketId);
+    libData->ioLibraryFunctions->DataStore_addInteger(store, (mint)error);
+    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Error", store);
+
+    return true;
 }
 
 
-DLLEXPORT int socketsSelectAsync(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+static bool raiseAccepted(WolframLibraryData libData, mint taskId, SOCKET socketId, SOCKET acceptedSocket)
 {
-    MTensor socketIds = MArgument_getMTensor(Args[0]);     // list of sockets
-    size_t length = (size_t)MArgument_getInteger(Args[1]); // number of sockets
-    int timeout = (int)MArgument_getInteger(Args[2]);      // timeout in microseconds
+    DataStore store = libData->ioLibraryFunctions->createDataStore();
 
-    SOCKET *sockets = malloc(length * sizeof(SOCKET));
-    if (!sockets) {
-        return LIBRARY_FUNCTION_ERROR;
+    if (!store) {
+        return false;
     }
 
-    copy_tensor_to_socket_array(libData, socketIds, sockets, length);
+    libData->ioLibraryFunctions->DataStore_addInteger(store, (mint)socketId);
+    libData->ioLibraryFunctions->DataStore_addInteger(store, (mint)acceptedSocket);
+    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accepted", store);
 
-    SocketsSelectArgs taskArgs = malloc(sizeof(struct SocketsSelectArgs_st));
-    if (!taskArgs) {
-        free(sockets);
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    taskArgs->libData = libData;
-    taskArgs->sockets = sockets;
-    taskArgs->length = length;
-    taskArgs->timeout = timeout;
-
-    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketsSelectTask, (void *)taskArgs);
-
-    MArgument_setInteger(Res, taskId);
-    return LIBRARY_NO_ERROR;
+    return true;
 }
 
 
-void socketsPollLoop(mint taskId, void *taskArgs)
+static bool raiseReceived(WolframLibraryData libData, mint taskId, SOCKET socketId, MNumericArray bytes)
 {
-    ServerLoopArgs args = (ServerLoopArgs)taskArgs;
+    DataStore store = libData->ioLibraryFunctions->createDataStore();
 
+    if (!store) {
+        return false;
+    }
+
+    libData->ioLibraryFunctions->DataStore_addInteger(store, (mint)socketId);
+    libData->ioLibraryFunctions->DataStore_addMNumericArray(store, bytes);
+    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Received", store);
+
+    return true;
+}
+
+
+static bool raiseReceivedFrom(WolframLibraryData libData, mint taskId, SOCKET socketId, MNumericArray bytes, char *endpoint)
+{
+    DataStore store = libData->ioLibraryFunctions->createDataStore();
+
+    if (!store) {
+        return false;
+    }
+
+    libData->ioLibraryFunctions->DataStore_addInteger(store, (mint)socketId);
+    libData->ioLibraryFunctions->DataStore_addString(store, endpoint);
+    libData->ioLibraryFunctions->DataStore_addMNumericArray(store, bytes);
+    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReceivedFrom", store);
+
+    return true;
+}
+
+
+static bool raiseClosed(WolframLibraryData libData, mint taskId, SOCKET socketId)
+{
+    DataStore store = libData->ioLibraryFunctions->createDataStore();
+
+    if (!store) {
+        return false;
+    }
+
+    libData->ioLibraryFunctions->DataStore_addInteger(store, (mint)socketId);
+    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", store);
+
+    return true;
+}
+
+
+static void socketsPollLoop(mint taskId, void *taskArgs)
+{
+    SocketsPollArgs args = taskArgs;
+    WolframLibraryData libData = args->libData;
     SocketList socketList = args->socketList;
 
-    WolframLibraryData libData = args->libData;
-    mint bufferSize = args->bufferSize;
-    BYTE *buffer = malloc(bufferSize);
-    if (!buffer) {
-        free(taskArgs);
-        return;
-    }
-    mint timeout = args->timeout;
-    mint eventsMask = args->eventsMask;
-    int nativeEvents = convert_wl_to_native_events(eventsMask);
+    POLL_FD *fds = NULL;
+    size_t length = 0;
 
-    int result;
-    mint dims;
-    SOCKET acceptedSocketId;
-    MNumericArray byteArray;
-    DataStore dataStore;
-    bool needPrune = False;
+    bool needPrune = false;
+    bool failed = false;
 
-    while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId))
-    {
+    int nativeEvents = convert_wl_to_native_events(args->eventsMask);
+    BYTE buffer[65536];
+
+    while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId)) {
         if (needPrune) {
             socket_list_prune(socketList);
-            needPrune = False;
+            needPrune = false;
         }
 
-        size_t length = socketList->length;
+        bool filled = fill_fds_from_socket_list(socketList, &fds, &length, nativeEvents);
 
-        for (size_t i = 0; i < length; i++) {
-            POLL_FD *pollfd = &socketList->pollfds[i];
-            pollfd->events = nativeEvents;
-            pollfd->revents = 0;
+        if (!filled) {
+            failed = true;
+            break;
         }
 
-        POLL_FD *pollfds = socketList->pollfds;
+        int count = sockets_poll(fds, (mint)length, args->timeout);
+        int nativeError = count < 0 ? GETSOCKETERRNO() : 0;
 
-        result = sockets_poll(pollfds, length, timeout);
-        if (result > 0) {
+        if (count < 0) {
             for (size_t i = 0; i < length; i++) {
-                mint wl_revents = convert_native_to_wl_events(pollfds[i].revents);
-                SOCKET socketId = pollfds[i].fd;
-                SOCKET_TYPE socketType = socketList->sockettypes[i];
+                int socketType;
+                socklen_t typeLength = sizeof(socketType);
+                int status = getsockopt(fds[i].fd, SOL_SOCKET, SO_TYPE, (char *)&socketType, &typeLength);
 
-                if (wl_revents & (WL_POLLERR | WL_POLLHUP | WL_POLLNVAL)) {
-                    CLOSESOCKET(socketId);
-                    pollfds[i].fd = INVALID_SOCKET;
-                    needPrune = True;
-
-                    dataStore = libData->ioLibraryFunctions->createDataStore();
-                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
-                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketType);
-                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)wl_revents);
-                    libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
-
-                    continue;
-                }
-
-                if (wl_revents & WL_POLLIN) {
-                    dataStore = libData->ioLibraryFunctions->createDataStore();
-                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
-                    libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketType);
-
-                    if (socketType == TCP_SERVER) {
-                        acceptedSocketId = accept(socketId, NULL, NULL);
-                        if (ISVALIDSOCKET(acceptedSocketId)) {
-                            if (!socket_list_add(socketList, acceptedSocketId, TCP_ACCEPTED)) {
-                                CLOSESOCKET(acceptedSocketId);
-                                continue;
-                            }
-
-                            pollfds = socketList->pollfds;
-
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)acceptedSocketId);
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, TCP_ACCEPTED);
-                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Accepted", dataStore);
-                        } else {
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, GETSOCKETERRNO());
-                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Error", dataStore);
-                            continue;
-                        }
+                if (status == SOCKET_ERROR) {
+                    if (!raiseError(libData, taskId, fds[i].fd, nativeError)) {
+                        continue;
                     }
 
-                    else if (socketType == TCP_CLIENT || socketType == TCP_ACCEPTED) {
-                        int recvResult = recv(socketId, buffer, bufferSize, 0);
-                        if (recvResult > 0) {
-                            dims = (mint)recvResult;
-                            libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &dims, &byteArray);
-
-                            BYTE *array = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
-                            memcpy(array, buffer, recvResult);
-
-                            libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, byteArray);
-                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Received", dataStore);
-                        } else if (recvResult == 0) {
-                            pollfds[i].fd = INVALID_SOCKET;
-                            needPrune = True;
-
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, socketType);
-                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
-                        } else {
-                            int err = GETSOCKETERRNO();
-
-                            if (is_wouldblock_err(err)) {
-                                continue;
-                            }
-
-                            pollfds[i].fd = INVALID_SOCKET;
-                            needPrune = True;
-
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, err);
-                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Error", dataStore);
-                        }
-                    }
-
-                    else if (socketType == UDP_SERVER || socketType == UDP_CLIENT) {
-                        struct sockaddr_storage remoteAddr;
-                        socklen_t remoteAddrLen = sizeof(remoteAddr);
-
-                        int recvFromResult = recvfrom(socketId, buffer, bufferSize, 0, (struct sockaddr*)&remoteAddr, &remoteAddrLen);
-                        if (recvFromResult >= 0) {
-                            char host[INET6_ADDRSTRLEN];
-                            unsigned short port;
-
-                            if (!socket_address_to_host(&remoteAddr, host, sizeof(host), &port)) {
-                                continue;
-                            }
-
-                            dims = (mint)recvFromResult;
-
-                            if (recvFromResult > 0) {
-                                libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &dims, &byteArray);
-
-                                BYTE *array = libData->numericarrayLibraryFunctions->MNumericArray_getData(byteArray);
-                                memcpy(array, buffer, recvFromResult);
-
-                                libData->ioLibraryFunctions->DataStore_addMNumericArray(dataStore, byteArray);
-                            } else {
-                                libData->ioLibraryFunctions->DataStore_addInteger(dataStore, 0);
-                            }
-
-                            libData->ioLibraryFunctions->DataStore_addString(dataStore, host);
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)port);
-                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "ReceivedFrom", dataStore);
-                        } else if (recvFromResult == 0) {
-                            pollfds[i].fd = INVALID_SOCKET;
-                            needPrune = True;
-
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, (mint)socketId);
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, socketType);
-                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Closed", dataStore);
-                        } else {
-                            int err = GETSOCKETERRNO();
-
-                            if (is_wouldblock_err(err)) {
-                                continue;
-                            }
-
-                            pollfds[i].fd = INVALID_SOCKET;
-                            needPrune = True;
-
-                            libData->ioLibraryFunctions->DataStore_addInteger(dataStore, err);
-                            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Error", dataStore);
-                        }
-                    }
+                    socketList->sockets[i] = INVALID_SOCKET;
+                    needPrune = true;
                 }
             }
+
+            if (needPrune) {
+                continue;
+            }
+
+            if (!raiseError(libData, taskId, -1, nativeError)) {
+                break;
+            }
+
+            break;
+        }
+
+        for (size_t i = 0; i < length; i++) {
+            SOCKET socketId = fds[i].fd;
+            SOCKET_ROLE role = socketList->roles[i];
+            mint mask = convert_native_to_wl_events(fds[i].revents);
+
+            if (mask == 0 || role == SOCKET_ROLE_TCP_UNSPEC || role == SOCKET_ROLE_UDP_UNSPEC) {
+                continue;
+            }
+
+            bool removeSocket = false;
+            bool eventFailed = false;
+            SOCKET acceptedSocket = INVALID_SOCKET;
+            int error = 0;
+            int received = -1;
+            MNumericArray bytes = NULL;
+            struct sockaddr_storage address = {0};
+            char *endpoint = NULL;
+            bool readable = (mask & WL_POLLIN) != 0;
+            bool invalid = (mask & WL_POLLNVAL) != 0;
+            bool socketError = (mask & WL_POLLERR) != 0;
+            bool hangup = (mask & WL_POLLHUP) != 0;
+
+            if (readable) {
+                switch (role) {
+                    case SOCKET_ROLE_TCP_BOUND:
+                        acceptedSocket = accept(socketId, NULL, NULL);
+
+                        if (ISVALIDSOCKET(acceptedSocket)) {
+                            bool added = socket_list_add(socketList, acceptedSocket, SOCKET_ROLE_TCP_ACCEPTED);
+
+                            if (added) {
+                                if (!raiseAccepted(libData, taskId, socketId, acceptedSocket)) {
+                                    eventFailed = true;
+                                }
+                            } else {
+                                CLOSESOCKET(acceptedSocket);
+                                error = LIBRARY_MEMORY_ERROR;
+
+                                if (!raiseError(libData, taskId, socketId, error)) {
+                                    eventFailed = true;
+                                }
+                            }
+                        } else {
+                            error = GETSOCKETERRNO();
+
+                            if (!is_would_block_err(error)) {
+                                if (!raiseError(libData, taskId, socketId, error)) {
+                                    eventFailed = true;
+                                }
+                            }
+                        }
+                        break;
+
+                    case SOCKET_ROLE_TCP_ACCEPTED:
+                    case SOCKET_ROLE_TCP_CONNECTED:
+                        received = recv(socketId, (char *)buffer, sizeof(buffer), 0);
+
+                        if (received > 0) {
+                            mint size = received;
+                            int status = libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &size, &bytes);
+
+                            if (status != LIBRARY_NO_ERROR) {
+                                eventFailed = true;
+                                break;
+                            }
+
+                            BYTE *data = libData->numericarrayLibraryFunctions->MNumericArray_getData(bytes);
+                            memcpy(data, buffer, (size_t)received);
+
+                            if (!raiseReceived(libData, taskId, socketId, bytes)) {
+                                eventFailed = true;
+                            }
+                        } else if (received == 0) {
+                            removeSocket = true;
+
+                            if (!raiseClosed(libData, taskId, socketId)) {
+                                eventFailed = true;
+                            }
+                        } else {
+                            error = GETSOCKETERRNO();
+
+                            if (!is_would_block_err(error)) {
+                                removeSocket = true;
+
+                                if (!raiseError(libData, taskId, socketId, error)) {
+                                    eventFailed = true;
+                                }
+                            }
+                        }
+                        break;
+
+                    case SOCKET_ROLE_UDP_BOUND:
+                    case SOCKET_ROLE_UDP_CONNECTED:
+                        {
+                            socklen_t addressLength = sizeof(address);
+                            received = recvfrom(socketId, (char *)buffer, sizeof(buffer), 0,
+                                (struct sockaddr *)&address, &addressLength);
+
+                            if (received > 0 || received == 0) {
+                                mint size = received;
+                                int status = libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &size, &bytes);
+
+                                if (status != LIBRARY_NO_ERROR) {
+                                    eventFailed = true;
+                                    break;
+                                }
+
+                                if (received > 0) {
+                                    BYTE *data = libData->numericarrayLibraryFunctions->MNumericArray_getData(bytes);
+                                    memcpy(data, buffer, (size_t)received);
+                                }
+
+                                endpoint = sockaddr_storage_to_string(address);
+
+                                if (!endpoint) {
+                                    libData->numericarrayLibraryFunctions->MNumericArray_free(bytes);
+                                    bytes = NULL;
+
+                                    if (!raiseError(libData, taskId, socketId, LIBRARY_FUNCTION_ERROR)) {
+                                        eventFailed = true;
+                                    }
+
+                                    break;
+                                }
+
+                                if (!raiseReceivedFrom(libData, taskId, socketId, bytes, endpoint)) {
+                                    eventFailed = true;
+                                }
+                            } else {
+                                error = GETSOCKETERRNO();
+
+                                if (!is_would_block_err(error)) {
+                                    removeSocket = true;
+
+                                    if (!raiseError(libData, taskId, socketId, error)) {
+                                        eventFailed = true;
+                                    }
+                                }
+                            }
+                        }
+                        break;
+
+                    default:
+                        break;
+                }
+            } else if (invalid || socketError || hangup) {
+                error = (int)mask;
+                removeSocket = true;
+
+                if (socketError || invalid) {
+                    if (!raiseError(libData, taskId, socketId, error)) {
+                        eventFailed = true;
+                    }
+                } else if (!raiseClosed(libData, taskId, socketId)) {
+                    eventFailed = true;
+                }
+            }
+
+            if (removeSocket) {
+                if (ISVALIDSOCKET(socketId)) {
+                    CLOSESOCKET(socketId);
+                }
+
+                socketList->sockets[i] = INVALID_SOCKET;
+                needPrune = true;
+            }
+
+            if (bytes && eventFailed) {
+                libData->numericarrayLibraryFunctions->MNumericArray_free(bytes);
+            }
+
+            if (eventFailed) {
+                failed = true;
+                break;
+            }
+        }
+
+        if (failed) {
+            break;
         }
     }
 
-    free(buffer);
-    free(taskArgs);
+    if (failed) {
+        DataStore store = libData->ioLibraryFunctions->createDataStore();
+
+        if (store) {
+            libData->ioLibraryFunctions->DataStore_addInteger(store, -1);
+            libData->ioLibraryFunctions->DataStore_addInteger(store, LIBRARY_MEMORY_ERROR);
+            libData->ioLibraryFunctions->raiseAsyncEvent(taskId, "Error", store);
+        }
+    }
+
+    free(fds);
+    free(args);
 }
 
 
 DLLEXPORT int createSocketsPollLoop(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
-    mint bufferSize = MArgument_getInteger(Args[1]);
-    mint timeout = MArgument_getInteger(Args[2]);
-    mint eventsMask = MArgument_getInteger(Args[3]);
-
-    ServerLoopArgs serverLoopArgs = malloc(sizeof(struct ServerLoopArgs_st));
-    if (!serverLoopArgs) {
+    if (Argc != 3) {
+        libData->Message("createSocketsPollLoop: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    serverLoopArgs->libData = libData;
-    serverLoopArgs->socketList = socketList;
-    serverLoopArgs->bufferSize = bufferSize;
-    serverLoopArgs->timeout = timeout;
-    serverLoopArgs->eventsMask = eventsMask;
+    SocketList list = (SocketList)(uintptr_t)MArgument_getInteger(Args[0]);
+    mint timeout = MArgument_getInteger(Args[1]);
+    mint eventsMask = MArgument_getInteger(Args[2]);
 
-    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketsPollLoop, (void *)serverLoopArgs);
+    if (!list || timeout < -1) {
+        libData->Message("createSocketsPollLoop: invalid socket list or timeout");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    SocketsPollArgs args = calloc(1, sizeof(struct SocketsPollArgs_st));
+
+    if (!args) {
+        libData->Message("createSocketsPollLoop: failed to allocate task arguments");
+        return LIBRARY_MEMORY_ERROR;
+    }
+
+    args->libData = libData;
+    args->socketList = list;
+    args->eventsMask = eventsMask;
+    args->timeout = timeout;
+
+    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketsPollLoop, args);
+
+    if (taskId <= 0) {
+        libData->Message("createSocketsPollLoop: failed to create asynchronous task");
+        free(args);
+        return LIBRARY_FUNCTION_ERROR;
+    }
 
     MArgument_setInteger(Res, taskId);
     return LIBRARY_NO_ERROR;

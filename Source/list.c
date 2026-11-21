@@ -1,34 +1,232 @@
 #include "list.h"
 
 
+bool fill_fds_from_socket_list(SocketList socketList, POLL_FD **fds, size_t *length, int events)
+{
+    if (!socketList || !fds || !length) {
+        return false;
+    }
+
+    size_t newLength = socketList->length;
+    size_t maxLength = SIZE_MAX / sizeof(POLL_FD);
+
+    if (newLength > maxLength || newLength > INT_MAX) {
+        return false;
+    }
+
+    if (newLength != *length) {
+        POLL_FD *newFds = NULL;
+
+        if (newLength > 0) {
+            newFds = realloc(*fds, newLength * sizeof(POLL_FD));
+
+            if (!newFds) {
+                return false;
+            }
+        } else {
+            free(*fds);
+        }
+
+        *fds = newFds;
+        *length = newLength;
+    }
+
+    if (newLength > 0 && !*fds) {
+        return false;
+    }
+
+    for (size_t i = 0; i < newLength; i++) {
+        (*fds)[i].fd = socketList->sockets[i];
+        (*fds)[i].events = events;
+        (*fds)[i].revents = 0;
+
+        if (socketList->roles[i] == SOCKET_ROLE_TCP_UNSPEC || socketList->roles[i] == SOCKET_ROLE_UDP_UNSPEC) {
+            (*fds)[i].events = 0;
+        }
+    }
+
+    return true;
+}
+
+
+bool socket_list_add(SocketList list, SOCKET socketId, SOCKET_ROLE role)
+{
+    if (!list) {
+        return false;
+    }
+
+    for (size_t i = 0; i < list->length; i++) {
+        if (list->sockets[i] == socketId) {
+            return true;
+        }
+    }
+
+    if (list->length == INT_MAX) {
+        return false;
+    }
+
+    if (list->length == list->capacity) {
+        size_t capacity;
+        SOCKET *sockets;
+        SOCKET_ROLE *roles;
+
+        if (list->capacity) {
+            capacity = list->capacity * 2;
+        } else {
+            capacity = 8;
+        }
+
+        if (capacity < list->capacity) {
+            return false;
+        }
+
+        size_t maxSockets = SIZE_MAX / sizeof(SOCKET);
+        size_t maxRoles = SIZE_MAX / sizeof(SOCKET_ROLE);
+
+        if (capacity > maxSockets || capacity > maxRoles) {
+            return false;
+        }
+
+        sockets = malloc(capacity * sizeof(SOCKET));
+
+        if (!sockets) {
+            return false;
+        }
+
+        roles = malloc(capacity * sizeof(SOCKET_ROLE));
+
+        if (!roles) {
+            free(sockets);
+            return false;
+        }
+
+        if (list->length > 0) {
+            memcpy(sockets, list->sockets, list->length * sizeof(SOCKET));
+            memcpy(roles, list->roles, list->length * sizeof(SOCKET_ROLE));
+        }
+
+        free(list->sockets);
+        free(list->roles);
+
+        list->sockets = sockets;
+        list->roles = roles;
+        list->capacity = capacity;
+    }
+
+    list->sockets[list->length] = socketId;
+    list->roles[list->length] = role;
+    list->length++;
+    return true;
+}
+
+
+bool socket_list_prune(SocketList list)
+{
+    if (!list) {
+        return false;
+    }
+
+    size_t count = 0;
+
+    for (size_t i = 0; i < list->length; i++) {
+        bool valid = ISVALIDSOCKET(list->sockets[i]);
+
+        if (valid) {
+            list->sockets[count] = list->sockets[i];
+            list->roles[count] = list->roles[i];
+            count++;
+        }
+    }
+
+    list->length = count;
+    return true;
+}
+
+
 DLLEXPORT int socketListCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    MTensor sockets = MArgument_getMTensor(Args[0]);
-    mint* socketsData = libData->MTensor_getIntegerData(sockets);
-
-    MTensor types = MArgument_getMTensor(Args[1]);
-    mint* typesData = libData->MTensor_getIntegerData(types);
-
-    size_t length = (size_t)MArgument_getInteger(Args[2]);
-
-    SocketList socketList = socket_list_create(socketsData, typesData, length);
-    if (!socketList) {
+    if (Argc != 2) {
+        libData->Message("socketListCreate: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    mint socketListPtr = (mint)(uintptr_t)socketList;
-    MArgument_setInteger(Res, socketListPtr);
+    MTensor socketIds = MArgument_getMTensor(Args[0]);
+    MTensor socketRoles = MArgument_getMTensor(Args[1]);
+
+    mint idsType = libData->MTensor_getType(socketIds);
+    mint rolesType = libData->MTensor_getType(socketRoles);
+    mint idsRank = libData->MTensor_getRank(socketIds);
+    mint rolesRank = libData->MTensor_getRank(socketRoles);
+
+    if (idsType != MType_Integer || rolesType != MType_Integer || idsRank != 1 || rolesRank != 1) {
+        libData->Message("socketListCreate: expected integer vectors");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    mint length = libData->MTensor_getFlattenedLength(socketIds);
+    mint rolesLength = libData->MTensor_getFlattenedLength(socketRoles);
+
+    if (length != rolesLength || length > INT_MAX) {
+        libData->Message("socketListCreate: invalid vector lengths");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    mint *ids = libData->MTensor_getIntegerData(socketIds);
+    mint *roles = libData->MTensor_getIntegerData(socketRoles);
+    SocketList list = calloc(1, sizeof(struct SocketList_st));
+
+    if (!list) {
+        libData->Message("socketListCreate: failed to allocate socket list");
+        return LIBRARY_MEMORY_ERROR;
+    }
+
+    for (mint i = 0; i < length; i++) {
+        SOCKET socketId = (SOCKET)ids[i];
+        SOCKET_ROLE role = (SOCKET_ROLE)roles[i];
+        bool valid = ISVALIDSOCKET(socketId);
+        bool added = false;
+
+        if (valid) {
+            added = socket_list_add(list, socketId, role);
+        }
+
+        if (!added) {
+            libData->Message("socketListCreate: invalid socket or failed to add socket to list");
+            free(list->sockets);
+            free(list->roles);
+            free(list);
+            return LIBRARY_FUNCTION_ERROR;
+        }
+    }
+
+    mint socketListId = (mint)(uintptr_t)list;
+    MArgument_setInteger(Res, socketListId);
     return LIBRARY_NO_ERROR;
 }
 
 
 DLLEXPORT int socketListAdd(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
-    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[1]);
-    SOCKET_TYPE socketType = (SOCKET_TYPE)MArgument_getInteger(Args[2]);
+    if (Argc != 3) {
+        libData->Message("socketListAdd: invalid argument count");
+        return LIBRARY_FUNCTION_ERROR;
+    }
 
-    if (!socket_list_add(socketList, socketId, socketType)) {
+    SocketList list = (SocketList)(uintptr_t)MArgument_getInteger(Args[0]);
+    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[1]);
+    SOCKET_ROLE role = (SOCKET_ROLE)MArgument_getInteger(Args[2]);
+
+    bool valid = ISVALIDSOCKET(socketId);
+
+    if (!valid) {
+        libData->Message("socketListAdd: invalid socket");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    bool added = socket_list_add(list, socketId, role);
+
+    if (!added) {
+        libData->Message("socketListAdd: failed to add socket to list");
         return LIBRARY_FUNCTION_ERROR;
     }
 
@@ -38,19 +236,33 @@ DLLEXPORT int socketListAdd(WolframLibraryData libData, mint Argc, MArgument *Ar
 
 DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
-    POLL_FD *pollfds = socketList->pollfds;
-    SOCKET_TYPE *types = socketList->sockettypes;
-    const mint length = socketList->length;
-    const mint dimensions[2] = {length, 2};
+    if (Argc != 1) {
+        libData->Message("socketListGetAll: invalid argument count");
+        return LIBRARY_FUNCTION_ERROR;
+    }
 
+    SocketList list = (SocketList)(uintptr_t)MArgument_getInteger(Args[0]);
+
+    if (!list) {
+        libData->Message("socketListGetAll: invalid socket list");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    mint length = (mint)list->length;
     MTensor socketsTensor;
-    libData->MTensor_new(MType_Integer, 2, dimensions, &socketsTensor);
-    mint *socketsData = libData->MTensor_getIntegerData(socketsTensor);
+    int status = libData->MTensor_new(MType_Integer, 1, &length, &socketsTensor);
 
-    for (size_t i = 0; i < length; i++) {
-        socketsData[2 * i] = (mint)pollfds[i].fd;
-        socketsData[2 * i + 1] = (mint)types[i];
+    if (status) {
+        libData->Message("socketListGetAll: failed to allocate socket tensor");
+        return LIBRARY_MEMORY_ERROR;
+    }
+
+    if (length > 0) {
+        mint *data = libData->MTensor_getIntegerData(socketsTensor);
+
+        for (mint i = 0; i < length; i++) {
+            data[i] = (mint)list->sockets[i];
+        }
     }
 
     MArgument_setMTensor(Res, socketsTensor);
@@ -60,140 +272,40 @@ DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument 
 
 DLLEXPORT int socketListPrune(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
-    socket_list_prune(socketList);
+    if (Argc != 1) {
+        libData->Message("socketListPrune: invalid argument count");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    SocketList list = (SocketList)(uintptr_t)MArgument_getInteger(Args[0]);
+
+    bool pruned = socket_list_prune(list);
+
+    if (!pruned) {
+        libData->Message("socketListPrune: invalid socket list");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
     return LIBRARY_NO_ERROR;
 }
 
 
 DLLEXPORT int socketListDelete(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    SocketList socketList = (SocketList)MArgument_getInteger(Args[0]);
-    socket_list_free(socketList);
+    if (Argc != 1) {
+        libData->Message("socketListDelete: invalid argument count");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    SocketList list = (SocketList)(uintptr_t)MArgument_getInteger(Args[0]);
+
+    if (!list) {
+        libData->Message("socketListDelete: invalid socket list");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    free(list->sockets);
+    free(list->roles);
+    free(list);
     return LIBRARY_NO_ERROR;
-}
-
-
-SocketList socket_list_create(mint *sockets, mint *types, size_t length)
-{
-    size_t capacity = 1;
-    while (capacity < length)
-    {
-        capacity *= 2;
-    }
-
-    POLL_FD *pollfds = malloc(sizeof(POLL_FD) * capacity);
-    if (!pollfds) {
-        return NULL;
-    }
-
-    struct addrinfo **addrinfos = malloc(sizeof(struct addrinfo*) * capacity);
-    if (!addrinfos) {
-        free(pollfds);
-        return NULL;
-    }
-
-    SOCKET_TYPE *sockettypes = malloc(sizeof(SOCKET_TYPE) * capacity);
-    if (!sockettypes) {
-        free(pollfds);
-        free(addrinfos);
-        return NULL;
-    }
-
-    for (size_t i = 0; i < length; i++) {
-        pollfds[i].fd = (SOCKET)sockets[i];
-        sockettypes[i] = (SOCKET_TYPE)types[i];
-        addrinfos[i] = NULL;
-    }
-
-    SocketList socketList = malloc(sizeof(struct SocketList_st));
-    if (!socketList) {
-        free(pollfds);
-        free(addrinfos);
-        free(sockettypes);
-        return NULL;
-    }
-
-    socketList->pollfds = pollfds;
-    socketList->addrinfos = addrinfos;
-    socketList->sockettypes = sockettypes;
-    socketList->length = length;
-    socketList->capacity = capacity;
-
-    return socketList;
-}
-
-
-bool socket_list_add(SocketList socketList, SOCKET socketId, SOCKET_TYPE socketType)
-{
-    if (!socketList) {
-        return false;
-    }
-
-    if (socketList->length == socketList->capacity) {
-        size_t newCapacity = socketList->capacity * 2;
-
-        POLL_FD *newPollfds = malloc(sizeof(POLL_FD) * newCapacity);
-        if (!newPollfds) {
-            return false;
-        }
-
-        struct addrinfo **newAddrinfos = malloc(sizeof(struct addrinfo*) * newCapacity);
-        if (!newAddrinfos) {
-            free(newPollfds);
-            return false;
-        }
-
-        SOCKET_TYPE *newSockettypes = malloc(sizeof(SOCKET_TYPE) * newCapacity);
-        if (!newSockettypes) {
-            free(newPollfds);
-            free(newAddrinfos);
-            return false;
-        }
-
-        memcpy(newPollfds, socketList->pollfds, sizeof(POLL_FD) * socketList->length);
-        memcpy(newAddrinfos, socketList->addrinfos, sizeof(struct addrinfo*) * socketList->length);
-        memcpy(newSockettypes, socketList->sockettypes, sizeof(SOCKET_TYPE) * socketList->length);
-
-        free(socketList->pollfds);
-        free(socketList->addrinfos);
-        free(socketList->sockettypes);
-
-        socketList->pollfds = newPollfds;
-        socketList->addrinfos = newAddrinfos;
-        socketList->sockettypes = newSockettypes;
-        socketList->capacity = newCapacity;
-    }
-
-    socketList->pollfds[socketList->length].fd = socketId;
-    socketList->addrinfos[socketList->length] = NULL;
-    socketList->sockettypes[socketList->length] = socketType;
-    socketList->length++;
-    return true;
-}
-
-
-void socket_list_prune(SocketList socketList)
-{
-    mint j = 0;
-    for (mint i = 0; i < socketList->length; i++) {
-        if (socketList->pollfds[i].fd != INVALID_SOCKET) {
-            if (i != j) {
-                socketList->pollfds[j] = socketList->pollfds[i];
-                socketList->addrinfos[j] = socketList->addrinfos[i];
-                socketList->sockettypes[j] = socketList->sockettypes[i];
-            }
-            j++;
-        }
-    }
-    socketList->length = j;
-}
-
-
-void socket_list_free(SocketList socketList)
-{
-    free(socketList->pollfds);
-    free(socketList->addrinfos);
-    free(socketList->sockettypes);
-    free(socketList);
 }
