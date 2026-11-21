@@ -226,11 +226,13 @@ Module[{id, port = If[IntegerQ[portnum] && portnum >= 0, portnum, RandomInteger[
         Message[CSocketOpen::open, host, port, protocol, "bind"];
         Return[$Failed]
     ];
+
     If[protocol === "TCP" && Quiet[Check[socketListen[id, $SOMAXCONN], $Failed]] =!= Null,
         discardSocket[id];
         Message[CSocketOpen::open, host, port, protocol, "listen"];
         Return[$Failed]
     ];
+
     socketProperty[id, "Object"]
 ];
 
