@@ -43,24 +43,29 @@ $CSocketsDirectory =
 DirectoryName[$InputFileName, 2];
 
 
-If[!AssociationQ[$CSockets], $CSockets = <||>];
-
-
-If[!AssociationQ[$socketLists], $socketLists = <||>];
-
-
-If[!AssociationQ[$socketListTasks], $socketListTasks = <||>];
-
-
-If[!AssociationQ[$ownedSocketLists], $ownedSocketLists = <||>];
+If[!AssociationQ[$CSockets],
+    $CSockets = <||>
+];
 
 
 $SOCKETROLETCPUNSPEC = 0;
+
+
 $SOCKETROLETCPBOUND = 1;
+
+
 $SOCKETROLETCPCONNECTED = 2;
+
+
 $SOCKETROLETCPACCEPTED = 3;
+
+
 $SOCKETROLEUDPUNSPEC = 4;
+
+
 $SOCKETROLEUDPBOUND = 5;
+
+
 $SOCKETROLEUDPCONNECTED = 6;
 
 
@@ -78,48 +83,6 @@ Module[{object = CSocketObject[id]},
     refreshSocketAddresses[id];
     object
 ];
-
-
-socketProperty[id_Integer, key_String] :=
-Lookup[Lookup[$CSockets, id, <||>], key, Missing["NotAvailable"]];
-
-
-setSocketProperty[id_Integer, key_String, value_] :=
-($CSockets[id] = Append[Lookup[$CSockets, id, <||>], key -> value]);
-
-
-socketRoleCode[protocol_String, role_String] :=
-Switch[{protocol, role},
-    {"TCP", $SOCKETROLETCPUNSPEC}, $SOCKETROLETCPUNSPEC,
-    {"TCP", $SOCKETROLETCPBOUND}, $SOCKETROLETCPBOUND,
-    {"TCP", $SOCKETROLETCPCONNECTED}, $SOCKETROLETCPCONNECTED,
-    {"TCP", $SOCKETROLETCPACCEPTED}, $SOCKETROLETCPACCEPTED,
-    {"UDP", $SOCKETROLEUDPUNSPEC}, $SOCKETROLEUDPUNSPEC,
-    {"UDP", $SOCKETROLEUDPBOUND}, $SOCKETROLEUDPBOUND,
-    {"UDP", $SOCKETROLEUDPCONNECTED}, $SOCKETROLEUDPCONNECTED,
-    {"UDP", _}, $SOCKETROLEUDPUNSPEC,
-    _, $SOCKETROLETCPUNSPEC
-];
-
-
-socketRoleCode[id_Integer] :=
-socketRoleCode[socketProperty[id, "Protocol"], socketProperty[id, "Role"]];
-
-
-refreshSocketAddresses[id_Integer] :=
-Module[{addresses, role = socketRoleCode[id]},
-    If[socketProperty[id, "State"] =!= "Alive", Return[Null]];
-    addresses = Quiet[Check[List @@ socketGetAddresses[id, role], $Failed]];
-    If[MatchQ[addresses, {_String, _String}],
-        setSocketProperty[id, "LocalAddress", addresses[[1]]];
-        setSocketProperty[id, "RemoteAddress", addresses[[2]]]
-    ];
-    Null
-];
-
-
-socketAliveQ[id_Integer] :=
-socketProperty[id, "State"] =!= "Closed";
 
 
 setSocketBlocking[id_Integer, blocking: True | False] :=
@@ -1048,12 +1011,12 @@ $library = FileNameJoin[
 (* :LibraryLoad: *)
 
 
-createSocketsPollLoop::usage =
-"createSocketsPollLoop[list, timeout, eventsMask] -> taskId.";
+socketListPollLoopCrate::usage =
+"socketListPollLoopCrate[list, timeout, eventsMask] -> taskId.";
 
 
-createSocketsPollLoop =
-LibraryFunctionLoad[$library, "createSocketsPollLoop", {Integer, Integer, Integer}, Integer];
+socketListPollLoopCrate =
+LibraryFunctionLoad[$library, "socketListPollLoopCrate", {Integer, Integer, Integer}, Integer];
 
 
 socketListCreate::usage =

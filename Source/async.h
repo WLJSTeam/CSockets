@@ -5,12 +5,12 @@
 #include "list.h"
 
 
-typedef struct SocketsPollArgs_st {
+typedef struct SocketListPollLoopArgs_st {
     WolframLibraryData libData;
     SocketList socketList;
     mint eventsMask;
     mint timeout;
-} *SocketsPollArgs;
+} *SocketListPollLoopArgs;
 
 
 #endif
