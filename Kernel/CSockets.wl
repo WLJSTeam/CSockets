@@ -52,6 +52,9 @@ $CSockets = If[AssociationQ[$CSockets],
 ];
 
 
+(* :OPEN: *)
+
+
 CSocketOpen::open =
 "Cannot open `3` socket at `1`:`2`: `4` failed.";
 
@@ -455,6 +458,7 @@ bind[socketId_Integer, host_String, port_Integer] :=
 Check[
     With[{result = socketBind[socketId, host, ToString[port]]},
         $CSockets[socketId, "Role"] = "Bound";
+        $CSockets[socketId, "LocalAddress"] = host <> ":" <> ToString[port];
     ],
 
     Message[CSocketOpen::open, host, port, socketProperty[socketId, "Protocol"], "bind"];
@@ -463,13 +467,31 @@ Check[
 ];
 
 
+listen::fail =
+"Listen failed on socket `1` at `2`.";
+
+
 listen[socketId_Integer] :=
 Check[
     With[{result = socketListen[socketId, $SOMAXCONN]},
         $CSockets[socketId, "Role"] = "Bound";
     ],
 
-    Message[CSocketOpen::open, socketProperty[socketId, "LocalAddress"], socketProperty[socketId, "Protocol"], "listen"];
+    Message[listen::fail, socketId, socketProperty[socketId, "LocalAddress"]];
+    close[socketId];
+    Throw[$Failed];
+];
+
+
+connect[socketId_Integer, host_String, port_Integer] :=
+Check[
+    With[{result = socketConnect[socketId, host, ToString[port]]},
+        $CSockets[socketId, "Role"] = "Connected";
+        $CSockets[socketId, "LocalAddress"] = socketGetAddresses[socketId, $SOCKETROLETCPCONNECTED];
+        $CSockets[socketId, "RemoteAddress"] = host <> ":" <> ToString[port];
+    ],
+
+    Message[CSocketConnect::connect, host, port, socketProperty[socketId, "Protocol"], "connect"];
     close[socketId];
     Throw[$Failed];
 ];
@@ -482,6 +504,17 @@ Check[
 
     Message[CSocketOpen::open, socketProperty[socketId, "LocalAddress"], socketProperty[socketId, "Protocol"], "close"];
     Throw[$Failed]
+];
+
+
+socketProperty[socketId_Integer, key_String] :=
+$CSockets[socketId, key];
+
+
+socketSetProperty[socketId_Integer, key_String, value_] :=
+If[KeyExistsQ[$CSockets[socketId], key],
+    $CSockets[socketId, key] = value,
+    $CSockets[socketId] = <|"key" -> value|>
 ];
 
 
