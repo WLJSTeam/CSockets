@@ -104,15 +104,20 @@
 #include "WolframImageLibrary.h"
 
 
-BYTE *MArgument_getByteArray(WolframLibraryData libData, MArgument arg);
+/* Returns a new UBit8 vector containing a copy, or NULL on failure. */
+MNumericArray MNumericArrayFromByte(WolframLibraryData libData, const BYTE *bytes, size_t length);
 
 
-/* Copies data into a new result array; returns a LibraryLink status code. */
-int MArgument_setByteArray(WolframLibraryData libData, MArgument res, const BYTE *data, mint length);
+/* Borrowed bytes, not owned by caller; length is set to zero for invalid arrays. */
+BYTE *ByteFromMNumericArray(WolframLibraryData libData, MNumericArray array, size_t *length);
 
 
-/* Releases the share acquired by a Shared LibraryLink argument. */
-void MArgument_disownByteArray(WolframLibraryData libData, MArgument arg);
+/* New integer vector, or NULL on failure. */
+MTensor MTensorFromSocket(WolframLibraryData libData, const SOCKET *sockets, size_t length);
+
+
+/* New native descriptor buffer (also for empty input); caller frees it. */
+SOCKET *SocketFromMTensor(WolframLibraryData libData, MTensor tensor, size_t *length);
 
 
 char *format(const char *fmt, ...);

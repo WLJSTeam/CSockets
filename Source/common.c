@@ -1,31 +1,107 @@
 #include "common.h"
 
 
-BYTE *MArgument_getByteArray(WolframLibraryData libData, MArgument arg)
+/* Constructors copy input data. NULL indicates invalid input or allocation failure. */
+MNumericArray MNumericArrayFromByte(WolframLibraryData libData, const BYTE *bytes, size_t length)
 {
-    MNumericArray array = MArgument_getMNumericArray(arg);
+    if (length > (size_t)(SIZE_MAX >> 1) || (length > 0 && !bytes)) {
+        return NULL;
+    }
+
+    mint dimension = (mint)length;
+    MNumericArray array = NULL;
+    int status = libData->numericarrayLibraryFunctions->MNumericArray_new(
+        MNumericArray_Type_UBit8, 1, &dimension, &array);
+
+    if (status != LIBRARY_NO_ERROR) {
+        return NULL;
+    }
+
+    if (length > 0) {
+        void *data = libData->numericarrayLibraryFunctions->MNumericArray_getData(array);
+        memcpy(data, bytes, length);
+    }
+
+    return array;
+}
+
+
+/* Borrowed storage: valid until the array is freed/disowned; never free this pointer. */
+BYTE *ByteFromMNumericArray(WolframLibraryData libData, MNumericArray array, size_t *length)
+{
+    *length = 0;
+
+    if (!array) {
+        return NULL;
+    }
+
+    numericarray_data_t type = libData->numericarrayLibraryFunctions->MNumericArray_getType(array);
+    mint rank = libData->numericarrayLibraryFunctions->MNumericArray_getRank(array);
+
+    if (type != MNumericArray_Type_UBit8 || rank != 1) {
+        return NULL;
+    }
+
+    *length = (size_t)libData->numericarrayLibraryFunctions->MNumericArray_getFlattenedLength(array);
     return libData->numericarrayLibraryFunctions->MNumericArray_getData(array);
 }
 
 
-int MArgument_setByteArray(WolframLibraryData libData, MArgument res, const BYTE *data, mint length)
+MTensor MTensorFromSocket(WolframLibraryData libData, const SOCKET *sockets, size_t length)
 {
-    if (length < 0 || (length > 0 && !data)) return LIBRARY_FUNCTION_ERROR;
-    MNumericArray array;
-    if (libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &length, &array)) {
-        return LIBRARY_MEMORY_ERROR;
+    if (length > (size_t)(SIZE_MAX >> 1) || (length > 0 && !sockets)) {
+        return NULL;
     }
-    if (length > 0) {
-        memcpy(libData->numericarrayLibraryFunctions->MNumericArray_getData(array), data, (size_t)length);
+
+    mint dimension = (mint)length;
+    MTensor tensor = NULL;
+    int status = libData->MTensor_new(MType_Integer, 1, &dimension, &tensor);
+
+    if (status != LIBRARY_NO_ERROR) {
+        return NULL;
     }
-    MArgument_setMNumericArray(res, array);
-    return LIBRARY_NO_ERROR;
+
+    mint *data = libData->MTensor_getIntegerData(tensor);
+
+    for (size_t i = 0; i < length; i++) {
+        data[i] = (mint)sockets[i];
+    }
+
+    return tensor;
 }
 
 
-void MArgument_disownByteArray(WolframLibraryData libData, MArgument arg)
+/* Copies descriptors, converting element widths; caller must free the result. */
+SOCKET *SocketFromMTensor(WolframLibraryData libData, MTensor tensor, size_t *length)
 {
-    libData->numericarrayLibraryFunctions->MNumericArray_disown(MArgument_getMNumericArray(arg));
+    *length = 0;
+
+    if (!tensor) {
+        return NULL;
+    }
+
+    mint type = libData->MTensor_getType(tensor);
+    mint rank = libData->MTensor_getRank(tensor);
+    mint count = libData->MTensor_getFlattenedLength(tensor);
+
+    if (type != MType_Integer || rank != 1 || count < 0 || (size_t)count > SIZE_MAX / sizeof(SOCKET)) {
+        return NULL;
+    }
+
+    SOCKET *sockets = malloc(count > 0 ? (size_t)count * sizeof(SOCKET) : sizeof(SOCKET));
+
+    if (!sockets) {
+        return NULL;
+    }
+
+    const mint *data = libData->MTensor_getIntegerData(tensor);
+
+    for (mint i = 0; i < count; i++) {
+        sockets[i] = (SOCKET)data[i];
+    }
+
+    *length = (size_t)count;
+    return sockets;
 }
 
 

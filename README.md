@@ -314,3 +314,49 @@ BinaryWrite[event["SourceSocket"], address, ByteArray[{1, 2, 3}]];
 
 The native `socketBind`, `socketConnect`, and `socketSendTo` functions take
 separate numeric host and port strings. Address structures remain internal to C.
+
+
+### Build script
+
+Run from the repository root:
+
+```powershell
+wolframscript -f Build.wls
+wolframscript -f Build.wls "build/custom.dll" "Kernel/Custom.wl"
+wolframscript -f Tests/BuildTest.wls
+```
+
+Both positional arguments are optional. The defaults are
+`LibraryResources/<SystemID>-v<LibraryLinkVersion>/csockets.<extension>` and
+`Kernel/CSockets.wl`. Explicit paths are relative to the current directory.
+Use the platform extension (`.dll`, `.so`, or `.dylib`). The bindings target
+must be an existing `.wl` file containing `End[];`. The generator replaces
+the section between `(* :LibraryLoad: *)` and the following `End[];`, or
+inserts that section before the first `End[];` when the marker is absent.
+An explicit library argument also writes its resolved path into the generated
+section so the bindings load that library.
+
+C extraction uses tokens and balanced delimiters rather than physical lines.
+Comments, quoted literals, nested blocks, and multiline declarations/calls are
+supported. Getter indices must be literal contiguous `Args[0]`, `Args[1]`, etc.
+Argument names come from the variable initialized by the getter; casts are
+allowed. Unknown LibraryLink types and ambiguous tensor ranks stop the build
+before modifying the bindings. This is a source parser, not a C preprocessor:
+macro-generated exports and conditional compilation require explicit source
+conventions. Tensor results currently require an integer tensor with a literal
+rank. Result expressions without a single variable name use the return type
+in the usage text.
+
+
+Native array conversions are declared in `Source/common.h`:
+
+- `MNumericArrayFromByte(libData, bytes, length)` copies bytes into a new UBit8 vector.
+- `ByteFromMNumericArray(libData, array, &length)` borrows the byte buffer; do not free it or retain it after the array is released.
+- `MTensorFromSocket(libData, sockets, length)` copies native descriptors into an integer vector.
+- `SocketFromMTensor(libData, tensor, &length)` allocates a native descriptor buffer; release it with `free`.
+
+Constructors return `NULL` on invalid input or allocation failure. Empty input is supported.
+The reverse byte conversion requires a rank-one UBit8 array, and the reverse socket
+conversion requires a rank-one integer tensor. These helpers do not disown LibraryLink
+arguments: callers use standard `MArgument_get/setMNumericArray`, `MArgument_get/setMTensor`
+and the corresponding LibraryLink release functions.

@@ -1194,7 +1194,7 @@ LibraryFunctionLoad[$library, "socketAccept", {Integer}, Integer];
 
 
 socketRecv::usage =
-"socketRecv[socketId, buffer] -> bufferData.";
+"socketRecv[socketId, buffer] -> receivedData.";
 
 
 socketRecv =
@@ -1234,11 +1234,11 @@ LibraryFunctionLoad[$library, "socketsCheck", {{Integer, 1}}, {Integer, 1}];
 
 
 socketConnectedQ::usage =
-"socketConnectedQ[socketId] -> getpeername(socketId.";
+"socketConnectedQ[socketId] -> True | False.";
 
 
 socketConnectedQ =
-LibraryFunctionLoad[$library, "socketConnectedQ", {Integer}, Alternatives[True, False]];
+LibraryFunctionLoad[$library, "socketConnectedQ", {Integer}, True | False];
 
 
 socketConnectionAliveQ::usage =
@@ -1246,7 +1246,7 @@ socketConnectionAliveQ::usage =
 
 
 socketConnectionAliveQ =
-LibraryFunctionLoad[$library, "socketConnectionAliveQ", {Integer}, Alternatives[True, False]];
+LibraryFunctionLoad[$library, "socketConnectionAliveQ", {Integer}, True | False];
 
 
 socketValidQ::usage =
@@ -1254,7 +1254,7 @@ socketValidQ::usage =
 
 
 socketValidQ =
-LibraryFunctionLoad[$library, "socketValidQ", {Integer}, Alternatives[True, False]];
+LibraryFunctionLoad[$library, "socketValidQ", {Integer}, True | False];
 
 
 socketsPoll::usage =

@@ -248,21 +248,11 @@ DLLEXPORT int socketListGetAll(WolframLibraryData libData, mint Argc, MArgument 
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    mint length = (mint)list->length;
-    MTensor socketsTensor;
-    int status = libData->MTensor_new(MType_Integer, 1, &length, &socketsTensor);
+    MTensor socketsTensor = MTensorFromSocket(libData, list->sockets, list->length);
 
-    if (status) {
+    if (!socketsTensor) {
         libData->Message("socketListGetAll: failed to allocate socket tensor");
         return LIBRARY_MEMORY_ERROR;
-    }
-
-    if (length > 0) {
-        mint *data = libData->MTensor_getIntegerData(socketsTensor);
-
-        for (mint i = 0; i < length; i++) {
-            data[i] = (mint)list->sockets[i];
-        }
     }
 
     MArgument_setMTensor(Res, socketsTensor);
