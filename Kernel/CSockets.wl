@@ -416,6 +416,24 @@ Module[{
 ];
 
 
+$addressPattern :=
+PatternSequence[_String, _Integer] | _String?(StringMatchQ[#, ":" ~~ NumberString]&)
+
+
+splitAddress[host_String?numericHostQ, port_Integer] :=
+{host, port};
+
+
+
+splitAddress[host_String?Not@*numericHostQ, port_Integer] :=
+{HostLookup[host][[1, 1]], port};
+
+
+splitAddress[address_String] :=
+Apply[splitAddress][StringSplit[address, ":"]];
+
+
+
 createSocket[addressFamily: "IPv4" | "IPv6", protocol: "TCP" | "UDP": "TCP"] :=
 With[{
     af = addressFamily /. {"IPv4" -> $AFINET, "IPv6" -> $AFINET6},
