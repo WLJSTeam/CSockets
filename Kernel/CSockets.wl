@@ -55,10 +55,6 @@ $CSockets = If[AssociationQ[$CSockets],
 (* :OPEN: *)
 
 
-CSocketOpen::open =
-"Cannot open `3` socket at `1`:`2`: `4` failed.";
-
-
 CSocketOpen[hostname_String: "127.0.0.1", portnum_Integer: Automatic, protocol: "TCP" | "UDP": "TCP"] :=
 Catch @ With[{
     host = If[numericHostQ[hostname], hostname, HostLookup[hostname][[1, 1]]],
@@ -66,7 +62,7 @@ Catch @ With[{
     addressFamily = If[StringContainsQ[host, ":"], "IPv6", "IPv4"]}, {
     socketId = createSocket[addressFamily, protocol]
 },
-    bind[socketId, host, ToString[port]];
+    bind[socketId, host, port];
 
     If[protocol === "TCP", listen[socketId]];
 
@@ -79,17 +75,8 @@ Catch @ With[{
 
 
 Options[CSocketConnect] = {
-    "Wait" -> False,
-    "Blocking" -> True
+    "Wait" -> True
 };
-
-
-CSocketConnect::opts =
-"CSocketConnect called with invalid option `1` -> `2`.";
-
-
-CSocketConnect::connect =
-"Cannot connect `3` socket to `1`:`2`: `4` failed.";
 
 
 CSocketConnect[address_String, protocol: "TCP" | "UDP": "TCP", opts: OptionsPattern[]] :=
@@ -103,8 +90,11 @@ Module[{parts = splitAddress[address]},
 ];
 
 
-CSocketConnect[host_String: "127.0.0.1", port_Integer, protocol: "TCP" | "UDP": "TCP", opts: OptionsPattern[]] :=
-With[{wait = OptionValue["Wait"], blocking = OptionValue["Blocking"]},
+CSocketConnect[hostname_String: "127.0.0.1", port_Integer, protocol: "TCP" | "UDP": "TCP", opts: OptionsPattern[]] :=
+With[{
+    wait = OptionValue["Wait"],
+    host = If[numericHostQ[hostname], hostname, HostLookup[hostname][[1, 1]]]
+},
     If[!BooleanQ[wait],
         Message[CSocketConnect::opts, "Wait", wait];
         Return[$Failed]
@@ -115,28 +105,15 @@ With[{wait = OptionValue["Wait"], blocking = OptionValue["Blocking"]},
         Return[$Failed]
     ];
 
-    With[{
-        socketId = createSocket[
-            addressFamily = If[StringContainsQ[host, ":"], "IPv6", "IPv4"],
-            protocol /. {"TCP" -> $IPPROTOTCP, "UDP" -> $IPPROTOUDP}
-        ]},
-        If[!IntegerQ[socketId],
-            Message[CSocketConnect::connect, host, port, protocol, "socket creation"];
-            Return[$Failed]
-        ];
+    Catch @ With[{
+        addressFamily = If[StringContainsQ[host, ":"], "IPv6", "IPv4"],
+        socketId = createSocket[addressFamily, protocol]
+    },
+        If[!wait, toNonBlocking[socketId]];
+        connect[socketId, host, port];
+        If[!wait, toBlocking[socketId]];
 
-        registerSocket[socketId, protocol, "Unspecified", If[blocking, "Blocking", "NonBlocking"]];
-
-        If[!wait && blocking,
-            Check[socketSetNonBlocking[socketId, False],
-                Message[CSocketConnect::connect, host, port, protocol, "setting nonblocking mode"];
-                socketClose[socketId];
-                KeyDropFrom[$CSockets, socketId];
-                Return[$Failed]
-            ]
-        ];
-
-        $CSockets[socketId, "Role"] = "Unspecified";
+        Return[CSocketObject[socketId]]
     ]
 ];
 
@@ -152,7 +129,9 @@ Module[{above, below},
         {BoxForm`SummaryItem[{"Local: ", object["LocalAddress"]}], SpanFromLeft},
         {BoxForm`SummaryItem[{"Remote: ", object["RemoteAddress"]}], SpanFromLeft}
     };
+
     below = Map[{BoxForm`SummaryItem[{# <> ": ", object[#]}], SpanFromLeft}&, {"Protocol", "State", "Role", "BlockingMode"}];
+
     BoxForm`ArrangeSummaryBox[CSocketObject, object, $socketObjectIcon, above, below, form, "Interpretable" -> Automatic]
 ];
 
@@ -487,6 +466,9 @@ Check[
 ];
 
 
+connect::fail =
+"Connect failed on socket `1` to `2`:`3`.";
+
 connect[socketId_Integer, host_String, port_Integer] :=
 Check[
     With[{result = socketConnect[socketId, host, ToString[port]]},
@@ -495,10 +477,14 @@ Check[
         $CSockets[socketId, "RemoteAddress"] = host <> ":" <> ToString[port];
     ],
 
-    Message[CSocketConnect::connect, host, port, socketProperty[socketId, "Protocol"], "connect"];
+    Message[connect::fail, socketId, host, port];
     close[socketId];
     Throw[$Failed];
 ];
+
+
+close::fail =
+"Close failed on socket `1`.";
 
 
 close[socketId_Integer] :=
@@ -506,7 +492,35 @@ Check[
     socketClose[socketId];
     KeyDropFrom[$CSockets, socketId];,
 
-    Message[CSocketOpen::open, socketProperty[socketId, "LocalAddress"], socketProperty[socketId, "Protocol"], "close"];
+    Message[close::fail, socketId];
+    Throw[$Failed]
+];
+
+
+toBlocking::fail =
+"Failed to set socket `1` to blocking mode.";
+
+
+toBlocking[socketId_Integer] :=
+Check[
+    socketSetBlockingMode[socketId];
+    $CSockets[socketId, "BlockingMode"] = "Blocking";,
+
+    Message[toBlocking::fail, socketId];
+    Throw[$Failed]
+];
+
+
+toNonBlocking::fail =
+"Failed to set socket `1` to non-blocking mode.";
+
+
+toNonBlocking[socketId_Integer] :=
+Check[
+    socketSetNonBlockingMode[socketId];
+    $CSockets[socketId, "BlockingMode"] = "NonBlocking";,
+
+    Message[toNonBlocking::fail, socketId];
     Throw[$Failed]
 ];
 
