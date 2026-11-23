@@ -454,6 +454,10 @@ With[{
 ];
 
 
+bind::fail =
+"Bind failed on socket `1` at `2`:`3`.";
+
+
 bind[socketId_Integer, host_String, port_Integer] :=
 Check[
     With[{result = socketBind[socketId, host, ToString[port]]},
@@ -461,7 +465,7 @@ Check[
         $CSockets[socketId, "LocalAddress"] = host <> ":" <> ToString[port];
     ],
 
-    Message[CSocketOpen::open, host, port, socketProperty[socketId, "Protocol"], "bind"];
+    Message[bind::fail, socketId, host, port];
     close[socketId];
     Throw[$Failed];
 ];
