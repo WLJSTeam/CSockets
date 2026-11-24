@@ -47,12 +47,13 @@ $CSockets = If[AssociationQ[$CSockets],
 (* :CSocketOpen: *)
 
 
-CSocketOpen[address: $addressPattern] :=
+CSocketOpen[address__?addressQ] :=
 Catch @ With[{
-    host = addressHost[address],
-    port = addressPort[address],
-    family = addressFamily[address],
-    protocol = addressProtocol[address]}, {
+    addressAssoc = splitAddress[address]}, {
+    host = addressAssoc["Host"],
+    port = addressAssoc["Port"],
+    family = addressAssoc["Family"],
+    protocol = addressAssoc["Protocol"]}, {
     socketId = createSocket[family, protocol]
 },
     bind[socketId, host, port];
@@ -72,7 +73,7 @@ Options[CSocketConnect] = {
 };
 
 
-CSocketConnect[address: $addressPattern, opts: OptionsPattern[]] :=
+CSocketConnect[address__?addressQ, opts: OptionsPattern[]] :=
 With[{
     wait = OptionValue["Wait"]
 },
@@ -82,10 +83,11 @@ With[{
     ];
 
     Catch @ With[{
-        host = addressHost[address],
-        port = addressPort[address],
-        family = addressFamily[address],
-        protocol = addressProtocol[address]}, {
+        addressAssoc = splitAddress[address]}, {
+        host = addressAssoc["Host"],
+        port = addressAssoc["Port"],
+        family = addressAssoc["Family"],
+        protocol = addressAssoc["Protocol"]}, {
         socketId = createSocket[family, protocol]
     },
         If[!wait, toNonBlocking[socketId]];
@@ -95,6 +97,17 @@ With[{
         Return[CSocketObject[socketId]]
     ]
 ];
+
+
+(* :READ: *)
+
+
+CSocketObject /: ReadByteArray[CSocketObject[id_Integer]] :=
+Catch @ read[id];
+
+
+CSocketObject /: ReadString[CSocketObject[id_Integer]] :=
+Catch @ If[ByteArrayQ[#], ByteArayToString[#], {#[[1]], ByteArrayToString[#[[2]]]}]& @ read[id];
 
 
 $directory =
@@ -399,24 +412,6 @@ Module[{
 ];
 
 
-$addressPattern :=
-PatternSequence[_String, _Integer] | _String?(StringMatchQ[#, ":" ~~ NumberString]&)
-
-
-splitAddress[host_String?numericHostQ, port_Integer] :=
-{host, port};
-
-
-
-splitAddress[host_String?Not@*numericHostQ, port_Integer] :=
-{HostLookup[host][[1, 1]], port};
-
-
-splitAddress[address_String] :=
-Apply[splitAddress][StringSplit[address, ":"]];
-
-
-
 createSocket[addressFamily: "IPv4" | "IPv6", protocol: "TCP" | "UDP": "TCP"] :=
 With[{
     af = addressFamily /. {"IPv4" -> $AFINET, "IPv6" -> $AFINET6},
@@ -484,6 +479,38 @@ Check[
 ];
 
 
+read::fail =
+"Read failed on socket `1`.";
+
+
+With[{buffer = ByteArray[ConstantArray[0, bufferSize]]},
+    read[socketId_Integer] :=
+    Check[
+        If[socketProperty[socketId, "Protocol"] === "UDP",
+            With[{received = socketRecvFrom[socketId, buffer]},
+                If[!ListQ[received],
+                    Throw[$Failed]
+                ];
+
+                Return[Apply[List] @ received];
+            ],
+        (*Else*)
+            With[{received = socketRecv[socketId, buffer]},
+                If[!ByteArrayQ[received],
+                    Throw[$Failed]
+                ];
+
+                Return[received]
+            ]
+        ],
+
+        (*Fail*)
+        Message[read::fail, socketId];
+        Throw[$Failed]
+    ]
+];
+
+
 close::fail =
 "Close failed on socket `1`.";
 
@@ -534,16 +561,6 @@ socketSetProperty[socketId_Integer, key_String, value_] :=
 If[KeyExistsQ[$CSockets[socketId], key],
     $CSockets[socketId, key] = value,
     $CSockets[socketId] = <|"key" -> value|>
-];
-
-
-splitAddress[address_String] :=
-Module[{parts},
-    parts = StringCases[address, {
-        StartOfString ~~ "[" ~~ host: Except["]"].. ~~ "]:" ~~ port: DigitCharacter.. ~~ EndOfString :> {host, port},
-        StartOfString ~~ host: Except[":"].. ~~ ":" ~~ port: DigitCharacter.. ~~ EndOfString :> {host, port}
-    }];
-    If[Length[parts] === 1, First[parts], $Failed]
 ];
 
 
@@ -744,8 +761,58 @@ With[{object = CSocketObject[socketId]},
 ];
 
 
-$ipv4Pattern :=
-Repeated[Repeated[CharacterRange["0", "9"], {1, 3}] ~~ ".", {3}] ~~ Repeated[CharacterRange["0", "9"], {1, 3}];
+splitAddress[host_String?ipv4HostQ, port_Integer?portQ, protocol: "TCP" | "UDP": "TCP"] :=
+<|
+    "Host" -> host,
+    "Port" -> port,
+    "Protocol" -> protocol,
+    "Family" -> "IPv4"
+|>;
+
+
+splitAddress[host_String?ipv6HostQ, port_Integer?portQ, protocol: "TCP" | "UDP": "TCP"] :=
+<|
+    "Host" -> host,
+    "Port" -> port,
+    "Protocol" -> protocol,
+    "Family" -> "IPv6"
+|>;
+
+
+splitAddress[host_String?hostnameQ, port_Integer?portQ, protocol: "TCP" | "UDP": "TCP"] :=
+splitAddress[HostLookup[host][[1, 1]], port, protocol];
+
+
+splitAddress[address_String?protohostportQ] :=
+Module[{proto, host, port, hostport},
+    proto = If[StringStartsQ[address, "udp", IgnoreCase -> True],
+        "UDP", "TCP"
+    ];
+
+    {host, port} = StringCases[StringSplit[address, "://"][[-1]],
+        $host__ ~~ Shortest[":" ~~ $port__ ~~ EndOfString] :> {$host, ToExpression[$port]}
+    ][[1]];
+
+    splitAddress[host, port, proto]
+];
+
+
+addressQ[address__String] :=
+MatchQ[{address}, {PatternSequence[_String?hostQ, _Integer?portQ, "TCP" | "UDP"]} |
+{PatternSequence[_String?hostQ, _Integer?portQ]} |
+{_String?protohostportQ}];
+
+
+portQ[port_Integer] :=
+0 <= port < 2^16;
+
+
+$byteSymbols = Repeated[CharacterRange["0", "9"], {1, 3}];
+
+
+ipv4HostQ[host_String] :=
+StringMatchQ[host, Repeated[$byteSymbols ~~ ".", {3}] ~~ $byteSymbols] &&
+Apply[And] @ Map[0 <= # < 256 &] @ Map[ToExpression] @ StringSplit[host, "."];
 
 
 $hexSymbols = Flatten[{CharacterRange["0", "9"], CharacterRange["a", "f"], CharacterRange["A", "F"]}];
@@ -755,21 +822,52 @@ $hex4Number = Repeated[$hexSymbols, {1, 4}];
 
 
 $ipv6Pattern =
-  (Repeated[$hex4Number ~~ ":", {7}] ~~ $hex4Number) |                                       (* 1234:5678:90ab:cdef:1234:5678:90ab:cdef*)
-  ("::" ~~ Repeated[$hex4Number ~~ ":", {0, 6}] ~~ $hex4Number) |                            (*    ::5678:90ab:cdef:1234:5678:90ab:cdef*)
-  (Repeated[$hex4Number ~~ ":", {1, 7}] ~~ ":") |                                    (* 1234:5678:90ab:cdef:1234:5678:90ab::   *)
-  ($hex4Number ~~ "::" ~~ Repeated[$hex4Number ~~ ":", {0, 5}] ~~ $hex4Number) |
-  (Repeated[$hex4Number ~~ ":", {2}] ~~ ":" ~~ Repeated[$hex4Number ~~ ":", {0, 4}] ~~ $hex4Number) |
-  (Repeated[$hex4Number ~~ ":", {3}] ~~ ":" ~~ Repeated[$hex4Number ~~ ":", {0, 3}] ~~ $hex4Number) |
-  (Repeated[$hex4Number ~~ ":", {4}] ~~ ":" ~~ Repeated[$hex4Number ~~ ":", {0, 2}] ~~ $hex4Number) |
-  (Repeated[$hex4Number ~~ ":", {5}] ~~ ":" ~~ Repeated[$hex4Number ~~ ":", {0, 1}] ~~ $hex4Number) |
-  (Repeated[$hex4Number ~~ ":", {6}] ~~ ":" ~~ $hex4Number) |
-  "::";
+(Repeated[$hex4Number ~~ ":", {7}] ~~ $hex4Number) |                                                (* 1234:5678:90ab:cdef:1234:5678:90ab:cdef*)
+("::" ~~ Repeated[$hex4Number ~~ ":", {0, 6}] ~~ $hex4Number) |                                     (*    ::5678:90ab:cdef:1234:5678:90ab:cdef*)
+(Repeated[$hex4Number ~~ ":", {1, 7}] ~~ ":") |                                                     (* 1234:5678:90ab:cdef:1234:5678:90ab::   *)
+($hex4Number ~~ "::" ~~ Repeated[$hex4Number ~~ ":", {0, 5}] ~~ $hex4Number) |
+(Repeated[$hex4Number ~~ ":", {2}] ~~ ":" ~~ Repeated[$hex4Number ~~ ":", {0, 4}] ~~ $hex4Number) |
+(Repeated[$hex4Number ~~ ":", {3}] ~~ ":" ~~ Repeated[$hex4Number ~~ ":", {0, 3}] ~~ $hex4Number) |
+(Repeated[$hex4Number ~~ ":", {4}] ~~ ":" ~~ Repeated[$hex4Number ~~ ":", {0, 2}] ~~ $hex4Number) |
+(Repeated[$hex4Number ~~ ":", {5}] ~~ ":" ~~ Repeated[$hex4Number ~~ ":", {0, 1}] ~~ $hex4Number) |
+(Repeated[$hex4Number ~~ ":", {6}] ~~ ":" ~~ $hex4Number) |
+"::";
+
+
+ipv6HostQ[host_String] :=
+StringMatchQ[host, $ipv6Pattern];
 
 
 numericHostQ[host_String] :=
-StringMatchQ[host, $ipv4Pattern] ||
-StringMatchQ[host, $ipv6Pattern];
+ipv4HostQ[host] ||
+ipv6HostQ[host];
+
+
+$letterSymbols = Join[CharacterRange["a", "z"], CharacterRange["A", "Z"]];
+
+
+$nameSymbols = Join[$letterSymbols, CharacterRange["0", "9"], {".", "-"}];
+
+
+hostnameQ[host_String] :=
+StringMatchQ[host, Repeated[$nameSymbols]] &&
+0 < StringLength[host] < 254 &&
+StringContainsQ[host, $letterSymbols] &&
+Apply[And] @ Map[0 < # < 64 &] @ Map[StringLength] @ StringSplit[host, ".", All] &&
+Apply[And] @ Map[!StringStartsQ[#, "-"] && !StringEndsQ[#, "-"]&] @ StringSplit[host, ".", All];
+
+
+hostQ[host_String] :=
+hostnameQ[host] ||
+numericHostQ[host];
+
+
+protohostportQ[address_String] :=
+With[{pairs = StringCases[address, {"tcp://", "udp://", ""} ~~ host__ ~~ Shortest[":" ~~ port: NumberString ~~ EndOfString] :> {host, ToExpression[port]}]},
+    Length[pairs] === 1 &&
+    hostQ[pairs[[1, 1]]] &&
+    portQ[pairs[[1, 2]]]
+]
 
 
 (* Library constants *)
