@@ -186,10 +186,12 @@ BinaryWrite[object, address, StringToByteArray[text]];
 
 
 CSocketObject /: SocketListen[object: CSocketObject[id_Integer], handler_] :=
-With[{list = CSocketList[{object}]}, {
-    task = SocketListen[list, handler]
-},
-    $CSockets[id, "Listener"] = task
+With[{listener = $CSockets[id, "Listener"]},
+    $CSockets[id, "Handler"] = handler;
+
+    If[listener =!= Null, Return[listener]];
+
+    SocketListen[CSocketList[{object}], handler]
 ];
 
 
@@ -243,10 +245,20 @@ socketListPrune[listId];
 
 
 CSocketList /: SocketListen[CSocketList[listId_Integer], handler_] :=
-Internal`CreateAsynchronousTask[
-    socketListPollLoopCrate,
-    {listId, 10 ^ 6, $POLLIN},
-    dispatchPollEvent[listId, handler, ##]&
+With[{socketIds = socketListGetAll[listId]},
+    Scan[($CSockets[#, "Handler"] = handler)&, socketIds];
+
+    With[{task = Internal`CreateAsynchronousTask[
+        socketListPollLoopCrate,
+        {listId, 10 ^ 6, $POLLIN},
+        dispatchPollEvent[listId, ##]&
+    ]},
+        If[MatchQ[task, _AsynchronousTaskObject],
+            Scan[($CSockets[#, "Listener"] = task)&, socketIds];
+        ];
+
+        task
+    ]
 ];
 
 
@@ -724,11 +736,17 @@ dispatchPollEvent::addresses =
 "Failed to obtain addresses for accepted socket `1`.";
 
 
-dispatchPollEvent[listId_Integer, handler_, task_AsynchronousTaskObject, name_String, data_List] :=
-Catch @ Module[{id, acceptedId, addresses},
+dispatchPollEvent[listId_Integer, task_AsynchronousTaskObject, name_String, data_List] :=
+Catch @ Module[{id, handlerId, acceptedId, addresses},
     If[!KeyExistsQ[$socketLists, listId] || data === {}, Return[Null]];
 
     id = First[data];
+    handlerId = If[KeyExistsQ[$CSockets, id],
+        id,
+        SelectFirst[Keys[$CSockets], $CSockets[#, "Listener"] === task&, Missing["NotAvailable"]]
+    ];
+
+    If[MissingQ[handlerId], Return[Null]];
 
     Switch[name,
         "Accepted",
@@ -748,7 +766,12 @@ Catch @ Module[{id, acceptedId, addresses},
             $CSockets[acceptedId, "RemoteAddress"] = Last[addresses];
             $CSockets[acceptedId, "Addresses"] = addresses;
             $CSockets[acceptedId, "Listener"] = task;
-            $CSockets[acceptedId, "ListenSocket"] = CSocketObject[id],
+            $CSockets[acceptedId, "ListenSocket"] = CSocketObject[id];
+            With[{listenId = id, socketId = acceptedId},
+                $CSockets[socketId] = Append[$CSockets[socketId],
+                    "Handler" :> $CSockets[listenId, "Handler"]
+                ];
+            ],
         "Closed",
             If[KeyExistsQ[$CSockets, id],
                 $CSockets[id, "State"] = "Closed";
@@ -761,7 +784,7 @@ Catch @ Module[{id, acceptedId, addresses},
             ]
     ];
 
-    handler[makeSocketEvent[task, name, Sequence @@ data]]
+    $CSockets[handlerId, "Handler"][makeSocketEvent[task, name, Sequence @@ data]]
 ];
 
 
@@ -899,6 +922,7 @@ With[{object = CSocketObject[socketId]},
         "UUID" -> socketId,
         "Object" -> object,
         "Listener" -> Null,
+        "Handler" -> Null,
         "Properties" :> Keys[$CSockets[socketId]],
         "Protocol" -> protocol,
         "Scheme" -> ToLowerCase[protocol],
