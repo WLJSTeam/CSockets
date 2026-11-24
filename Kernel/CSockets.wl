@@ -8,10 +8,6 @@ BeginPackage["WLJS`CSockets`",
 ];
 
 
-$CSocketsDirectory::usage =
-"$CSocketsDirectory - internal variable for storing the directory of the CSockets package.";
-
-
 $CSockets::usage =
 "$CSockets - association of socket IDs to objects and metadata.";
 
@@ -39,11 +35,7 @@ CSocketHandler::usage =
 Begin["`Private`"];
 
 
-(* :Public: *)
-
-
-$CSocketsDirectory =
-DirectoryName[$InputFileName, 2];
+(* :$CSockets: *)
 
 
 $CSockets = If[AssociationQ[$CSockets],
@@ -52,15 +44,16 @@ $CSockets = If[AssociationQ[$CSockets],
 ];
 
 
-(* :OPEN: *)
+(* :CSocketOpen: *)
 
 
-CSocketOpen[hostname_String: "127.0.0.1", portnum_Integer: Automatic, protocol: "TCP" | "UDP": "TCP"] :=
+CSocketOpen[address: $addressPattern] :=
 Catch @ With[{
-    host = If[numericHostQ[hostname], hostname, HostLookup[hostname][[1, 1]]],
-    port = If[IntegerQ[portnum] && 0 <= portnum < 2^16, portnum, RandomInteger[{2^14, 2^16}]]}, {
-    addressFamily = If[StringContainsQ[host, ":"], "IPv6", "IPv4"]}, {
-    socketId = createSocket[addressFamily, protocol]
+    host = addressHost[address],
+    port = addressPort[address],
+    family = addressFamily[address],
+    protocol = addressProtocol[address]}, {
+    socketId = createSocket[family, protocol]
 },
     bind[socketId, host, port];
 
@@ -79,35 +72,21 @@ Options[CSocketConnect] = {
 };
 
 
-CSocketConnect[address_String, protocol: "TCP" | "UDP": "TCP", opts: OptionsPattern[]] :=
-Module[{parts = splitAddress[address]},
-    If[parts === $Failed,
-        Message[CSocketConnect::connect, address, "", protocol, "invalid address"];
-        Return[$Failed]
-    ];
-
-    CSocketConnect[parts[[1]], ToExpression[parts[[2]]], protocol, opts]
-];
-
-
-CSocketConnect[hostname_String: "127.0.0.1", port_Integer, protocol: "TCP" | "UDP": "TCP", opts: OptionsPattern[]] :=
+CSocketConnect[address: $addressPattern, opts: OptionsPattern[]] :=
 With[{
-    wait = OptionValue["Wait"],
-    host = If[numericHostQ[hostname], hostname, HostLookup[hostname][[1, 1]]]
+    wait = OptionValue["Wait"]
 },
     If[!BooleanQ[wait],
         Message[CSocketConnect::opts, "Wait", wait];
         Return[$Failed]
     ];
 
-    If[!BooleanQ[blocking],
-        Message[CSocketConnect::opts, "Blocking", blocking];
-        Return[$Failed]
-    ];
-
     Catch @ With[{
-        addressFamily = If[StringContainsQ[host, ":"], "IPv6", "IPv4"],
-        socketId = createSocket[addressFamily, protocol]
+        host = addressHost[address],
+        port = addressPort[address],
+        family = addressFamily[address],
+        protocol = addressProtocol[address]}, {
+        socketId = createSocket[family, protocol]
     },
         If[!wait, toNonBlocking[socketId]];
         connect[socketId, host, port];
@@ -118,8 +97,12 @@ With[{
 ];
 
 
+$directory =
+DirectoryName[$InputFileName, 2];
+
+
 $socketObjectIcon := $socketObjectIcon =
-Import[FileNameJoin[{$CSocketsDirectory, "Images", "SocketIcon.png"}]];
+Import[FileNameJoin[{$directory, "Images", "SocketIcon.png"}]];
 
 
 CSocketObject /: MakeBoxes[object: CSocketObject[id_Integer], form: (StandardForm | TraditionalForm)] :=
