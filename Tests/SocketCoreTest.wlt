@@ -10,7 +10,7 @@ TestReport[{
             client = CSocketConnect["127.0.0.1", server["DestinationPort"], "TCP", "Wait" -> True, "Blocking" -> False];
             Do[Pause[0.02]; If[AnyTrue[events, #["Event"] === "Accepted"&], Break[]], {100}];
             accepted = Lookup[SelectFirst[events, #["Event"] === "Accepted"&, <||>], "AcceptedSocket", $Failed];
-            result = MatchQ[accepted, CSocketObject[_Integer]] && !client["Blocking"];
+            result = MatchQ[accepted, CSocketObject[_Integer]] && (client["BlockingMode"] === "NonBlocking");
             Close[client];
             Do[Pause[0.02]; If[AnyTrue[events, #["Event"] === "Closed"&], Break[]], {100}];
             closed = Lookup[SelectFirst[events, #["Event"] === "Closed"&, <||>], "ClosedSocket", $Failed];
@@ -48,7 +48,7 @@ TestReport[{
             addresses = accepted["Addresses"];
             result = MatchQ[server, CSocketObject[_Integer]] && server["Role"] === "Binded" &&
                 client["Role"] === "Connected" && accepted["Role"] === "Accepted" &&
-                server["Protocol"] === "TCP" && client["Blocking"] &&
+                server["Protocol"] === "TCP" && (client["BlockingMode"] === "Blocking") &&
                 addresses === Reverse[client["Addresses"]] && server["Addresses"][[2]] === "";
             BinaryWrite[client, ByteArray[{1, 2, 3, 4, 5}]];
             result = result && WLJS`CSockets`Private`socketRecv[id, ByteArray[{0, 0}]] === ByteArray[{1, 2}] &&
@@ -65,9 +65,9 @@ TestReport[{
             server = CSocketOpen["127.0.0.1", 0, "UDP"];
             alias = server;
             list = CSocketList[{server}];
-            result = WLJS`CSockets`Private`socketListGetAll[First[list]] === {First[server]} && alias["Blocking"];
+            result = WLJS`CSockets`Private`socketListGetAll[First[list]] === {First[server]} && (alias["BlockingMode"] === "Blocking");
             WLJS`CSockets`Private`setSocketBlocking[First[server], False];
-            result = result && !alias["Blocking"];
+            result = result && (alias["BlockingMode"] === "NonBlocking");
             Close[list];
             result = result && SocketReadyQ[server] === False;
             Close[server];
@@ -85,7 +85,7 @@ TestReport[{
         Module[{server, client, result},
             server = CSocketOpen["127.0.0.1", 0];
             client = CSocketConnect["127.0.0.1", server["DestinationPort"]];
-            result = MatchQ[client, CSocketObject[_Integer]] && client["Role"] === "Connected" && client["Blocking"];
+            result = MatchQ[client, CSocketObject[_Integer]] && client["Role"] === "Connected" && (client["BlockingMode"] === "Blocking");
             Scan[Close, {client, server}];
             result
         ],

@@ -111,7 +111,6 @@ Common properties:
 | `"Role"` | `"Undefined"`, `"Binded"`, `"Connected"` or `"Accepted"`. |
 | `"State"` | `"Alive"` or `"Closed"`. |
 | `"BlockingMode"` | `"Blocking"` or `"NonBlocking"`. |
-| `"Blocking"` | Boolean shorthand for blocking mode. |
 | `"LocalAddress"`, `"RemoteAddress"` | Stored local and remote endpoints. |
 | `"Addresses"` | `{localEndpoint, remoteEndpoint}`; missing endpoints are `""`. |
 | `"InprocQ"` | Always `False` in this implementation. |

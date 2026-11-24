@@ -219,7 +219,18 @@ DLLEXPORT int socketGetAddresses(WolframLibraryData libData, mint Argc, MArgumen
 
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     mint role = MArgument_getInteger(Args[1]);
+
     struct sockaddr_storage addressStorage[2] = {0};
+    int socketType = 0;
+    socklen_t typeLength = sizeof(socketType);
+    int status = getsockopt(socketId, SOL_SOCKET, SO_TYPE, (char *)&socketType, &typeLength);
+
+    if (status == SOCKET_ERROR) {
+        libData->Message("socketGetAddresses: failed to get socket type");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    const char *scheme = socketType == SOCK_DGRAM ? "udp://" : "tcp://";
 
     switch (role) {
         case SOCKET_ROLE_TCP_UNSPEC:
@@ -230,8 +241,9 @@ DLLEXPORT int socketGetAddresses(WolframLibraryData libData, mint Argc, MArgumen
         case SOCKET_ROLE_UDP_BOUND:
             {
                 socklen_t length = sizeof(addressStorage[0]);
+                status = getsockname(socketId, (struct sockaddr *)&addressStorage[0], &length);
 
-                if (getsockname(socketId, (struct sockaddr *)&addressStorage[0], &length) == SOCKET_ERROR) {
+                if (status == SOCKET_ERROR) {
                     ZeroMemory(&addressStorage[0], sizeof(addressStorage[0]));
                 }
             }
@@ -242,14 +254,16 @@ DLLEXPORT int socketGetAddresses(WolframLibraryData libData, mint Argc, MArgumen
         case SOCKET_ROLE_UDP_CONNECTED:
             {
                 socklen_t length = sizeof(addressStorage[0]);
+                status = getsockname(socketId, (struct sockaddr *)&addressStorage[0], &length);
 
-                if (getsockname(socketId, (struct sockaddr *)&addressStorage[0], &length) == SOCKET_ERROR) {
+                if (status == SOCKET_ERROR) {
                     ZeroMemory(&addressStorage[0], sizeof(addressStorage[0]));
                 }
 
                 length = sizeof(addressStorage[1]);
+                status = getpeername(socketId, (struct sockaddr *)&addressStorage[1], &length);
 
-                if (getpeername(socketId, (struct sockaddr *)&addressStorage[1], &length) == SOCKET_ERROR) {
+                if (status == SOCKET_ERROR) {
                     ZeroMemory(&addressStorage[1], sizeof(addressStorage[1]));
                 }
             }
@@ -261,13 +275,30 @@ DLLEXPORT int socketGetAddresses(WolframLibraryData libData, mint Argc, MArgumen
     }
 
     DataStore addresses = libData->ioLibraryFunctions->createDataStore();
+
     if (!addresses) {
+        libData->Message("socketGetAddresses: failed to allocate address store");
         return LIBRARY_MEMORY_ERROR;
     }
 
     for (int i = 0; i < 2; i++) {
         char *endpoint = sockaddr_storage_to_string(addressStorage[i]);
-        libData->ioLibraryFunctions->DataStore_addString(addresses, endpoint ? endpoint : "");
+
+        if (!endpoint) {
+            continue;
+        }
+
+        char address[INET6_ADDRSTRLEN + 64];
+        int length = snprintf(address, sizeof(address), "%s%s", scheme, endpoint);
+        bool invalidLength = length < 0 || (size_t)length >= sizeof(address);
+
+        if (invalidLength) {
+            libData->ioLibraryFunctions->deleteDataStore(addresses);
+            libData->Message("socketGetAddresses: failed to format address");
+            return LIBRARY_FUNCTION_ERROR;
+        }
+
+        libData->ioLibraryFunctions->DataStore_addString(addresses, address);
     }
 
     MArgument_setDataStore(Res, addresses);
