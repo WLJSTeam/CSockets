@@ -27,6 +27,10 @@ CSocketHandler::usage =
 "CSocketHandler[] mutable handler object.";
 
 
+CSocketsHandle::usage =
+"CSocketsHandle[{sockets}, handler] synchronously polls sockets, accepts TCP connections, and handles incoming messages until all sockets are closed or evaluation is aborted.";
+
+
 Begin["`Private`"];
 
 
@@ -246,6 +250,156 @@ Catch @ With[{socketIds = sockets[[All, 1]]}, {
 Protect[SocketListen];
 
 
+(* :CSocketsHandle: *)
+
+
+CSocketsHandle::socket =
+"Socket `1` must be registered with role Connected, Accepted, or Bound.";
+
+
+CSocketsHandle[sockets: {CSocketObject[_Integer]...}, handler_] :=
+Catch @ Module[{
+    socketIds = DeleteDuplicates[First /@ sockets],
+    events, acceptedId, received, role, failed
+},
+    Scan[Function[id,
+        role = {$CSockets[id, "Protocol"], $CSockets[id, "Role"]};
+
+        If[!MatchQ[role, {"TCP", "Bound" | "Connected" | "Accepted"} | {"UDP", "Bound" | "Connected"}],
+            Message[CSocketsHandle::socket, CSocketObject[id]];
+            Throw[$Failed]
+        ];
+    ], socketIds];
+
+    Scan[($CSockets[#, "Handler"] = handler)&, socketIds];
+
+    While[socketIds =!= {},
+        socketIds = Select[socketIds, KeyExistsQ[$CSockets, #]&];
+        If[socketIds === {}, Break[]];
+
+        events = Quiet @ Check[socketsPoll[socketIds, 10 ^ 6, $POLLIN], $Failed];
+
+        If[!MatchQ[events, {{_Integer, _Integer}...}],
+            With[{remaining = checkHandledSockets[socketIds, handler]},
+                If[remaining === socketIds,
+                    Message[poll::fail, socketIds];
+                    Throw[$Failed]
+                ];
+
+                socketIds = remaining;
+            ];
+            Continue[]
+        ];
+
+        failed = False;
+
+        Check[
+            Scan[Function[event,
+                With[{id = First[event], flags = Last[event]},
+                    If[!KeyExistsQ[$CSockets, id], Return[Null]];
+
+                    If[BitAnd[flags, $POLLNVAL] != 0 ||
+                        (BitAnd[flags, $POLLERR] != 0 && BitAnd[flags, $POLLIN] === 0),
+                        closeHandledSocket[id, handler, "Error", flags];
+                        failed = True;
+                        Return[Null]
+                    ];
+
+                    If[BitAnd[flags, $POLLIN] != 0,
+                        role = {$CSockets[id, "Protocol"], $CSockets[id, "Role"]};
+
+                        If[role === {"TCP", "Bound"},
+                            acceptedId = Quiet @ Check[socketAccept[id], $Failed];
+
+                            If[!IntegerQ[acceptedId],
+                                failed = True;
+                                dispatchHandledEvent[handler, "Error", id, acceptedId];
+                                Return[Null]
+                            ];
+
+                            received = Quiet @ Check[Catch[registerAcceptedSocket[id, acceptedId]], $Failed];
+
+                            If[received === $Failed,
+                                socketClose[acceptedId];
+                                unregisterSocket[acceptedId];
+                                failed = True;
+                                dispatchHandledEvent[handler, "Error", id, $Failed];
+                                Return[Null]
+                            ];
+
+                            $CSockets[acceptedId, "Handler"] = handler;
+                            AppendTo[socketIds, acceptedId];
+                            dispatchHandledEvent[handler, "Accepted", id, acceptedId],
+                        (*Else*)
+                            received = Quiet @ Check[Catch[read[id]], $Failed];
+
+                            If[received === $Failed,
+                                closeHandledSocket[id, handler, If[First[role] === "TCP", "Closed", "Error"], $Failed];
+                                failed = True;
+                                Return[Null]
+                            ];
+
+                            If[role === {"UDP", "Bound"},
+                                dispatchHandledEvent[handler, "ReceivedFrom", id, Sequence @@ received],
+                                dispatchHandledEvent[handler, "Received", id, received]
+                            ]
+                        ],
+                    (*Else*)
+                        If[BitAnd[flags, $POLLHUP] != 0,
+                            closeHandledSocket[id, handler, "Closed"]
+                        ]
+                    ];
+                ]
+            ], events],
+            failed = True
+        ];
+
+        If[failed, socketIds = checkHandledSockets[socketIds, handler]];
+    ];
+];
+
+
+dispatchHandledEvent[handler_, name_String, id_Integer, data___] :=
+With[{packet = Join[
+    <|"Timestamp" -> Now, "MultipartComplete" -> True, "Event" -> name|>,
+    createEventData[name, id, data]
+]},
+    With[{result = handler[packet]},
+        If[MemberQ[{"Received", "ReceivedFrom"}, name] && !MatchQ[handler, _CSocketHandler],
+            sendResponse[Append[packet, "Result" -> result]]
+        ];
+
+        result
+    ]
+];
+
+
+closeHandledSocket[id_Integer, handler_, name: "Closed" | "Error", code_: 0] :=
+(
+    If[TrueQ[Quiet @ Check[socketValidQ[id], False]],
+        close[id],
+        unregisterSocket[id]
+    ];
+
+    dispatchHandledEvent[handler, name, id, code];
+);
+
+
+checkHandledSockets[socketIds: {___Integer}, handler_] :=
+Module[{registered, valid},
+    registered = Select[socketIds, KeyExistsQ[$CSockets, #]&];
+    If[registered === {}, Return[{}]];
+
+    valid = Quiet @ Check[socketsCheck[registered], $Failed];
+    If[!MatchQ[valid, {___Integer}], Throw[$Failed]];
+
+    valid = Select[valid, TrueQ[Quiet @ Check[socketValidQ[#], False]]&];
+    Scan[closeHandledSocket[#, handler, "Closed"]&, Complement[registered, valid]];
+
+    Select[valid, KeyExistsQ[$CSockets, #]&]
+];
+
+
 removeSocketListener[taskId_Integer] :=
 KeyValueMap[Function[{socketId, metadata},
     With[{listener = Lookup[metadata, "Listener", Null]},
@@ -349,7 +503,7 @@ Module[{
 
         bytes = getMessage[processedPacket];
         remaining = bytes[[processedPacket["ExpectedLength"] + 1 ;;]];
-        processedPacket["DataByteArray"] = bytes[[1 ;; processedPacket["ExpectedLength"]]];
+        processedPacket["DataByteArray"] = ByteArray[bytes[[1 ;; processedPacket["ExpectedLength"]]]];
         processedPacket["DataBytes"] = Normal[processedPacket["DataByteArray"]];
         clearBuffer[processedPacket];
         processedPacket["Data"] = handler["Deserializer"][processedPacket["DataByteArray"]];

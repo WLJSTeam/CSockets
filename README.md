@@ -204,6 +204,41 @@ The callback receives event associations such as:
 |>
 ```
 
+### `CSocketsHandle`
+
+`CSocketsHandle[{socket1, socket2, ...}, handler]` runs a synchronous polling
+loop in the current kernel. Use it in a server script without a separate
+`While[True, Pause[1]]`:
+
+```wl
+server = CSocketOpen["127.0.0.1", 8080];
+handler = CSocketHandler[
+  "Received" -> (#DataByteArray &),
+  "ReceivedFrom" -> (#DataByteArray &)
+];
+
+CSocketsHandle[{server}, handler];
+```
+
+The list may contain multiple TCP and UDP servers, connected sockets, and
+accepted TCP sockets. A ready TCP server accepts a connection and adds it to
+the loop. Connected and accepted sockets produce `"Received"` events; bound
+UDP sockets produce `"ReceivedFrom"` events with the sender's `"Address"`.
+Accepted sockets inherit the server's handler and retain their `"ListenSocket"`.
+
+`CSocketHandler` provides the same buffering, serialization, callbacks, and
+automatic replies as with `SocketListen`. You can also pass an ordinary function
+of the event association: its string or `ByteArray` result is sent back for
+received data, and `Null` skips the reply. Synchronous event packets have no
+`"Task"` field.
+
+The loop waits up to one second per poll, removes closed or failed sockets,
+and checks all remaining descriptors after an I/O error. It returns `Null` when
+no sockets remain, or `$Failed` for an unrecoverable poll error. An empty input
+list returns immediately. Abort evaluation to stop a running server; sockets
+that are still open remain available through `$CSockets` and can be closed with
+`Close`.
+
 ## `CSocketHandler`
 
 `CSocketHandler[]` creates a mutable handler object.
