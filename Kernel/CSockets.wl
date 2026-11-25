@@ -27,8 +27,8 @@ CSocketHandler::usage =
 "CSocketHandler[] mutable handler object.";
 
 
-CSocketsHandle::usage =
-"CSocketsHandle[{sockets}, handler] synchronously polls sockets, accepts TCP connections, and handles incoming messages until all sockets are closed or evaluation is aborted.";
+CSocketHandle::usage =
+"CSocketHandle[{socket1 -> handler1, socket2 -> handler2, ...}] synchronously polls sockets and dispatches events to each socket's handler until all sockets are closed or evaluation is aborted.";
 
 
 Begin["`Private`"];
@@ -250,28 +250,28 @@ Catch @ With[{socketIds = sockets[[All, 1]]}, {
 Protect[SocketListen];
 
 
-(* :CSocketsHandle: *)
+(* :CSocketHandle: *)
 
 
-CSocketsHandle::socket =
+CSocketHandle::socket =
 "Socket `1` must be registered with role Connected, Accepted, or Bound.";
 
 
-CSocketsHandle[sockets: {CSocketObject[_Integer]...}, handler_] :=
+CSocketHandle[bindings: {Rule[CSocketObject[_Integer], _]...}] :=
 Catch @ Module[{
-    socketIds = DeleteDuplicates[First /@ sockets],
-    events, acceptedId, received, role, failed
+    socketIds = DeleteDuplicates[First /@ bindings[[All, 1]]],
+    events, role, failed
 },
     Scan[Function[id,
         role = {$CSockets[id, "Protocol"], $CSockets[id, "Role"]};
 
         If[!MatchQ[role, {"TCP", "Bound" | "Connected" | "Accepted"} | {"UDP", "Bound" | "Connected"}],
-            Message[CSocketsHandle::socket, CSocketObject[id]];
+            Message[CSocketHandle::socket, CSocketObject[id]];
             Throw[$Failed]
         ];
     ], socketIds];
 
-    Scan[($CSockets[#, "Handler"] = handler)&, socketIds];
+    Scan[($CSockets[#[[1, 1]], "Handler"] = Last[#])&, bindings];
 
     While[socketIds =!= {},
         socketIds = Select[socketIds, KeyExistsQ[$CSockets, #]&];
@@ -280,7 +280,7 @@ Catch @ Module[{
         events = Quiet @ Check[socketsPoll[socketIds, 10 ^ 6, $POLLIN], $Failed];
 
         If[!MatchQ[events, {{_Integer, _Integer}...}],
-            With[{remaining = checkHandledSockets[socketIds, handler]},
+            With[{remaining = checkHandledSockets[socketIds]},
                 If[remaining === socketIds,
                     Message[poll::fail, socketIds];
                     Throw[$Failed]
@@ -295,67 +295,76 @@ Catch @ Module[{
 
         Check[
             Scan[Function[event,
-                With[{id = First[event], flags = Last[event]},
-                    If[!KeyExistsQ[$CSockets, id], Return[Null]];
-
-                    If[BitAnd[flags, $POLLNVAL] != 0 ||
-                        (BitAnd[flags, $POLLERR] != 0 && BitAnd[flags, $POLLIN] === 0),
-                        closeHandledSocket[id, handler, "Error", flags];
-                        failed = True;
-                        Return[Null]
-                    ];
-
-                    If[BitAnd[flags, $POLLIN] != 0,
-                        role = {$CSockets[id, "Protocol"], $CSockets[id, "Role"]};
-
-                        If[role === {"TCP", "Bound"},
-                            acceptedId = Quiet @ Check[socketAccept[id], $Failed];
-
-                            If[!IntegerQ[acceptedId],
-                                failed = True;
-                                dispatchHandledEvent[handler, "Error", id, acceptedId];
-                                Return[Null]
-                            ];
-
-                            received = Quiet @ Check[Catch[registerAcceptedSocket[id, acceptedId]], $Failed];
-
-                            If[received === $Failed,
-                                socketClose[acceptedId];
-                                unregisterSocket[acceptedId];
-                                failed = True;
-                                dispatchHandledEvent[handler, "Error", id, $Failed];
-                                Return[Null]
-                            ];
-
-                            $CSockets[acceptedId, "Handler"] = handler;
-                            AppendTo[socketIds, acceptedId];
-                            dispatchHandledEvent[handler, "Accepted", id, acceptedId],
-                        (*Else*)
-                            received = Quiet @ Check[Catch[read[id]], $Failed];
-
-                            If[received === $Failed,
-                                closeHandledSocket[id, handler, If[First[role] === "TCP", "Closed", "Error"], $Failed];
-                                failed = True;
-                                Return[Null]
-                            ];
-
-                            If[role === {"UDP", "Bound"},
-                                dispatchHandledEvent[handler, "ReceivedFrom", id, Sequence @@ received],
-                                dispatchHandledEvent[handler, "Received", id, received]
-                            ]
-                        ],
-                    (*Else*)
-                        If[BitAnd[flags, $POLLHUP] != 0,
-                            closeHandledSocket[id, handler, "Closed"]
-                        ]
-                    ];
+                With[{added = Apply[handleSocketEvent, event]},
+                    If[added === $Failed,
+                        failed = True,
+                        socketIds = DeleteDuplicates[Join[socketIds, added]]
+                    ]
                 ]
             ], events],
             failed = True
         ];
 
-        If[failed, socketIds = checkHandledSockets[socketIds, handler]];
+        If[failed, socketIds = checkHandledSockets[socketIds]];
     ];
+];
+
+
+handleSocketEvent[id_Integer, flags_Integer] :=
+Module[{handler, role, acceptedId, received},
+    If[!KeyExistsQ[$CSockets, id], Return[{}]];
+
+    handler = $CSockets[id, "Handler"];
+
+    If[BitAnd[flags, $POLLNVAL] != 0 ||
+        (BitAnd[flags, $POLLERR] != 0 && BitAnd[flags, $POLLIN] === 0),
+        closeHandledSocket[id, handler, "Error", flags];
+        Return[$Failed]
+    ];
+
+    If[BitAnd[flags, $POLLIN] != 0,
+        role = {$CSockets[id, "Protocol"], $CSockets[id, "Role"]};
+
+        If[role === {"TCP", "Bound"},
+            acceptedId = Quiet @ Check[socketAccept[id], $Failed];
+
+            If[!IntegerQ[acceptedId],
+                dispatchHandledEvent[handler, "Error", id, acceptedId];
+                Return[$Failed]
+            ];
+
+            received = Quiet @ Check[Catch[registerAcceptedSocket[id, acceptedId]], $Failed];
+
+            If[received === $Failed,
+                socketClose[acceptedId];
+                unregisterSocket[acceptedId];
+                dispatchHandledEvent[handler, "Error", id, $Failed];
+                Return[$Failed]
+            ];
+
+            $CSockets[acceptedId, "Handler"] = handler;
+            dispatchHandledEvent[handler, "Accepted", id, acceptedId];
+            Return[{acceptedId}],
+        (*Else*)
+            received = Quiet @ Check[Catch[read[id]], $Failed];
+
+            If[received === $Failed,
+                closeHandledSocket[id, handler, If[First[role] === "TCP", "Closed", "Error"], $Failed];
+                Return[$Failed]
+            ];
+
+            If[role === {"UDP", "Bound"},
+                dispatchHandledEvent[handler, "ReceivedFrom", id, Sequence @@ received],
+                dispatchHandledEvent[handler, "Received", id, received]
+            ]
+        ],
+    (*Else*)
+        If[BitAnd[flags, $POLLHUP] != 0,
+            closeHandledSocket[id, handler, "Closed"]
+        ]
+    ];
+
+    {}
 ];
 
 
@@ -385,7 +394,7 @@ closeHandledSocket[id_Integer, handler_, name: "Closed" | "Error", code_: 0] :=
 );
 
 
-checkHandledSockets[socketIds: {___Integer}, handler_] :=
+checkHandledSockets[socketIds: {___Integer}] :=
 Module[{registered, valid},
     registered = Select[socketIds, KeyExistsQ[$CSockets, #]&];
     If[registered === {}, Return[{}]];
@@ -394,7 +403,11 @@ Module[{registered, valid},
     If[!MatchQ[valid, {___Integer}], Throw[$Failed]];
 
     valid = Select[valid, TrueQ[Quiet @ Check[socketValidQ[#], False]]&];
-    Scan[closeHandledSocket[#, handler, "Closed"]&, Complement[registered, valid]];
+    Scan[Function[id,
+        If[KeyExistsQ[$CSockets, id],
+            closeHandledSocket[id, $CSockets[id, "Handler"], "Closed"]
+        ]
+    ], Complement[registered, valid]];
 
     Select[valid, KeyExistsQ[$CSockets, #]&]
 ];
@@ -431,7 +444,7 @@ Options[CSocketHandler] = {
 With[{store = Language`NewExpressionStore["CSocketHandler"]},
 
     CSocketHandler[OptionsPattern[]] :=
-    With[{handler = CSocketHandler[Null]},
+    With[{handler = CSocketHandler[CreateUUID[]]},
         Map[store["put"[handler, #, OptionValue[#]]]&] @ Keys[Options[CSocketHandler]];
 
         handler
@@ -473,7 +486,7 @@ Format[handler_CSocketHandler, InputForm] :=
 SequenceForm[CSocketHandler] @ Map[Function[# -> handler[#]]] @ Keys @ Options[CSocketHandler];
 
 
-CSocketHandler /: MakeBoxes[handler: CSocketHandler[Null], form: (StandardForm | TraditionalForm)] :=
+CSocketHandler /: MakeBoxes[handler: CSocketHandler[_String], form: (StandardForm | TraditionalForm)] :=
 Module[{above, below},
     {above, below} = TakeDrop[Map[# -> handler[#]&] @ Keys @ Options[CSocketHandler], 2];
 

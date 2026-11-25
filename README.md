@@ -204,27 +204,38 @@ The callback receives event associations such as:
 |>
 ```
 
-### `CSocketsHandle`
+### `CSocketHandle`
 
-`CSocketsHandle[{socket1, socket2, ...}, handler]` runs a synchronous polling
-loop in the current kernel. Use it in a server script without a separate
+`CSocketHandle[{socket1 -> handler1, socket2 -> handler2, ...}]` runs a
+synchronous polling loop in the current kernel. Each socket has its own handler.
+Use it in a server script without a separate
 `While[True, Pause[1]]`:
 
 ```wl
-server = CSocketOpen["127.0.0.1", 8080];
-handler = CSocketHandler[
-  "Received" -> (#DataByteArray &),
+tcpServer = CSocketOpen["127.0.0.1", 8080];
+udpServer = CSocketOpen["127.0.0.1", 8080, "UDP"];
+tcpHandler = CSocketHandler[
+  "Deserializer" -> ByteArrayToString,
+  "Received" -> (ToUpperCase[#Data] &)
+];
+udpHandler = CSocketHandler[
   "ReceivedFrom" -> (#DataByteArray &)
 ];
 
-CSocketsHandle[{server}, handler];
+CSocketHandle[{
+  tcpServer -> tcpHandler,
+  udpServer -> udpHandler
+}];
 ```
 
 The list may contain multiple TCP and UDP servers, connected sockets, and
 accepted TCP sockets. A ready TCP server accepts a connection and adds it to
 the loop. Connected and accepted sockets produce `"Received"` events; bound
 UDP sockets produce `"ReceivedFrom"` events with the sender's `"Address"`.
-Accepted sockets inherit the server's handler and retain their `"ListenSocket"`.
+Accepted sockets inherit their server's handler and retain their `"ListenSocket"`,
+including after the listening socket is closed. Each socket's data, accept,
+close, and error events go to its assigned handler. If a socket appears more
+than once, its last rule supplies the handler.
 
 `CSocketHandler` provides the same buffering, serialization, callbacks, and
 automatic replies as with `SocketListen`. You can also pass an ordinary function
@@ -325,6 +336,54 @@ wolframscript -f Example.wls -p 8080
 ```
 
 The `Scripts/` folder also contains sample programs such as `Echo.wls`, `HTTPEcho.wls`, `TCPStreamingServer.wls`, and `SpeedTestServer.wls`.
+
+### Synchronous server latency benchmark
+
+```powershell
+python Scripts/LatencyBenchmark.py
+```
+
+This starts one Wolfram kernel running `CSocketHandle` with separate
+`CSocketHandler` byte echo handlers for TCP and UDP. A Python client measures
+round-trip time on `127.0.0.1`: immediately before sending a request until its
+entire echo is received. Every response is validated outside the timed interval.
+There is one outstanding request at a time, no pipelining, and one persistent
+TCP connection with `TCP_NODELAY` enabled on both ends. TCP echoes each read;
+the client assembles exactly the original request length, including split reads.
+
+By default it measures 1, 64, 1024, 8192, and 65500 bytes in each direction,
+using three rounds of 1000 samples per case and 100 untimed warmup exchanges
+before each batch. The case order is shuffled in each round with a fixed seed.
+Server startup and connection setup are excluded. The server polls its TCP,
+UDP, and shutdown sockets together; the data handler uses its default serializer,
+deserializer, accumulator, and logger, with no printing per request.
+
+The script prints a table in milliseconds with minimum, median, mean, p95, p99,
+and maximum RTT. It saves the individual nanosecond samples, per-round summaries,
+environment, and method to `benchmarks/SynchronousLatency.json`. Results describe
+local application RTT, including the Python client, OS scheduling, and the WL
+handler pipeline, rather than network latency between two machines.
+Completed batches are also checkpointed to `*.attemptN.partial.json` outside
+the timed intervals. If the server crashes, these files preserve the completed
+batches; the script exits unsuccessfully rather than publishing a complete run.
+
+```powershell
+python Scripts/LatencyBenchmark.py --samples 2000 --rounds 3 --warmup 200
+python Scripts/LatencyBenchmark.py --sizes 1 64 1024 --output benchmarks/SmallMessages.json
+```
+
+To bypass user initialization or select a specific Wolfram installation, pass
+its console executable. This launches it directly with `-noinit -script`:
+
+```powershell
+python Scripts/LatencyBenchmark.py --kernel "C:/Program Files/Wolfram Research/Wolfram/15.0/WolframKernel.exe"
+```
+
+The measured summary in `benchmarks/SynchronousLatencySummary.json` reports the
+completed first round (1000 RTTs per case) of an interrupted three-round run.
+It records the subsequent native process failure and the availability of raw
+samples explicitly. `benchmarks/SynchronousLatencySmoke.json` contains the raw
+samples from a separate successful short validation run.
 
 ## Address strings
 

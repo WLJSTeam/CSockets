@@ -14,6 +14,21 @@ Get[
 
 socketHandlerTests = {
     VerificationTest[
+        Module[{
+            first = CSocketHandler["Received" -> Function["first"]],
+            second = CSocketHandler["Received" -> Function["second"]]
+        },
+            first["Logger"] = Function["first logger"];
+            first["Buffer"]["Insert", "fragment" -> ByteArray[{1}]];
+
+            first["Received"][<||>] === "first" && second["Received"][<||>] === "second" &&
+                first["Logger"][42] === "first logger" && second["Logger"][42] === 42 &&
+                MissingQ[second["Buffer"]["Lookup", "fragment"]]
+        ],
+        True,
+        TestID -> "handler-instances-have-independent-callbacks-options-and-buffers"
+    ],
+    VerificationTest[
         Lookup[
             WLJS`CSockets`Private`createEventData["Accepted", 10, 20],
             "AcceptedSocket"
