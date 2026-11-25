@@ -227,7 +227,9 @@ Catch @ With[{socketIds = sockets[[All, 1]]}, {
     With[{task = Internal`CreateAsynchronousTask[
         socketPollLoopCreate,
         {socketIds, roles, 10 ^ 6, $POLLIN},
-        dispatchPollEvent
+        dispatchPollEvent,
+        "PostStopAsynchronousTask" -> (removeSocketListener[#[[2]]]&),
+        "PostRemoveAsynchronousTask" -> (removeSocketListener[#[[2]]]&)
     ]},
         If[MatchQ[task, _AsynchronousTaskObject],
             Scan[($CSockets[#, "Listener"] = task)&, socketIds];
@@ -239,6 +241,16 @@ Catch @ With[{socketIds = sockets[[All, 1]]}, {
 
 
 Protect[SocketListen];
+
+
+removeSocketListener[taskId_Integer] :=
+KeyValueMap[Function[{socketId, metadata},
+    With[{listener = Lookup[metadata, "Listener", Null]},
+        If[MatchQ[listener, _AsynchronousTaskObject] && listener[[2]] === taskId,
+            $CSockets[socketId, "Listener"] = Null
+        ]
+    ]
+], $CSockets];
 
 
 CSocketHandler::length =
@@ -712,7 +724,13 @@ Module[{addresses},
 
 
 unregisterSocket[socketId_Integer] :=
-KeyDropFrom[$CSockets, socketId];
+With[{handler = Lookup[Lookup[$CSockets, socketId, <||>], "Handler", Null]},
+    If[MatchQ[handler, _CSocketHandler],
+        removeSocketBuffer[handler, socketId]
+    ];
+
+    KeyDropFrom[$CSockets, socketId]
+];
 
 
 acceptedEvent[task_AsynchronousTaskObject, listenId_Integer, acceptedId_Integer] :=
@@ -864,8 +882,14 @@ With[{handler = packet["Handler"], key = packet["BufferKey"]},
 
 
 clearBuffer[packet_Association] :=
-With[{buffer = packet["Handler"]["Buffer"]["Lookup", packet["BufferKey"]]},
-    If[!MissingQ[buffer], buffer["DropAll"]]
+packet["Handler"]["Buffer"]["KeyDrop", packet["BufferKey"]];
+
+
+removeSocketBuffer[handler_CSocketHandler, socketId_Integer] :=
+With[{buffer = handler["Buffer"]},
+    Scan[buffer["KeyDrop", #]&, Select[buffer["Keys"],
+        # === socketId || MatchQ[#, {socketId, _String}]&
+    ]]
 ];
 
 

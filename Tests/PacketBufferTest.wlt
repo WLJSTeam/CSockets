@@ -7,7 +7,7 @@ TestReport[{
     VerificationTest[
         Block[{
             sent = {}, logged = {}, decoded = {}, expectedCalls = 0,
-            WLJS`CSockets`Private`socketSend = Function[{row, bytes, length}, AppendTo[sent, bytes]; length]
+            WLJS`CSockets`Private`socketSend = Function[{row, bytes}, AppendTo[sent, bytes]; Length[bytes]]
         },
             Module[{handler, packet, first, last, before},
                 handler = CSocketHandler[
