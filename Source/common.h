@@ -6,21 +6,6 @@
 
 
 #define _DEBUG 1
-#define FD_SETSIZE 4096
-#define SECOND 1000000
-#define MININTERVAL 1000
-#define USEC_PER_SEC 1000000L
-
-
-#define BLOCKING_MODE 0
-#define NON_BLOCKING_MODE 1
-
-
-#define RESET "\033[0m"
-#define RED "\033[91m"
-#define GREEN "\033[92m"
-#define BLUE "\033[94m"
-#define YELLOW "\033[93m"
 
 
 #ifdef _WIN32
@@ -32,14 +17,7 @@
     #define CLOSESOCKET(s) closesocket(s)
     #define GETSOCKETERRNO() (WSAGetLastError())
     #pragma comment (lib, "Ws2_32.lib")
-    typedef HANDLE Mutex;
-    #define MUTEX_INITIALIZER NULL
-    #define SLEEP Sleep
-    #define ms 1
     #define POLL_FD WSAPOLLFD
-    #define POLL_FUNCTION WSAPoll
-    #define POLLIN_FLAG POLLRDNORM
-    #define POLLERR_FLAG POLLERR
 #else
     #include <sys/types.h>
     #include <sys/socket.h>
@@ -57,24 +35,15 @@
     #include <pthread.h>
     #include <dlfcn.h>
     #define INVALID_SOCKET -1
-    #define NO_ERROR 0
     #define SOCKET_ERROR -1
     #define ZeroMemory(Destination,Length) memset((Destination),0,(Length))
-    inline void nopp() {}
     #define SOCKET int
     #define ISVALIDSOCKET(s) ((s) >= 0)
     #define CLOSESOCKET(s) close(s)
     #define GETSOCKETERRNO() (errno)
     #define BYTE uint8_t
-    #define BOOL int
-    typedef pthread_mutex_t Mutex;
-    #define MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
-    #define SLEEP usleep
     #include <poll.h>
     #define POLL_FD struct pollfd
-    #define POLL_FUNCTION poll
-    #define POLLIN_FLAG POLLIN
-    #define POLLERR_FLAG POLLERR
 #endif
 
 
@@ -173,10 +142,10 @@ bool socket_list_prune(socket_list *list);
 bool socket_list_to_poll_fd(socket_list *list, POLL_FD **fds, size_t *length, int events);
 
 
-void set_blocking_mode(SOCKET socketId);
+int set_blocking_mode(SOCKET socketId);
 
 
-void set_nonblocking_mode(SOCKET socketId);
+int set_nonblocking_mode(SOCKET socketId);
 
 
 struct sockaddr_storage create_sockaddr_storage(const char *numerichost, const char *port);
@@ -198,9 +167,6 @@ int convert_wl_to_native_events(mint wl_events);
 
 
 mint convert_native_to_wl_events(int native_revents);
-
-
-int socket_address_from_host(const char *host, unsigned short port, struct sockaddr_storage *address, socklen_t *addressLength);
 
 
 int socket_address_to_host(const struct sockaddr_storage *address, char *host, size_t hostLength, unsigned short *port);

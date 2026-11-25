@@ -1,29 +1,47 @@
 #include "WolframLibrary.h"
 #include "WolframNumericArrayLibrary.h"
 
-DLLEXPORT mint WolframLibrary_getVersion(void) { return WolframLibraryVersion; }
-DLLEXPORT int WolframLibrary_initialize(WolframLibraryData data) { return LIBRARY_NO_ERROR; }
 
-DLLEXPORT int tensorShares(WolframLibraryData data, mint argc, MArgument *args, MArgument result)
+DLLEXPORT mint WolframLibrary_getVersion(void)
 {
-    MTensor tensor = MArgument_getMTensor(args[0]);
-    mint count = data->MTensor_shareCount(tensor);
-    data->MTensor_disown(tensor);
-    MArgument_setInteger(result, count);
+    return WolframLibraryVersion;
+}
+
+
+DLLEXPORT int WolframLibrary_initialize(WolframLibraryData libData)
+{
+    (void)libData;
     return LIBRARY_NO_ERROR;
 }
 
-DLLEXPORT int arrayShares(WolframLibraryData data, mint argc, MArgument *args, MArgument result)
+
+DLLEXPORT int tensorShares(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    MNumericArray array = MArgument_getMNumericArray(args[0]);
-    mint count = data->numericarrayLibraryFunctions->MNumericArray_shareCount(array);
-    data->numericarrayLibraryFunctions->MNumericArray_disown(array);
-    MArgument_setInteger(result, count);
+    if (Argc != 1) {
+        libData->Message("tensorShares: invalid argument count");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    MTensor tensor = MArgument_getMTensor(Args[0]);
+
+    mint count = libData->MTensor_shareCount(tensor);
+    libData->MTensor_disown(tensor);
+    MArgument_setInteger(Res, count);
     return LIBRARY_NO_ERROR;
 }
 
-DLLEXPORT int retainTensor(WolframLibraryData data, mint argc, MArgument *args, MArgument result)
+
+DLLEXPORT int arrayShares(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    /* Intentionally retain a reference to verify that Close releases all shares. */
+    if (Argc != 1) {
+        libData->Message("arrayShares: invalid argument count");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    MNumericArray array = MArgument_getMNumericArray(Args[0]);
+
+    mint count = libData->numericarrayLibraryFunctions->MNumericArray_shareCount(array);
+    libData->numericarrayLibraryFunctions->MNumericArray_disown(array);
+    MArgument_setInteger(Res, count);
     return LIBRARY_NO_ERROR;
 }

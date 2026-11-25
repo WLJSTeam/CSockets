@@ -9,7 +9,7 @@ DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Arg
     }
 
     int family = (int)MArgument_getInteger(Args[0]);
-    int protocol = (int)MArgument_getInteger(Args[1]);
+    mint protocol = MArgument_getInteger(Args[1]);
     int socktype;
 
     switch (protocol) {
@@ -26,7 +26,7 @@ DLLEXPORT int socketCreate(WolframLibraryData libData, mint Argc, MArgument *Arg
             return LIBRARY_FUNCTION_ERROR;
     }
 
-    SOCKET createdSocket = socket(family, socktype, protocol);
+    SOCKET createdSocket = socket(family, socktype, (int)protocol);
     if (createdSocket == INVALID_SOCKET) {
         libData->Message(format("socketCreate: failed %d", GETSOCKETERRNO()));
         return LIBRARY_FUNCTION_ERROR;
@@ -179,10 +179,17 @@ DLLEXPORT int socketSetBlockingMode(WolframLibraryData libData, mint Argc, MArgu
 
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
 
-    if (ISVALIDSOCKET(socketId)) {
-        set_blocking_mode(socketId);
-    } else {
+    bool valid = ISVALIDSOCKET(socketId);
+
+    if (!valid) {
         libData->Message("socketSetBlockingMode: invalid socket");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    int status = set_blocking_mode(socketId);
+
+    if (status == SOCKET_ERROR) {
+        libData->Message("socketSetBlockingMode: failed to set blocking mode");
         return LIBRARY_FUNCTION_ERROR;
     }
 
@@ -199,10 +206,17 @@ DLLEXPORT int socketSetNonBlockingMode(WolframLibraryData libData, mint Argc, MA
 
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
 
-    if (ISVALIDSOCKET(socketId)) {
-        set_nonblocking_mode(socketId);
-    } else {
+    bool valid = ISVALIDSOCKET(socketId);
+
+    if (!valid) {
         libData->Message("socketSetNonBlockingMode: invalid socket");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    int status = set_nonblocking_mode(socketId);
+
+    if (status == SOCKET_ERROR) {
+        libData->Message("socketSetNonBlockingMode: failed to set nonblocking mode");
         return LIBRARY_FUNCTION_ERROR;
     }
 
@@ -432,8 +446,16 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
     }
 
     int result = recv(socketId, (char *)bufferData, (int)bufferSize, 0);
+    bool received = result > 0;
 
-    if (result > 0) {
+    if (result == 0) {
+        int socketType = 0;
+        socklen_t typeLength = sizeof(socketType);
+        int status = getsockopt(socketId, SOL_SOCKET, SO_TYPE, (char *)&socketType, &typeLength);
+        received = status == 0 && socketType == SOCK_DGRAM;
+    }
+
+    if (received) {
         MNumericArray receivedData = MNumericArrayFromByte(libData, bufferData, (size_t)result);
         libData->numericarrayLibraryFunctions->MNumericArray_disown(buffer);
 

@@ -2,8 +2,7 @@
 
 BeginPackage["WLJS`CSockets`",
     {
-        "LibraryLink`",
-        "CCompilerDriver`"
+        "LibraryLink`"
     }
 ];
 
@@ -107,6 +106,10 @@ Catch @ With[{readySockets = poll[{socketId}, timeout]},
 Unprotect[SocketWaitNext, SocketWaitAll];
 
 
+SocketWaitNext[sockets: {__CSocketObject}] :=
+SocketWaitNext[sockets, "Timeout" -> 5];
+
+
 SocketWaitNext[sockets: {__CSocketObject}, opts: OptionsPattern[{"Timeout" -> 5}]] :=
 Catch @ With[{socketIds = sockets[[All, 1]], timeout = OptionValue["Timeout"]},
     If[!NumberQ[timeout] || timeout < 0 || timeout > 60,
@@ -146,7 +149,7 @@ Catch @ read[id];
 
 
 CSocketObject /: ReadString[CSocketObject[id_Integer]] :=
-Catch @ Replace[read[id], {bytes_ByteArray :> ByteArrayToString[bytes]}];
+Catch @ ReplaceAll[read[id], {bytes_ByteArray :> ByteArrayToString[bytes]}];
 
 
 CSocketObject /: SocketReadMessage[CSocketObject[id_Integer]] :=
@@ -378,7 +381,7 @@ socketRoleCode::role =
 
 
 socketRoleCode[socketId_Integer] :=
-With[{role = {socketProperty[socketId, "Protocol"], socketProperty[socketId, "Role"]}},
+With[{role = {$CSockets[socketId, "Protocol"], $CSockets[socketId, "Role"]}},
     Switch[role,
         {"TCP", "Unspecified"}, $SOCKETROLETCPUNSPEC,
         {"TCP", "Bound"}, $SOCKETROLETCPBOUND,
@@ -421,7 +424,7 @@ Check[
         $CSockets[socketId, "Role"] = "Bound";
         $CSockets[socketId, "DirectionType"] = "Server";
         $CSockets[socketId, "LocalAddress"] = First @ socketGetAddresses[socketId,
-            If[socketProperty[socketId, "Protocol"] === "UDP", $SOCKETROLEUDPBOUND, $SOCKETROLETCPBOUND]
+            If[$CSockets[socketId, "Protocol"] === "UDP", $SOCKETROLEUDPBOUND, $SOCKETROLETCPBOUND]
         ];
         $CSockets[socketId, "Addresses"] = {
             $CSockets[socketId, "LocalAddress"], $CSockets[socketId, "RemoteAddress"]
@@ -445,7 +448,7 @@ Check[
         $CSockets[socketId, "DirectionType"] = "Server";
     ],
 
-    Message[listen::fail, socketId, socketProperty[socketId, "LocalAddress"]];
+    Message[listen::fail, socketId, $CSockets[socketId, "LocalAddress"]];
     close[socketId];
     Throw[$Failed];
 ];
@@ -461,7 +464,7 @@ Check[
         $CSockets[socketId, "Role"] = "Connected";
         $CSockets[socketId, "DirectionType"] = "Client";
         With[{addresses = socketGetAddresses[socketId,
-            If[socketProperty[socketId, "Protocol"] === "UDP", $SOCKETROLEUDPCONNECTED, $SOCKETROLETCPCONNECTED]
+            If[$CSockets[socketId, "Protocol"] === "UDP", $SOCKETROLEUDPCONNECTED, $SOCKETROLETCPCONNECTED]
         ]},
             $CSockets[socketId, "LocalAddress"] = First[addresses];
             $CSockets[socketId, "RemoteAddress"] = Last[addresses];
@@ -541,7 +544,7 @@ read::fail =
 read[socketId_Integer] :=
 With[{buffer = $CSockets[socketId, "Buffer"]},
     Check[
-        If[socketProperty[socketId, "Protocol"] === "UDP" && socketProperty[socketId, "Role"] === "Bound",
+        If[$CSockets[socketId, "Protocol"] === "UDP" && $CSockets[socketId, "Role"] === "Bound",
             With[{received = Apply[List] @ socketRecvFrom[socketId, buffer]},
                 If[!MatchQ[received, {_String} | {_String, _NumericArray | _ByteArray}],
                     Message[read::fail, socketId];
@@ -574,7 +577,7 @@ write::fail =
 write[socketId_Integer, bytes_ByteArray, host_String: "", port_Integer: 0] :=
 Module[{
     remaining = bytes, sent, total = 0,
-    boundUDP = socketProperty[socketId, "Protocol"] === "UDP" && socketProperty[socketId, "Role"] === "Bound"
+    boundUDP = $CSockets[socketId, "Protocol"] === "UDP" && $CSockets[socketId, "Role"] === "Bound"
 },
     If[boundUDP === (host === ""),
         Message[write::fail, socketId];
@@ -615,12 +618,15 @@ close::fail =
 
 
 close[socketId_Integer] :=
-Check[
-    socketClose[socketId];
-    unregisterSocket[socketId];,
+If[KeyExistsQ[$CSockets, socketId],
+    Check[
+        socketClose[socketId],
 
-    Message[close::fail, socketId];
-    Throw[$Failed]
+        Message[close::fail, socketId];
+        Throw[$Failed]
+    ];
+
+    unregisterSocket[socketId];
 ];
 
 
@@ -629,13 +635,16 @@ toBlocking::fail =
 
 
 toBlocking[socketId_Integer] :=
-Check[
-    socketSetBlockingMode[socketId];
-    $CSockets[socketId, "BlockingMode"] = "Blocking";,
+(
+    Check[
+        socketSetBlockingMode[socketId],
 
-    Message[toBlocking::fail, socketId];
-    Throw[$Failed]
-];
+        Message[toBlocking::fail, socketId];
+        Throw[$Failed]
+    ];
+
+    $CSockets[socketId, "BlockingMode"] = "Blocking";
+);
 
 
 toNonBlocking::fail =
@@ -643,21 +652,16 @@ toNonBlocking::fail =
 
 
 toNonBlocking[socketId_Integer] :=
-Check[
-    socketSetNonBlockingMode[socketId];
-    $CSockets[socketId, "BlockingMode"] = "NonBlocking";,
+(
+    Check[
+        socketSetNonBlockingMode[socketId],
 
-    Message[toNonBlocking::fail, socketId];
-    Throw[$Failed]
-];
+        Message[toNonBlocking::fail, socketId];
+        Throw[$Failed]
+    ];
 
-
-socketProperty[socketId_Integer, key_String] :=
-$CSockets[socketId, key];
-
-
-socketSetProperty[socketId_Integer, key_String, value_] :=
-$CSockets[socketId, key] = value;
+    $CSockets[socketId, "BlockingMode"] = "NonBlocking";
+);
 
 
 makeSocketEvent[task_AsynchronousTaskObject, name_String, id_Integer, data___] :=
@@ -956,17 +960,45 @@ splitAddress[port_Integer?portQ, protocol: "TCP" | "UDP": "TCP"] :=
 splitAddress["localhost", port, protocol];
 
 
-splitAddress[address_String?protohostportQ] :=
-Module[{proto, host, port, hostport},
-    proto = If[StringStartsQ[address, "udp", IgnoreCase -> True],
-        "UDP", "TCP"
+splitAddress[address_String] :=
+With[{parts = parseAddress[address]},
+    If[parts === $Failed, $Failed,
+        splitAddress[parts[[2]], parts[[3]], parts[[1]]]
+    ]
+];
+
+
+parseAddress[address_String] :=
+Module[{
+    protocol = "TCP",
+    endpoint = address,
+    bracketed, pairs, host, port
+},
+    Which[
+        StringStartsQ[endpoint, "tcp://", IgnoreCase -> True], endpoint = StringDrop[endpoint, 6],
+        StringStartsQ[endpoint, "udp://", IgnoreCase -> True],
+            protocol = "UDP";
+            endpoint = StringDrop[endpoint, 6]
     ];
 
-    {host, port} = StringCases[StringSplit[address, "://"][[-1]],
-        $host__ ~~ Shortest[":" ~~ $port__ ~~ EndOfString] :> {$host, ToExpression[$port]}
-    ][[1]];
+    bracketed = StringStartsQ[endpoint, "["];
+    pairs = If[bracketed,
+        StringCases[endpoint,
+            StartOfString ~~ "[" ~~ h: Except["[" | "]"].. ~~ "]:" ~~ p: DigitCharacter.. ~~ EndOfString :>
+                {h, FromDigits[p]}
+        ],
+        StringCases[endpoint,
+            StartOfString ~~ h: Except[":" | "[" | "]"].. ~~ ":" ~~ p: DigitCharacter.. ~~ EndOfString :>
+                {h, FromDigits[p]}
+        ]
+    ];
 
-    splitAddress[host, port, proto]
+    If[Length[pairs] =!= 1, Return[$Failed]];
+
+    {host, port} = First[pairs];
+    If[!portQ[port] || !If[bracketed, ipv6HostQ[host], hostQ[host]], Return[$Failed]];
+
+    {protocol, host, port}
 ];
 
 
@@ -1010,7 +1042,9 @@ $ipv6Pattern =
 
 
 ipv6HostQ[host_String] :=
-StringMatchQ[host, $ipv6Pattern];
+StringMatchQ[host,
+    $ipv6Pattern ~~ ("" | "%" ~~ (LetterCharacter | DigitCharacter | "_" | "-" | "." | "~")..)
+];
 
 
 numericHostQ[host_String] :=
@@ -1038,11 +1072,7 @@ numericHostQ[host];
 
 
 protohostportQ[address_String] :=
-With[{pairs = StringCases[address, {"tcp://", "udp://", ""} ~~ host__ ~~ Shortest[":" ~~ port: NumberString ~~ EndOfString] :> {host, ToExpression[port]}]},
-    Length[pairs] === 1 &&
-    hostQ[pairs[[1, 1]]] &&
-    portQ[pairs[[1, 2]]]
-]
+parseAddress[address] =!= $Failed;
 
 
 (* Library constants *)
@@ -1511,14 +1541,6 @@ socketsPoll::usage =
 
 socketsPoll =
 LibraryFunctionLoad[$library, "socketsPoll", {{Integer, 1}, Integer, Integer}, {Integer, 2}];
-
-
-test::usage =
-"test[] -> result.";
-
-
-test =
-LibraryFunctionLoad[$library, "test", {}, "DataStore"];
 
 
 End[];

@@ -183,26 +183,36 @@ void cleanup_wsa()
 }
 
 
-void set_blocking_mode(SOCKET socketId)
+int set_blocking_mode(SOCKET socketId)
 {
     #ifdef _WIN32
     u_long mode = 0;
-    ioctlsocket(socketId, FIONBIO, &mode);
+    return ioctlsocket(socketId, FIONBIO, &mode);
     #else
     int flags = fcntl(socketId, F_GETFL, 0);
-    fcntl(socketId, F_SETFL, flags & ~O_NONBLOCK);
+
+    if (flags == -1) {
+        return -1;
+    }
+
+    return fcntl(socketId, F_SETFL, flags & ~O_NONBLOCK);
     #endif
 }
 
 
-void set_nonblocking_mode(SOCKET socketId)
+int set_nonblocking_mode(SOCKET socketId)
 {
     #ifdef _WIN32
     u_long mode = 1;
-    ioctlsocket(socketId, FIONBIO, &mode);
+    return ioctlsocket(socketId, FIONBIO, &mode);
     #else
     int flags = fcntl(socketId, F_GETFL, 0);
-    fcntl(socketId, F_SETFL, flags | O_NONBLOCK);
+
+    if (flags == -1) {
+        return -1;
+    }
+
+    return fcntl(socketId, F_SETFL, flags | O_NONBLOCK);
     #endif
 }
 
@@ -295,32 +305,6 @@ mint convert_native_to_wl_events(int native_revents)
     #endif
 
     return wl;
-}
-
-
-int socket_address_from_host(const char *host, unsigned short port, struct sockaddr_storage *address, socklen_t *addressLength)
-{
-    memset(address, 0, sizeof(*address));
-
-    struct sockaddr_in *ipv4 = (struct sockaddr_in *)address;
-    if (inet_pton(AF_INET, host, &ipv4->sin_addr) == 1)
-    {
-        ipv4->sin_family = AF_INET;
-        ipv4->sin_port = htons(port);
-        *addressLength = sizeof(*ipv4);
-        return 1;
-    }
-
-    struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)address;
-    if (inet_pton(AF_INET6, host, &ipv6->sin6_addr) == 1)
-    {
-        ipv6->sin6_family = AF_INET6;
-        ipv6->sin6_port = htons(port);
-        *addressLength = sizeof(*ipv6);
-        return 1;
-    }
-
-    return 0;
 }
 
 

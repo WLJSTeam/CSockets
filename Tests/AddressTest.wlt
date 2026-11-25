@@ -1,84 +1,155 @@
 Needs["MUnit`"];
-baseDir = DirectoryName[$InputFileName, 2];
-Get[FileNameJoin[{baseDir, "Kernel", "CSockets.wl"}]];
-TestReport[{
- VerificationTest[
-  Module[{server, client, data, buffer, result},
-   server = CSocketOpen["127.0.0.1", 0, "UDP"];
-   client = CSocketConnect["127.0.0.1", server["DestinationPort"], "UDP", "Wait" -> True];
-   data = First[server];
-   buffer = ByteArray[ConstantArray[0, 32]];
-   BinaryWrite[client, ByteArray[{1, 2, 3}]];
-   result = And[
-    MatchQ[server, CSocketObject[_Integer]],
-    server["Protocol"] === "UDP", server["DirectionType"] === "Server",
-    client["Scheme"] === "udp", SocketReadyQ[server, 1] === True,
-    With[{received = WLJS`CSockets`Private`socketRecvFrom[data, buffer]},
-     Length[received] === 2 && ByteArray[received[[1]]] === ByteArray[{1, 2, 3}] &&
-      First[WLJS`CSockets`Private`splitAddress[received[[2]]]] === "127.0.0.1" &&
-      ToExpression[Last[WLJS`CSockets`Private`splitAddress[received[[2]]]]] === client["DestinationPort"]
+
+
+Get[
+    FileNameJoin[
+        {DirectoryName[$InputFileName, 2], "Kernel", "CSockets.wl"}
     ]
-   ]; Scan[Close, {client, server}]; result
-  ], True, TestID -> "udp-id-address-roundtrip"],
- VerificationTest[
-  Module[{server, clients, buffer, received, address, result},
-   server = CSocketOpen["127.0.0.1", 0, "UDP"];
-   clients = Table[CSocketConnect["127.0.0.1", server["DestinationPort"], "UDP", "Wait" -> True], {2}];
-   buffer = ByteArray[ConstantArray[0, 7]];
-   result = And @@ Table[
-    BinaryWrite[clients[[i]], ByteArray[If[i === 1, Range[7], {}]]];
-    If[!TrueQ[SocketReadyQ[server, 1]], False,
-     received = WLJS`CSockets`Private`socketRecvFrom[First[server], buffer];
-     address = WLJS`CSockets`Private`splitAddress[received[[2]]];
-     ByteArray[received[[1]]] === ByteArray[If[i === 1, Range[7], {}]] &&
-      First[address] === "127.0.0.1" && ToExpression[Last[address]] === clients[[i]]["DestinationPort"]
-    ],
-    {i, 2}
-   ];
-   Scan[Close, Append[clients, server]];
-   result
-  ], True, TestID -> "recvfrom-infers-buffer-size-and-returns-empty-datagram-address"],
- VerificationTest[
-  Module[{server, buffer, result},
-   server = CSocketOpen["127.0.0.1", 0, "UDP"];
-   buffer = ByteArray[ConstantArray[0, 7]];
-   WLJS`CSockets`Private`socketSetNonBlockingMode[First[server]];
-   result = Quiet[WLJS`CSockets`Private`socketRecvFrom[First[server], buffer]];
-   Close[server];
-   MatchQ[result, _LibraryFunctionError]
-  ], True, TestID -> "recvfrom-without-data-returns-native-error"],
- VerificationTest[
-  Module[{server, client, received, result},
-   server = CSocketOpen["127.0.0.1", 0, "UDP"];
-   client = CSocketConnect["127.0.0.1", server["DestinationPort"], "UDP", "Wait" -> True];
-   result = And @@ Table[
-    BinaryWrite[client, bytes];
-    If[!TrueQ[SocketReadyQ[server, 1]], False,
-     received = SocketReadMessage[server];
-     MatchQ[received, {(_NumericArray | {}), _String}] && ByteArray[received[[1]]] === bytes &&
-      ToExpression[Last[WLJS`CSockets`Private`splitAddress[received[[2]]]]] === client["DestinationPort"] &&
-      BinaryWrite[server, received[[2]], bytes] === Length[bytes] &&
-      TrueQ[SocketReadyQ[client, 1]] && With[{reply = SocketReadMessage[client]},
-       MatchQ[reply, {(_NumericArray | {}), _String}] && ByteArray[reply[[1]]] === bytes &&
-        ToExpression[Last[WLJS`CSockets`Private`splitAddress[reply[[2]]]]] === server["DestinationPort"]
-      ]
-    ],
-    {bytes, {ByteArray[{0, 128, 255}], ByteArray[{}]}}
-   ];
-   Scan[Close, {client, server}];
-   result
-  ], True, TestID -> "read-message-udp-client-and-server-return-raw-pair"],
- VerificationTest[
-  With[{data = NumericArray[{1, 2}, "UnsignedInteger8"], address = "127.0.0.1:9000"},
-   Block[{WLJS`CSockets`$CSockets = <||>, WLJS`CSockets`Private`socketRecvFrom = Function[{row, buffer}, Developer`DataStore[data, address]]},
-    And @@ Table[
-     SocketReadMessage[WLJS`CSockets`Private`registerSocket[42, "UDP", role, True]] === {data, address},
-     {role, {"Binded", "Connected"}}
-    ]
-   ]
-  ], True, TestID -> "read-message-preserves-both-native-udp-values"],
- VerificationTest[
-  Module[{server, result}, server = CSocketOpen["127.0.0.1", 0];
-   result = KeyExistsQ[$CSockets, server["UUID"]]; Close[server];
-   result && $CSockets[server["UUID"]]["State"] === "Closed"], True, TestID -> "registry-uses-descriptor-key-and-retains-closed-state"]
-}]
+];
+
+
+Begin["WLJS`CSockets`Private`"];
+
+
+addressReport = TestReport[
+    {
+        VerificationTest[
+            Module[{server, clients, received, result, payload},
+                server = CSocketOpen["127.0.0.1", 0, "UDP"];
+                clients = Table[
+                    CSocketConnect[
+                        server["LocalAddress"]
+                    ],
+                    {2}
+                ];
+                result = And @@ Table[
+                    payload = If[i === 1,
+                        ByteArray[
+                            Range[7]
+                        ],
+                        ByteArray[{}]
+                    ];
+                    BinaryWrite[
+                        clients[[i]],
+                        payload
+                    ];
+                    If[!TrueQ[
+                            SocketReadyQ[server, 1]
+                        ],
+                        False,
+                        received = socketRecvFrom[
+                            First[server],
+                            ByteArray[
+                                ConstantArray[0, 7]
+                            ]
+                        ];
+                        Length[received] === If[i === 1,
+                            2,
+                            1
+                        ] && First[received] === StringDrop[
+                            clients[[i]]["LocalAddress"],
+                            6
+                        ] && If[i === 1,
+                            ByteArray[
+                                Last[received]
+                            ] === payload,
+                            True
+                        ]
+                    ],
+                    {i, 2}
+                ];
+                Scan[
+                    Close,
+                    Append[clients, server]
+                ];
+                result
+            ],
+            True,
+            TestID -> "native-recvfrom-returns-address-first-and-preserves-empty-datagrams"
+        ],
+        VerificationTest[
+            Module[{server, client, result, received, reply},
+                server = CSocketOpen["127.0.0.1", 0, "UDP"];
+                client = CSocketConnect[
+                    server["LocalAddress"]
+                ];
+                BinaryWrite[
+                    client,
+                    ByteArray[{1, 2, 3}]
+                ];
+                result = SocketReadyQ[server, 1];
+                received = SocketReadMessage[server];
+                result = result && received === {
+                    StringDrop[
+                        client["LocalAddress"],
+                        6
+                    ],
+                    ByteArray[{1, 2, 3}]
+                } && BinaryWrite[
+                    server,
+                    First[received],
+                    Last[received]
+                ] === 3 && SocketReadyQ[client, 1];
+                reply = SocketReadMessage[client];
+                result = result && reply === ByteArray[{1, 2, 3}];
+                Scan[Close, {client, server}];
+                result
+            ],
+            True,
+            TestID -> "udp-wrapper-replies-to-native-sender-address"
+        ],
+        VerificationTest[
+            Module[{server, result},
+                server = CSocketOpen["127.0.0.1", 0, "UDP"];
+                toNonBlocking[
+                    First[server]
+                ];
+                result = Quiet[
+                    socketRecvFrom[
+                        First[server],
+                        ByteArray[{0}]
+                    ]
+                ];
+                Close[server];
+                MatchQ[result, _LibraryFunctionError]
+            ],
+            True,
+            TestID -> "recvfrom-without-data-reports-native-error"
+        ],
+        VerificationTest[
+            Block[{$CSockets = <||>, socketRecvFrom},
+                socketRecvFrom[id_Integer, buffer_ByteArray] :=
+                Developer`DataStore[
+                    "127.0.0.1:9000",
+                    NumericArray[{1, 2}, "UnsignedInteger8"]
+                ];
+                registerSocket[42, "UDP", "Bound"];
+                SocketReadMessage[
+                    CSocketObject[42]
+                ] === {
+                    "127.0.0.1:9000",
+                    ByteArray[{1, 2}]
+                }
+            ],
+            True,
+            TestID -> "bound-udp-wrapper-converts-native-data-store"
+        ],
+        VerificationTest[
+            Module[{server, id, result},
+                server = CSocketOpen["127.0.0.1", 0];
+                id = First[server];
+                result = KeyExistsQ[$CSockets, id];
+                Close[server];
+                result && !KeyExistsQ[$CSockets, id]
+            ],
+            True,
+            TestID -> "closed-socket-is-removed-from-registry"
+        ]
+    }
+];
+
+
+End[];
+
+
+WLJS`CSockets`Private`addressReport

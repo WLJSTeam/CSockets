@@ -152,10 +152,15 @@ static void socketPollLoop(mint taskId, void *taskArgs)
         }
 
         int count = sockets_poll(fds, (mint)length, args->timeout);
+        int nativeError = GETSOCKETERRNO();
+
+        alive = libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId);
+
+        if (!alive) {
+            break;
+        }
 
         if (count < 0) {
-            int nativeError = GETSOCKETERRNO();
-
             for (size_t i = 0; i < length; i++) {
                 int socketType;
                 socklen_t typeLength = sizeof(socketType);
@@ -327,7 +332,7 @@ DLLEXPORT int socketPollLoopCreate(WolframLibraryData libData, mint Argc, MArgum
     mint length = libData->MTensor_getFlattenedLength(socketIds);
     mint rolesLength = libData->MTensor_getFlattenedLength(roles);
 
-    if (length != rolesLength || length > INT_MAX || timeout < -1) {
+    if (length != rolesLength || length > INT_MAX || timeout < 0) {
         libData->Message("socketPollLoopCreate: invalid vector lengths or timeout");
         return LIBRARY_FUNCTION_ERROR;
     }

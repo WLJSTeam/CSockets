@@ -1,74 +1,100 @@
 Needs["MUnit`"];
-baseDir = DirectoryName[$InputFileName, 2];
-Get[FileNameJoin[{baseDir, "Kernel", "CSockets.wl"}]];
 
 
-TestReport[Join[
-    Table[
-        VerificationTest[
-            Block[{
-                WLJS`CSockets`$CSockets = <||>,
-                closed = 0,
-                created = 0,
-                WLJS`CSockets`Private`socketCreate = Function[Null, created++; If[stage === "create", $Failed, 42]],
-                WLJS`CSockets`Private`socketBind = Function[Null, If[stage === "bind", $Failed, Null]],
-                WLJS`CSockets`Private`socketListen = Function[Null, If[stage === "listen", $Failed, Null]],
-                WLJS`CSockets`Private`socketClose = Function[Null, closed++; Null]
-            },
-                With[{result = CSocketOpen["127.0.0.1", 8080]},
-                    {result, closed, created, Length[$CSockets]}
-                ]
-            ],
-            {$Failed, If[MemberQ[{"bind", "listen"}, stage], 1, 0], 1, 0},
-            {CSocketOpen::open},
-            TestID -> ("open-failure-" <> stage)
-        ],
-        {stage, {"create", "bind", "listen"}}
-    ],
-    Table[
-        VerificationTest[
-            Block[{
-                WLJS`CSockets`$CSockets = <||>,
-                closed = 0,
-                created = 0,
-                WLJS`CSockets`Private`socketCreate = Function[Null, created++; If[stage === "create", $Failed, 42]],
-                WLJS`CSockets`Private`socketSetNonBlockingMode = Function[Null, If[stage === "nonblocking", $Failed, Null]],
-                WLJS`CSockets`Private`socketConnect = Function[Null, If[stage === "connect", $Failed, Null]],
-                WLJS`CSockets`Private`socketSetBlockingMode = Function[Null, If[stage === "blocking", $Failed, Null]],
-                WLJS`CSockets`Private`socketClose = Function[Null, closed++; Null]
-            },
-                With[{result = CSocketConnect["127.0.0.1", 8080]},
-                    {result, closed, created, Length[$CSockets]}
-                ]
-            ],
-            {$Failed, If[MemberQ[{"nonblocking", "connect", "blocking"}, stage], 1, 0], 1, 0},
-            {CSocketConnect::connect},
-            TestID -> ("connect-failure-" <> stage)
-        ],
-        {stage, {"create", "nonblocking", "connect", "blocking"}}
-    ],
+Get[
+    FileNameJoin[
+        {DirectoryName[$InputFileName, 2], "Kernel", "CSockets.wl"}
+    ]
+];
+
+
+Begin["WLJS`CSockets`Private`"];
+
+
+SocketFailureTest::native = "Injected native failure.";
+
+
+failureReport = TestReport[
     {
         VerificationTest[
-            Module[{server = CSocketOpen["127.0.0.1", 0], result, count},
-                count = Length[$CSockets];
-                result = CSocketOpen["127.0.0.1", server["DestinationPort"]];
-                count = Length[$CSockets] - count;
-                Close[server];
-                {result, count}
+            Block[{$CSockets = <||>, socketCreate},
+                socketCreate[family_Integer, protocol_Integer] :=
+                (
+                    Message[SocketFailureTest::native];
+                    LibraryFunctionError["create", 6]
+                );
+                Quiet[
+                    CSocketOpen["127.0.0.1", 0]
+                ] === $Failed && $CSockets === <||>
             ],
-            {$Failed, 0},
-            {CSocketOpen::open},
-            TestID -> "occupied-port-reports-failure"
+            True,
+            TestID -> "creation-error-does-not-register-socket"
         ],
         VerificationTest[
-            Module[{server = CSocketOpen["127.0.0.1", 0], port},
-                port = server["DestinationPort"];
+            Module[{server, result, before},
+                server = CSocketOpen["127.0.0.1", 0];
+                before = Keys[$CSockets];
+                result = Quiet[
+                    CSocketOpen[
+                        "127.0.0.1",
+                        splitAddress[
+                            server["LocalAddress"]
+                        ]["Port"]
+                    ]
+                ];
+                before = result === $Failed && Keys[$CSockets] === before;
                 Close[server];
-                CSocketConnect["127.0.0.1", port, "TCP", "Wait" -> True]
+                before
             ],
-            $Failed,
-            {CSocketConnect::connect},
-            TestID -> "refused-connection-reports-failure"
+            True,
+            TestID -> "bind-error-closes-new-socket-and-removes-registration"
+        ],
+        VerificationTest[
+            Module[{server, port, result, before},
+                server = CSocketOpen["127.0.0.1", 0];
+                port = splitAddress[
+                    server["LocalAddress"]
+                ]["Port"];
+                Close[server];
+                before = Keys[$CSockets];
+                result = Quiet[
+                    CSocketConnect["127.0.0.1", port]
+                ];
+                result === $Failed && Keys[$CSockets] === before
+            ],
+            True,
+            TestID -> "connection-refused-cleans-up-created-socket"
+        ],
+        VerificationTest[
+            Module[{socket, before, result},
+                socket = CSocketOpen["127.0.0.1", 0, "UDP"];
+                before = $CSockets[
+                    First[socket]
+                ];
+                result = Block[{socketClose},
+                    socketClose[id_Integer] :=
+                    (
+                        Message[SocketFailureTest::native];
+                        LibraryFunctionError["close", 6]
+                    );
+                    Quiet[
+                        Close[socket]
+                    ]
+                ];
+                before = result === $Failed && $CSockets[
+                    First[socket]
+                ] === before;
+                Close[socket];
+                before
+            ],
+            True,
+            TestID -> "failed-close-preserves-registry"
         ]
     }
-]]
+];
+
+
+End[];
+
+
+WLJS`CSockets`Private`failureReport
