@@ -43,7 +43,7 @@ $CSockets = If[AssociationQ[$CSockets],
 (* :CSocketOpen: *)
 
 
-CSocketOpen[address__?addressQ] :=
+CSocketOpen[address__] /; addressQ[address] :=
 Catch @ With[{
     addressAssoc = splitAddress[address]}, {
     host = addressAssoc["Host"],
@@ -69,7 +69,7 @@ Options[CSocketConnect] = {
 };
 
 
-CSocketConnect[address__?addressQ, opts: OptionsPattern[]] :=
+CSocketConnect[address__, opts: OptionsPattern[]] /; addressQ[address] :=
 With[{
     wait = OptionValue["Wait"]
 },
@@ -928,6 +928,10 @@ splitAddress[host_String?hostnameQ, port_Integer?portQ, protocol: "TCP" | "UDP":
 splitAddress[HostLookup[host][[1, 1]], port, protocol];
 
 
+splitAddress[port_Integer?portQ, protocol: "TCP" | "UDP": "TCP"] :=
+splitAddress["localhost", port, protocol];
+
+
 splitAddress[address_String?protohostportQ] :=
 Module[{proto, host, port, hostport},
     proto = If[StringStartsQ[address, "udp", IgnoreCase -> True],
@@ -942,9 +946,11 @@ Module[{proto, host, port, hostport},
 ];
 
 
-addressQ[address__String] :=
+addressQ[address__] :=
 MatchQ[{address}, {PatternSequence[_String?hostQ, _Integer?portQ, "TCP" | "UDP"]} |
 {PatternSequence[_String?hostQ, _Integer?portQ]} |
+{PatternSequence[_Integer?portQ, "TCP" | "UDP"]} |
+{_Integer?portQ} |
 {_String?protohostportQ}];
 
 
