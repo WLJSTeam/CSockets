@@ -2,15 +2,15 @@
 #define ASYNC_H
 
 
-#include "list.h"
+#include "common.h"
 
 
-typedef struct SocketListPollLoopArgs_st {
+typedef struct SocketPollLoopArgs_st {
     WolframLibraryData libData;
-    SocketList socketList;
+    socket_list *socketList;
     mint eventsMask;
     mint timeout;
-} *SocketListPollLoopArgs;
+} *SocketPollLoopArgs;
 
 
 #endif

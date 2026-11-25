@@ -24,10 +24,6 @@ CSocketObject::usage =
 "CSocketObject[socketId] wraps a socket descriptor; metadata is stored in Wolfram Language.";
 
 
-CSocketList::usage =
-"CSocketList[{socket1, socket2, ...}]";
-
-
 CSocketHandler::usage =
 "CSocketHandler[] mutable handler object.";
 
@@ -191,7 +187,7 @@ With[{listener = $CSockets[id, "Listener"]},
 
     If[listener =!= Null, Return[listener]];
 
-    SocketListen[CSocketList[{object}], handler]
+    SocketListen[{object}, handler]
 ];
 
 
@@ -216,42 +212,22 @@ CSocketObject[id_Integer][key_String] :=
 $CSockets[id, key];
 
 
-(* :LIST: *)
+(* :LISTEN: *)
 
 
-CSocketList[initialSockets: {___CSocketObject}] :=
-Catch @ With[{socketIds = initialSockets[[All, 1]]}, {
+Unprotect[SocketListen];
+
+
+SocketListen[sockets: {__CSocketObject}, handler_] :=
+Catch @ With[{socketIds = sockets[[All, 1]]}, {
     roles = Map[socketRoleCode, socketIds]
 },
-    CSocketList[createSocketList[socketIds, roles]]
-];
-
-
-CSocketList /: Append[CSocketList[listId_Integer], CSocketObject[id_Integer]] :=
-If[!socketAliveQ[id], $Failed,
-    If[KeyExistsQ[$socketListTasks, listId] && setSocketBlocking[id, False] === $Failed,
-        $Failed,
-        socketListAdd[listId, id, socketRoleCode[id]]
-    ]
-];
-
-
-CSocketList /: DeleteObject[CSocketList[listId_Integer]] :=
-socketListDelete[listId];
-
-
-CSocketList /: DeleteMissing[CSocketList[listId_Integer]] :=
-socketListPrune[listId];
-
-
-CSocketList /: SocketListen[CSocketList[listId_Integer], handler_] :=
-With[{socketIds = socketListGetAll[listId]},
     Scan[($CSockets[#, "Handler"] = handler)&, socketIds];
 
     With[{task = Internal`CreateAsynchronousTask[
-        socketListPollLoopCrate,
-        {listId, 10 ^ 6, $POLLIN},
-        dispatchPollEvent[listId, ##]&
+        socketPollLoopCreate,
+        {socketIds, roles, 10 ^ 6, $POLLIN},
+        dispatchPollEvent
     ]},
         If[MatchQ[task, _AsynchronousTaskObject],
             Scan[($CSockets[#, "Listener"] = task)&, socketIds];
@@ -260,6 +236,9 @@ With[{socketIds = socketListGetAll[listId]},
         task
     ]
 ];
+
+
+Protect[SocketListen];
 
 
 CSocketHandler::length =
@@ -382,12 +361,6 @@ $socketObjectIcon := $socketObjectIcon =
 Import[FileNameJoin[{$directory, "Images", "SocketIcon.png"}]];
 
 
-$socketLists = If[AssociationQ[$socketLists],
-    $socketLists,
-    <||>
-];
-
-
 socketRoleCode::role =
 "Unsupported protocol and role for socket `1`: `2`.";
 
@@ -406,27 +379,6 @@ With[{role = {socketProperty[socketId, "Protocol"], socketProperty[socketId, "Ro
             Message[socketRoleCode::role, socketId, role];
             Throw[$Failed]
     ]
-];
-
-
-createSocketList::fail =
-"Failed to create a socket list for sockets `1`.";
-
-
-createSocketList[socketIds: {___Integer}, roles: {___Integer}] :=
-Check[
-    With[{listId = socketListCreate[socketIds, roles]},
-        If[!IntegerQ[listId],
-            Message[createSocketList::fail, socketIds];
-            Throw[$Failed]
-        ];
-
-        $socketLists[listId] = True;
-        listId
-    ],
-
-    Message[createSocketList::fail, socketIds];
-    Throw[$Failed]
 ];
 
 
@@ -653,7 +605,7 @@ close::fail =
 close[socketId_Integer] :=
 Check[
     socketClose[socketId];
-    KeyDropFrom[$CSockets, socketId];,
+    unregisterSocket[socketId];,
 
     Message[close::fail, socketId];
     Throw[$Failed]
@@ -732,13 +684,57 @@ With[{byteArray = If[bytes === 0, ByteArray[{}], ByteArray[bytes]], source = CSo
 ];
 
 
-dispatchPollEvent::addresses =
+registerAcceptedSocket::addresses =
 "Failed to obtain addresses for accepted socket `1`.";
 
 
-dispatchPollEvent[listId_Integer, task_AsynchronousTaskObject, name_String, data_List] :=
-Catch @ Module[{id, handlerId, acceptedId, addresses},
-    If[!KeyExistsQ[$socketLists, listId] || data === {}, Return[Null]];
+registerAcceptedSocket[listenId_Integer, acceptedId_Integer] :=
+Module[{addresses},
+    addresses = Check[
+        List @@ socketGetAddresses[acceptedId, $SOCKETROLETCPACCEPTED],
+        Throw[$Failed]
+    ];
+
+    If[!MatchQ[addresses, {_String, _String}],
+        Message[registerAcceptedSocket::addresses, acceptedId];
+        Throw[$Failed]
+    ];
+
+    registerSocket[acceptedId, "TCP", "Accepted", $CSockets[listenId, "BlockingMode"]];
+    $CSockets[acceptedId, "LocalAddress"] = First[addresses];
+    $CSockets[acceptedId, "RemoteAddress"] = Last[addresses];
+    $CSockets[acceptedId, "Addresses"] = addresses;
+    $CSockets[acceptedId, "ListenSocket"] = CSocketObject[listenId];
+    $CSockets[acceptedId] = Append[$CSockets[acceptedId],
+        "Handler" :> $CSockets[listenId, "Handler"]
+    ];
+];
+
+
+unregisterSocket[socketId_Integer] :=
+KeyDropFrom[$CSockets, socketId];
+
+
+acceptedEvent[task_AsynchronousTaskObject, listenId_Integer, acceptedId_Integer] :=
+(
+    registerAcceptedSocket[listenId, acceptedId];
+    $CSockets[acceptedId, "Listener"] = task;
+);
+
+
+closedEvent[socketId_Integer] :=
+unregisterSocket[socketId];
+
+
+errorEvent[socketId_Integer] :=
+If[KeyExistsQ[$CSockets, socketId] && !TrueQ[socketValidQ[socketId]],
+    unregisterSocket[socketId]
+];
+
+
+dispatchPollEvent[task_AsynchronousTaskObject, name_String, data_List] :=
+Catch @ Module[{id, handlerId, handler},
+    If[data === {}, Return[Null]];
 
     id = First[data];
     handlerId = If[KeyExistsQ[$CSockets, id],
@@ -748,43 +744,14 @@ Catch @ Module[{id, handlerId, acceptedId, addresses},
 
     If[MissingQ[handlerId], Return[Null]];
 
+    handler = $CSockets[handlerId, "Handler"];
     Switch[name,
-        "Accepted",
-            acceptedId = data[[2]];
-            addresses = Check[
-                List @@ socketGetAddresses[acceptedId, $SOCKETROLETCPACCEPTED],
-                Throw[$Failed]
-            ];
-
-            If[!MatchQ[addresses, {_String, _String}],
-                Message[dispatchPollEvent::addresses, acceptedId];
-                Throw[$Failed]
-            ];
-
-            registerSocket[acceptedId, "TCP", "Accepted", $CSockets[id, "BlockingMode"]];
-            $CSockets[acceptedId, "LocalAddress"] = First[addresses];
-            $CSockets[acceptedId, "RemoteAddress"] = Last[addresses];
-            $CSockets[acceptedId, "Addresses"] = addresses;
-            $CSockets[acceptedId, "Listener"] = task;
-            $CSockets[acceptedId, "ListenSocket"] = CSocketObject[id];
-            With[{listenId = id, socketId = acceptedId},
-                $CSockets[socketId] = Append[$CSockets[socketId],
-                    "Handler" :> $CSockets[listenId, "Handler"]
-                ];
-            ],
-        "Closed",
-            If[KeyExistsQ[$CSockets, id],
-                $CSockets[id, "State"] = "Closed";
-                $CSockets[id, "Listener"] = Null;
-            ],
-        "Error",
-            If[KeyExistsQ[$CSockets, id] && !TrueQ[socketValidQ[id]],
-                $CSockets[id, "State"] = "Closed";
-                $CSockets[id, "Listener"] = Null;
-            ]
+        "Accepted", acceptedEvent[task, Sequence @@ data],
+        "Closed", closedEvent[id],
+        "Error", errorEvent[id]
     ];
 
-    $CSockets[handlerId, "Handler"][makeSocketEvent[task, name, Sequence @@ data]]
+    handler[makeSocketEvent[task, name, Sequence @@ data]]
 ];
 
 
@@ -1348,52 +1315,12 @@ $library = FileNameJoin[
 (* :LibraryLoad: *)
 
 
-socketListPollLoopCrate::usage =
-"socketListPollLoopCrate[list, timeout, eventsMask] -> taskId.";
+socketPollLoopCreate::usage =
+"socketPollLoopCreate[socketIds, roles, timeout, eventsMask] -> taskId.";
 
 
-socketListPollLoopCrate =
-LibraryFunctionLoad[$library, "socketListPollLoopCrate", {Integer, Integer, Integer}, Integer];
-
-
-socketListCreate::usage =
-"socketListCreate[socketIds, socketRoles] -> socketListId.";
-
-
-socketListCreate =
-LibraryFunctionLoad[$library, "socketListCreate", {{Integer, 1}, {Integer, 1}}, Integer];
-
-
-socketListAdd::usage =
-"socketListAdd[list, socketId, role].";
-
-
-socketListAdd =
-LibraryFunctionLoad[$library, "socketListAdd", {Integer, Integer, Integer}, "Void"];
-
-
-socketListGetAll::usage =
-"socketListGetAll[list] -> socketsTensor.";
-
-
-socketListGetAll =
-LibraryFunctionLoad[$library, "socketListGetAll", {Integer}, {Integer, 1}];
-
-
-socketListPrune::usage =
-"socketListPrune[list].";
-
-
-socketListPrune =
-LibraryFunctionLoad[$library, "socketListPrune", {Integer}, "Void"];
-
-
-socketListDelete::usage =
-"socketListDelete[list].";
-
-
-socketListDelete =
-LibraryFunctionLoad[$library, "socketListDelete", {Integer}, "Void"];
+socketPollLoopCreate =
+LibraryFunctionLoad[$library, "socketPollLoopCreate", {{Integer, 1}, {Integer, 1}, Integer, Integer}, Integer];
 
 
 socketCreate::usage =

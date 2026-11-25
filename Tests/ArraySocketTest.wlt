@@ -11,9 +11,6 @@ $nativeClose = LibraryFunctionLoad[$nativeLibrary, "socketClose", {Integer}, "Vo
 $nativeSendTo = LibraryFunctionLoad[$nativeLibrary, "socketSendTo", {Integer, "UTF8String", "UTF8String", {"ByteArray", "Shared"}}, Integer];
 $nativeNonblocking = LibraryFunctionLoad[$nativeLibrary, "socketSetNonBlockingMode", {Integer}, "Void"];
 $nativeRecvFrom = LibraryFunctionLoad[$nativeLibrary, "socketRecvFrom", {Integer, {"ByteArray", "Shared"}}, "DataStore"];
-$nativeListCreate = LibraryFunctionLoad[$nativeLibrary, "socketListCreate", {{Integer, 1}, {Integer, 1}}, Integer];
-$nativeListGet = LibraryFunctionLoad[$nativeLibrary, "socketListGetAll", {Integer}, {Integer, 1}];
-$nativeListDelete = LibraryFunctionLoad[$nativeLibrary, "socketListDelete", {Integer}, "Void"];
 $nativeCheck = LibraryFunctionLoad[$nativeLibrary, "socketsCheck", {{Integer, 1}}, {Integer, 1}];
 $nativeListen = LibraryFunctionLoad[$nativeLibrary, "socketListen", {Integer, Integer}, "Void"];
 $nativeConnect = LibraryFunctionLoad[$nativeLibrary, "socketConnect", {Integer, "UTF8String", "UTF8String"}, "Void"];
@@ -27,15 +24,6 @@ $nativeShares = LibraryFunctionLoad[$shareLibrary, "arrayShares", {{"ByteArray",
 
 
 TestReport[{
-    VerificationTest[
-        Module[{list, result},
-            list = $nativeListCreate[{10, 20}, {0, 0}];
-            result = $nativeListGet[list];
-            $nativeListDelete[list];
-            result
-        ],
-        {10, 20}, TestID -> "socket-list-constructor-output"
-    ],
     VerificationTest[
         Module[{socket, bytes = ByteArray[{1}], before, result},
             socket = $nativeCreate[2, 17];

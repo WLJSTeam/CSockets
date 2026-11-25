@@ -96,9 +96,9 @@ CSocketConnect["127.0.0.1", 8080, "UDP"]
 
 ### `CSocketObject`
 
-`CSocketObject[socketId]` wraps a numeric native descriptor. The `$CSockets` association maps each ID to an association with `"Object"`, `"Protocol"`, `"BlockingMode"`, `"LocalAddress"`, `"RemoteAddress"`, `"State"` and `"Role"`. Closed sockets retain their last addresses and `"State" -> "Closed"` until the descriptor is reused. Native functions receive only the descriptor. `socketsCheck[ids]` filters a list of descriptors; `socketsPoll[ids, timeout, eventsMask]` returns pairs `{socketId, eventMask}`.
+`CSocketObject[socketId]` wraps a numeric native descriptor. The `$CSockets` association maps each ID to an association with `"Object"`, `"Protocol"`, `"BlockingMode"`, `"LocalAddress"`, `"RemoteAddress"`, `"State"` and `"Role"`. Closing a socket removes its entry from `$CSockets`. Native functions receive only the descriptor. `socketsCheck[ids]` filters a list of descriptors; `socketsPoll[ids, timeout, eventsMask]` returns pairs `{socketId, eventMask}`.
 
-Native asynchronous polling reports `"Polled"` with the same pairs. The WL wrappers perform accept/read/close and deliver `"Accepted"`, `"Received"`, `"ReceivedFrom"`, `"Closed"` and `"Error"` events to handlers. Listening switches the monitored sockets to nonblocking mode. Close a `CSocketList` to stop its task and release the list without closing its sockets. Closing a socket passed directly to `SocketListen` also releases its internally created list.
+Native asynchronous polling performs accept/read/close and delivers `"Accepted"`, `"Received"`, `"ReceivedFrom"`, `"Closed"` and `"Error"` events to WL handlers. `socketPollLoopCreate[socketIds, roles, timeout, eventsMask]` copies the initial descriptors and roles into a dynamic list owned entirely by the C task. The list is freed when the loop exits, including cancellation and error paths. Cancel a listener with `RemoveAsynchronousTask[task]`; this releases the list without closing sockets that remain open.
 
 Common properties:
 
@@ -127,14 +127,6 @@ socket = CSocketOpen["127.0.0.1", 8080];
   socket["UUID"]
 }
 ```
-
-### `CSocketList`
-
-```wl
-CSocketList[{socket1, socket2, ...}]
-```
-
-Creates a socket list object for polling multiple sockets at once.
 
 ### Sending and reading
 
@@ -190,8 +182,7 @@ Close[server]
 
 ### `SocketListen`
 
-`SocketListen` is overloaded for both `CSocketObject` and `CSocketList`.
-It starts an asynchronous polling loop and forwards events to the handler.
+`SocketListen[socket, handler]` and `SocketListen[{socket1, socket2, ...}, handler]` start an asynchronous polling loop and forward events to the handler. The returned `AsynchronousTaskObject` controls the listener; no native list object is exposed to WL.
 
 ```wl
 handler = CSocketHandler[

@@ -61,20 +61,19 @@ TestReport[{
         TestID -> "tcp-objects-use-id-and-wl-metadata-with-both-endpoints"
     ],
     VerificationTest[
-        Module[{server, alias, list, result},
-            server = CSocketOpen["127.0.0.1", 0, "UDP"];
-            alias = server;
-            list = CSocketList[{server}];
-            result = WLJS`CSockets`Private`socketListGetAll[First[list]] === {First[server]} && (alias["BlockingMode"] === "Blocking");
-            WLJS`CSockets`Private`setSocketBlocking[First[server], False];
-            result = result && (alias["BlockingMode"] === "NonBlocking");
-            Close[list];
-            result = result && SocketReadyQ[server] === False;
-            Close[server];
-            result && alias["State"] === "Closed" && BinaryWrite[alias, ByteArray[{1}]] === $Failed && Close[list] === Null
+        Module[{id, socket, task, result},
+            id = WLJS`CSockets`Private`createSocket["IPv4", "UDP"];
+            socket = CSocketObject[id];
+            WLJS`CSockets`Private`bind[id, "127.0.0.1", 0];
+            task = SocketListen[{socket}, Function[Null]];
+            RemoveAsynchronousTask[task];
+            Pause[1.1];
+            result = WLJS`CSockets`Private`socketValidQ[id] && KeyExistsQ[$CSockets, id];
+            Close[socket];
+            result && !KeyExistsQ[$CSockets, id]
         ],
         True,
-        TestID -> "metadata-is-shared-by-aliases-and-list-close-does-not-close-sockets"
+        TestID -> "cancel-listener-releases-private-list-without-closing-sockets"
     ],
     VerificationTest[
         Quiet[CSocketConnect["localhost", 80, "TCP", "Wait" -> "invalid"]],

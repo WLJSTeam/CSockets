@@ -436,3 +436,183 @@ char *sockaddr_storage_to_string(struct sockaddr_storage address)
     if (length < 0 || (size_t)length >= sizeof(endpoint)) return NULL;
     return endpoint;
 }
+
+
+socket_list *create_socket_list(const mint *socketIds, const mint *roles, size_t length)
+{
+    if (length > INT_MAX || (length > 0 && (!socketIds || !roles))) {
+        return NULL;
+    }
+
+    socket_list *list = calloc(1, sizeof(socket_list));
+
+    if (!list) {
+        return NULL;
+    }
+
+    for (size_t i = 0; i < length; i++) {
+        bool added = socket_list_add(list, (SOCKET)socketIds[i], (SOCKET_ROLE)roles[i]);
+
+        if (!added) {
+            remove_socket_list(list);
+            return NULL;
+        }
+    }
+
+    return list;
+}
+
+
+bool socket_list_to_poll_fd(socket_list *list, POLL_FD **fds, size_t *length, int events)
+{
+    if (!list || !fds || !length) {
+        return false;
+    }
+
+    size_t newLength = list->length;
+    size_t maxLength = SIZE_MAX / sizeof(POLL_FD);
+
+    if (newLength > maxLength || newLength > INT_MAX) {
+        return false;
+    }
+
+    if (newLength != *length) {
+        POLL_FD *newFds = NULL;
+
+        if (newLength > 0) {
+            newFds = realloc(*fds, newLength * sizeof(POLL_FD));
+
+            if (!newFds) {
+                return false;
+            }
+        } else {
+            free(*fds);
+        }
+
+        *fds = newFds;
+        *length = newLength;
+    }
+
+    if (newLength > 0 && !*fds) {
+        return false;
+    }
+
+    for (size_t i = 0; i < newLength; i++) {
+        (*fds)[i].fd = list->sockets[i];
+        (*fds)[i].events = events;
+        (*fds)[i].revents = 0;
+
+        if (list->roles[i] == SOCKET_ROLE_TCP_UNSPEC || list->roles[i] == SOCKET_ROLE_UDP_UNSPEC) {
+            (*fds)[i].events = 0;
+        }
+    }
+
+    return true;
+}
+
+
+bool socket_list_add(socket_list *list, SOCKET socketId, SOCKET_ROLE role)
+{
+    if (!list) {
+        return false;
+    }
+
+    for (size_t i = 0; i < list->length; i++) {
+        if (list->sockets[i] == socketId) {
+            return true;
+        }
+    }
+
+    if (list->length == INT_MAX) {
+        return false;
+    }
+
+    if (list->length == list->capacity) {
+        size_t capacity;
+        SOCKET *sockets;
+        SOCKET_ROLE *roles;
+
+        if (list->capacity) {
+            capacity = list->capacity * 2;
+        } else {
+            capacity = 8;
+        }
+
+        if (capacity < list->capacity) {
+            return false;
+        }
+
+        size_t maxSockets = SIZE_MAX / sizeof(SOCKET);
+        size_t maxRoles = SIZE_MAX / sizeof(SOCKET_ROLE);
+
+        if (capacity > maxSockets || capacity > maxRoles) {
+            return false;
+        }
+
+        sockets = malloc(capacity * sizeof(SOCKET));
+
+        if (!sockets) {
+            return false;
+        }
+
+        roles = malloc(capacity * sizeof(SOCKET_ROLE));
+
+        if (!roles) {
+            free(sockets);
+            return false;
+        }
+
+        if (list->length > 0) {
+            memcpy(sockets, list->sockets, list->length * sizeof(SOCKET));
+            memcpy(roles, list->roles, list->length * sizeof(SOCKET_ROLE));
+        }
+
+        free(list->sockets);
+        free(list->roles);
+
+        list->sockets = sockets;
+        list->roles = roles;
+        list->capacity = capacity;
+    }
+
+    list->sockets[list->length] = socketId;
+    list->roles[list->length] = role;
+    list->length++;
+    return true;
+}
+
+
+bool socket_list_prune(socket_list *list)
+{
+    if (!list) {
+        return false;
+    }
+
+    size_t count = 0;
+
+    for (size_t i = 0; i < list->length; i++) {
+        bool valid = ISVALIDSOCKET(list->sockets[i]);
+
+        if (valid) {
+            list->sockets[count] = list->sockets[i];
+            list->roles[count] = list->roles[i];
+            count++;
+        }
+    }
+
+    list->length = count;
+    return true;
+}
+
+
+/* Releases list storage only; socket descriptors belong to the caller. */
+void remove_socket_list(socket_list *list)
+{
+    if (!list) {
+        return;
+    }
+
+    free(list->sockets);
+    free(list->roles);
+    free(list);
+}

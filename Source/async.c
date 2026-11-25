@@ -6,7 +6,7 @@ static void raiseError(WolframLibraryData libData, mint taskId, SOCKET socketId,
     DataStore store = libData->ioLibraryFunctions->createDataStore();
 
     if (!store) {
-        libData->Message("pollingLoop: failed to raise Error event");
+        libData->Message("socketPollLoop: failed to raise Error event");
         return;
     }
 
@@ -21,7 +21,7 @@ static void raiseAccepted(WolframLibraryData libData, mint taskId, SOCKET socket
     DataStore store = libData->ioLibraryFunctions->createDataStore();
 
     if (!store) {
-        libData->Message("pollingLoop: failed to raise Accepted event");
+        libData->Message("socketPollLoop: failed to raise Accepted event");
         return;
     }
 
@@ -38,7 +38,7 @@ static void raiseReceived(WolframLibraryData libData, mint taskId, SOCKET socket
     int status = libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &size, &array);
 
     if (status != LIBRARY_NO_ERROR) {
-        libData->Message("pollingLoop: failed to allocate byte array for Received event");
+        libData->Message("socketPollLoop: failed to allocate byte array for Received event");
         return;
     }
 
@@ -51,7 +51,7 @@ static void raiseReceived(WolframLibraryData libData, mint taskId, SOCKET socket
 
     if (!store) {
         libData->numericarrayLibraryFunctions->MNumericArray_free(array);
-        libData->Message("pollingLoop: failed to raise Received event");
+        libData->Message("socketPollLoop: failed to raise Received event");
         return;
     }
 
@@ -70,7 +70,7 @@ static void raiseReceivedFrom(WolframLibraryData libData, mint taskId, SOCKET so
         int status = libData->numericarrayLibraryFunctions->MNumericArray_new(MNumericArray_Type_UBit8, 1, &size, &array);
 
         if (status != LIBRARY_NO_ERROR) {
-            libData->Message("pollingLoop: failed to allocate byte array for ReceivedFrom event");
+            libData->Message("socketPollLoop: failed to allocate byte array for ReceivedFrom event");
             return;
         }
 
@@ -85,7 +85,7 @@ static void raiseReceivedFrom(WolframLibraryData libData, mint taskId, SOCKET so
             libData->numericarrayLibraryFunctions->MNumericArray_free(array);
         }
 
-        libData->Message("pollingLoop: failed to raise ReceivedFrom event");
+        libData->Message("socketPollLoop: failed to raise ReceivedFrom event");
         return;
     }
 
@@ -105,7 +105,7 @@ static void raiseClosed(WolframLibraryData libData, mint taskId, SOCKET socketId
     DataStore store = libData->ioLibraryFunctions->createDataStore();
 
     if (!store) {
-        libData->Message("pollingLoop: failed to raise Closed event");
+        libData->Message("socketPollLoop: failed to raise Closed event");
         return;
     }
 
@@ -114,11 +114,11 @@ static void raiseClosed(WolframLibraryData libData, mint taskId, SOCKET socketId
 }
 
 
-static void socketListPollLoop(mint taskId, void *taskArgs)
+static void socketPollLoop(mint taskId, void *taskArgs)
 {
-    SocketListPollLoopArgs args = taskArgs;
+    SocketPollLoopArgs args = taskArgs;
     WolframLibraryData libData = args->libData;
-    SocketList socketList = args->socketList;
+    socket_list *socketList = args->socketList;
 
     POLL_FD *fds = NULL;
     size_t length = 0;
@@ -128,16 +128,26 @@ static void socketListPollLoop(mint taskId, void *taskArgs)
     int nativeEvents = convert_wl_to_native_events(args->eventsMask);
     BYTE buffer[65536];
 
-    while (libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId)) {
+    while (true) {
+        bool alive = libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId);
+
+        if (!alive) {
+            break;
+        }
+
         if (needPrune) {
             socket_list_prune(socketList);
             needPrune = false;
         }
 
-        bool filled = fill_fds_from_socket_list(socketList, &fds, &length, nativeEvents);
+        bool filled = socket_list_to_poll_fd(socketList, &fds, &length, nativeEvents);
 
         if (!filled) {
-            libData->Message("pollingLoop: failed to fill poll descriptors");
+            libData->Message("socketPollLoop: failed to fill poll descriptors");
+            break;
+        }
+
+        if (length == 0) {
             break;
         }
 
@@ -189,8 +199,9 @@ static void socketListPollLoop(mint taskId, void *taskArgs)
                     case SOCKET_ROLE_TCP_BOUND:
                         {
                             SOCKET acceptedSocket = accept(socketId, NULL, NULL);
+                            bool valid = ISVALIDSOCKET(acceptedSocket);
 
-                            if (ISVALIDSOCKET(acceptedSocket)) {
+                            if (valid) {
                                 bool added = socket_list_add(socketList, acceptedSocket, SOCKET_ROLE_TCP_ACCEPTED);
 
                                 if (added) {
@@ -201,8 +212,9 @@ static void socketListPollLoop(mint taskId, void *taskArgs)
                                 }
                             } else {
                                 int error = GETSOCKETERRNO();
+                                bool wouldBlock = is_would_block_err(error);
 
-                                if (!is_would_block_err(error)) {
+                                if (!wouldBlock) {
                                     raiseError(libData, taskId, socketId, error);
                                 }
                             }
@@ -221,8 +233,9 @@ static void socketListPollLoop(mint taskId, void *taskArgs)
                                 raiseClosed(libData, taskId, socketId);
                             } else {
                                 int error = GETSOCKETERRNO();
+                                bool wouldBlock = is_would_block_err(error);
 
-                                if (!is_would_block_err(error)) {
+                                if (!wouldBlock) {
                                     removeSocket = true;
                                     raiseError(libData, taskId, socketId, error);
                                 }
@@ -247,8 +260,9 @@ static void socketListPollLoop(mint taskId, void *taskArgs)
                                 }
                             } else {
                                 int error = GETSOCKETERRNO();
+                                bool wouldBlock = is_would_block_err(error);
 
-                                if (!is_would_block_err(error)) {
+                                if (!wouldBlock) {
                                     removeSocket = true;
                                     raiseError(libData, taskId, socketId, error);
                                 }
@@ -270,7 +284,9 @@ static void socketListPollLoop(mint taskId, void *taskArgs)
             }
 
             if (removeSocket) {
-                if (ISVALIDSOCKET(socketId)) {
+                bool valid = ISVALIDSOCKET(socketId);
+
+                if (valid) {
                     CLOSESOCKET(socketId);
                 }
 
@@ -281,30 +297,66 @@ static void socketListPollLoop(mint taskId, void *taskArgs)
     }
 
     free(fds);
+    remove_socket_list(socketList);
     free(args);
 }
 
 
-DLLEXPORT int socketListPollLoopCrate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+DLLEXPORT int socketPollLoopCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    if (Argc != 3) {
-        libData->Message("createSocketsPollLoop: invalid argument count");
+    if (Argc != 4) {
+        libData->Message("socketPollLoopCreate: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    SocketList list = (SocketList)(uintptr_t)MArgument_getInteger(Args[0]);
-    mint timeout = MArgument_getInteger(Args[1]);
-    mint eventsMask = MArgument_getInteger(Args[2]);
+    MTensor socketIds = MArgument_getMTensor(Args[0]);
+    MTensor roles = MArgument_getMTensor(Args[1]);
+    mint timeout = MArgument_getInteger(Args[2]);
+    mint eventsMask = MArgument_getInteger(Args[3]);
 
-    if (!list || timeout < -1) {
-        libData->Message("createSocketsPollLoop: invalid socket list or timeout");
+    mint idsType = libData->MTensor_getType(socketIds);
+    mint rolesType = libData->MTensor_getType(roles);
+    mint idsRank = libData->MTensor_getRank(socketIds);
+    mint rolesRank = libData->MTensor_getRank(roles);
+
+    if (idsType != MType_Integer || rolesType != MType_Integer || idsRank != 1 || rolesRank != 1) {
+        libData->Message("socketPollLoopCreate: expected integer vectors");
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    SocketListPollLoopArgs args = calloc(1, sizeof(struct SocketListPollLoopArgs_st));
+    mint length = libData->MTensor_getFlattenedLength(socketIds);
+    mint rolesLength = libData->MTensor_getFlattenedLength(roles);
+
+    if (length != rolesLength || length > INT_MAX || timeout < -1) {
+        libData->Message("socketPollLoopCreate: invalid vector lengths or timeout");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    mint *idsData = libData->MTensor_getIntegerData(socketIds);
+    mint *rolesData = libData->MTensor_getIntegerData(roles);
+
+    for (mint i = 0; i < length; i++) {
+        bool valid = ISVALIDSOCKET((SOCKET)idsData[i]);
+        mint role = rolesData[i];
+
+        if (!valid || role < SOCKET_ROLE_TCP_UNSPEC || role > SOCKET_ROLE_UDP_CONNECTED) {
+            libData->Message("socketPollLoopCreate: invalid socket or role");
+            return LIBRARY_FUNCTION_ERROR;
+        }
+    }
+
+    socket_list *list = create_socket_list(idsData, rolesData, (size_t)length);
+
+    if (!list) {
+        libData->Message("socketPollLoopCreate: failed to create socket list");
+        return LIBRARY_MEMORY_ERROR;
+    }
+
+    SocketPollLoopArgs args = calloc(1, sizeof(struct SocketPollLoopArgs_st));
 
     if (!args) {
-        libData->Message("createSocketsPollLoop: failed to allocate task arguments");
+        remove_socket_list(list);
+        libData->Message("socketPollLoopCreate: failed to allocate task arguments");
         return LIBRARY_MEMORY_ERROR;
     }
 
@@ -313,11 +365,12 @@ DLLEXPORT int socketListPollLoopCrate(WolframLibraryData libData, mint Argc, MAr
     args->eventsMask = eventsMask;
     args->timeout = timeout;
 
-    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketListPollLoop, args);
+    mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketPollLoop, args);
 
     if (taskId <= 0) {
-        libData->Message("createSocketsPollLoop: failed to create asynchronous task");
+        remove_socket_list(list);
         free(args);
+        libData->Message("socketPollLoopCreate: failed to create asynchronous task");
         return LIBRARY_FUNCTION_ERROR;
     }
 

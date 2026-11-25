@@ -27,7 +27,7 @@ TestReport[{
         Module[{server, clients, list, task, handler, exchange, result, address},
             server = CSocketOpen["127.0.0.1", 0, "UDP"];
             clients = Table[CSocketConnect["127.0.0.1", server["DestinationPort"], "UDP", "Wait" -> True], {2}];
-            list = CSocketList[{server}];
+            list = {server};
             handler = CSocketHandler[
                 "ReceivedFrom" -> (Switch[First[#["DataBytes"]],
                     1, "Привет",
@@ -67,10 +67,10 @@ TestReport[{
                     ToExpression[Last[WLJS`CSockets`Private`splitAddress[received[[2]]]]] === server["DestinationPort"]
             ];
 
-            Close[list];
+            RemoveAsynchronousTask[task]; Pause[1.1];
             Scan[Close, clients];
             Close[server];
-            Close[list];
+
             result
         ],
         True,

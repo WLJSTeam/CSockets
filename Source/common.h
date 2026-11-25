@@ -146,6 +146,33 @@ typedef enum SOCKET_ROLE {
 } SOCKET_ROLE;
 
 
+typedef struct socket_list {
+    SOCKET *sockets;
+    SOCKET_ROLE *roles;
+    size_t capacity;
+    size_t length;
+} socket_list;
+
+
+/* Copies the initial descriptors and roles; returns NULL on allocation failure. */
+socket_list *create_socket_list(const mint *socketIds, const mint *roles, size_t length);
+
+
+/* Frees list storage without closing its sockets. */
+void remove_socket_list(socket_list *list);
+
+
+bool socket_list_add(socket_list *list, SOCKET socketId, SOCKET_ROLE role);
+
+
+bool socket_list_prune(socket_list *list);
+
+
+/* length is the allocated element count; events contains native poll flags.
+   On allocation failure, fds and length retain their previous values. */
+bool socket_list_to_poll_fd(socket_list *list, POLL_FD **fds, size_t *length, int events);
+
+
 void set_blocking_mode(SOCKET socketId);
 
 
