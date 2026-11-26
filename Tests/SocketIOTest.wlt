@@ -78,7 +78,7 @@ Block[{
                         "a",
                         ByteArray[{97}],
                         1,
-                        $Failed
+                        Failure["write", <|"SocketID" -> 42, "Host" -> "127.0.0.1", "Port" -> 9000|>]
                     },
                     3
                 ],
@@ -103,7 +103,7 @@ Block[{
                         ]
                     ]
                 ],
-                $Failed,
+                Failure["write", <|"SocketID" -> 42, "Host" -> "", "Port" -> 0|>],
                 TestID -> "bound-udp-requires-destination"
             ],
             VerificationTest[
@@ -211,7 +211,7 @@ Block[{
                         ]
                     }
                 ],
-                {0, $Failed},
+                {0, Failure["socketSend", <|"SocketID" -> 42, "Host" -> "", "Port" -> 0, "BytesSent" -> 0, "BytesRequested" -> 1|>]},
                 TestID -> "empty-write-and-zero-progress"
             ],
             VerificationTest[
@@ -338,7 +338,7 @@ Block[{
                         ]
                     ]
                 ],
-                $Failed,
+                Failure["socketRecv", <|"SocketID" -> 42|>],
                 TestID -> "read-failure-propagates"
             ]
         }

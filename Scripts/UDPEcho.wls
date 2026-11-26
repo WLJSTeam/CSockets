@@ -19,7 +19,7 @@ With[{address = packet["Address"]},
 server = CSocketOpen["127.0.0.1", 8080, "UDP"];
 
 
-If[server === $Failed, Exit[1]];
+If[FailureQ[server], Exit[1]];
 
 
 handler = CSocketHandler["ReceivedFrom" -> udpEcho];

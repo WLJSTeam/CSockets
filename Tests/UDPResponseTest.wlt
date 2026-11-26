@@ -72,7 +72,7 @@ TestReport[
             TestID -> "response-selects-send-path-by-address-field"
         ],
         VerificationTest[
-            Module[{server, clients, list, task, handler, exchange, result, address},
+            Module[{server, clients, task, handler, exchange, result, address},
                 server = CSocketOpen["127.0.0.1", 0, "UDP"];
                 clients = Table[
                     CSocketConnect[
@@ -85,7 +85,6 @@ TestReport[
                     ],
                     {2}
                 ];
-                list = {server};
                 handler = CSocketHandler[
                     "ReceivedFrom" -> (
                         Switch[First[
@@ -102,7 +101,7 @@ TestReport[
                         ]&
                     )
                 ];
-                task = SocketListen[list, handler];
+                task = SocketListen[<|server -> handler|>];
                 exchange[client_CSocketObject, request_Integer, expected_ByteArray] :=
                 (
                     BinaryWrite[

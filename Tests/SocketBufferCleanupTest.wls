@@ -18,14 +18,14 @@ report = TestReport[
                 Module[{handler = CSocketHandler["Accumulator" -> Function[2]], before},
                     registerSocket[42];
                     $CSockets[42, "Handler"] = handler;
-                    dispatchPollEvent[
+                    handler[toEvent[{
                         AsynchronousTaskObject[1],
                         "Received",
                         {
                             42,
                             ByteArray[{1}]
                         }
-                    ];
+                    }]];
                     before = !MissingQ[
                         handler["Buffer"]["Lookup", 42]
                     ];
@@ -67,41 +67,41 @@ report = TestReport[
                     ];
                     registerSocket[42];
                     $CSockets[42, "Handler"] = handler;
-                    dispatchPollEvent[
+                    handler[toEvent[{
                         AsynchronousTaskObject[1],
                         "Received",
                         {
                             42,
                             ByteArray[{1}]
                         }
-                    ];
+                    }]];
                     before = !MissingQ[
                         handler["Buffer"]["Lookup", 42]
                     ];
-                    dispatchPollEvent[
+                    handler[toEvent[{
                         AsynchronousTaskObject[1],
                         "Closed",
                         {42}
-                    ];
+                    }]];
                     registerSocket[42];
                     $CSockets[42, "Handler"] = handler;
-                    packet = dispatchPollEvent[
+                    packet = handler[toEvent[{
                         AsynchronousTaskObject[1],
                         "Received",
                         {
                             42,
                             ByteArray[{2}]
                         }
-                    ];
+                    }]];
                     before = before && cleaned && !packet["Completed"] && messages === {};
-                    dispatchPollEvent[
+                    handler[toEvent[{
                         AsynchronousTaskObject[1],
                         "Received",
                         {
                             42,
                             ByteArray[{3}]
                         }
-                    ];
+                    }]];
                     before && messages === {
                         {2, 3}
                     } && MissingQ[
@@ -117,31 +117,31 @@ report = TestReport[
                 Module[{handler = CSocketHandler["Accumulator" -> Function[2]], preserved},
                     registerSocket[42];
                     $CSockets[42, "Handler"] = handler;
-                    dispatchPollEvent[
+                    handler[toEvent[{
                         AsynchronousTaskObject[1],
                         "Received",
                         {
                             42,
                             ByteArray[{1}]
                         }
-                    ];
+                    }]];
                     socketValidQ[_Integer] :=
                     True;
-                    dispatchPollEvent[
+                    handler[toEvent[{
                         AsynchronousTaskObject[1],
                         "Error",
                         {42, 99}
-                    ];
+                    }]];
                     preserved = !MissingQ[
                         handler["Buffer"]["Lookup", 42]
                     ] && KeyExistsQ[$CSockets, 42];
                     socketValidQ[_Integer] :=
                     False;
-                    dispatchPollEvent[
+                    handler[toEvent[{
                         AsynchronousTaskObject[1],
                         "Error",
                         {42, 99}
-                    ];
+                    }]];
                     preserved && MissingQ[
                         handler["Buffer"]["Lookup", 42]
                     ] && !KeyExistsQ[$CSockets, 42]
@@ -161,7 +161,7 @@ report = TestReport[
                         ( $CSockets[#, "Handler"] = handler )&,
                         {42, 43}
                     ];
-                    dispatchPollEvent[
+                    handler[toEvent[{
                         AsynchronousTaskObject[1],
                         "ReceivedFrom",
                         {
@@ -169,8 +169,8 @@ report = TestReport[
                             "127.0.0.1:1",
                             ByteArray[{1}]
                         }
-                    ];
-                    dispatchPollEvent[
+                    }]];
+                    handler[toEvent[{
                         AsynchronousTaskObject[1],
                         "ReceivedFrom",
                         {
@@ -178,8 +178,8 @@ report = TestReport[
                             "127.0.0.1:2",
                             ByteArray[{2}]
                         }
-                    ];
-                    dispatchPollEvent[
+                    }]];
+                    handler[toEvent[{
                         AsynchronousTaskObject[1],
                         "ReceivedFrom",
                         {
@@ -187,7 +187,7 @@ report = TestReport[
                             "127.0.0.1:1",
                             ByteArray[{3}]
                         }
-                    ];
+                    }]];
                     before = Length[
                         handler["Buffer"]["Keys"]
                     ] === 3;

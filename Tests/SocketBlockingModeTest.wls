@@ -51,7 +51,7 @@ report = TestReport[
                 result = AllTrue[
                     nativeFailures,
                     MatchQ[#, _LibraryFunctionError]&
-                ] && nonblockingFailure === $Failed && $CSockets[id] === before;
+                ] && nonblockingFailure === Failure["socketSetNonBlockingMode", <|"SocketID" -> id|>] && $CSockets[id] === before;
                 $CSockets[id, "BlockingMode"] = "NonBlocking";
                 before = $CSockets[id];
                 blockingFailure = Quiet[
@@ -59,7 +59,7 @@ report = TestReport[
                         toBlocking[id]
                     ]
                 ];
-                result = result && blockingFailure === $Failed && $CSockets[id] === before;
+                result = result && blockingFailure === Failure["socketSetBlockingMode", <|"SocketID" -> id|>] && $CSockets[id] === before;
                 unregisterSocket[id];
                 result
             ],

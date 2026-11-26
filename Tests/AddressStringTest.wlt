@@ -45,7 +45,7 @@ report = TestReport[
         ],
         VerificationTest[
             And @@ Table[
-                !addressQ[address] && splitAddress[address] === $Failed,
+                !addressQ[address] && Catch[splitAddress[address]] === Failure["InvalidAddress", <|"Address" -> address|>],
                 {
                     address,
                     {

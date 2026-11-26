@@ -130,10 +130,12 @@ Block[{
                         {0, LibraryFunctionError["send", 6]}
                     }
                 ],
-                {
-                    {$Failed, 2},
-                    {$Failed, 2}
-                },
+                ConstantArray[{
+                    Failure["socketSend", <|
+                        "SocketID" -> 42, "Host" -> "", "Port" -> 0, "BytesSent" -> 1, "BytesRequested" -> 3
+                    |>],
+                    2
+                }, 2],
                 TestID -> "send-stops-on-zero-progress-or-error"
             ],
             VerificationTest[

@@ -64,11 +64,11 @@ report = TestReport[
                         {event["ClosedSocket"], KeyExistsQ[$CSockets, 10]}
                     ]
                 ];
-                dispatchPollEvent[
+                socketListenerHandler[$CSockets[10, "Handler"]][toEvent[{
                     AsynchronousTaskObject[1],
                     "Closed",
                     {10}
-                ];
+                }]];
                 {calls, events, KeyExistsQ[$CSockets, 10]}
             ],
             {
@@ -95,11 +95,11 @@ report = TestReport[
                         {event["ErrorCode"], KeyExistsQ[$CSockets, 10]}
                     ]
                 ];
-                dispatchPollEvent[
+                socketListenerHandler[$CSockets[10, "Handler"]][toEvent[{
                     AsynchronousTaskObject[1],
                     "Error",
                     {10, 99}
-                ];
+                }]];
                 {events, KeyExistsQ[$CSockets, 10]}
             ],
             {
@@ -127,33 +127,41 @@ report = TestReport[
             Block[{
                 $CSockets = <||>,
                 socketGetAddresses,
-                events = {}
+                events = {},
+                originalHandler
             },
                 socketGetAddresses[20, $SOCKETROLETCPACCEPTED] :=
                 {"127.0.0.1:80", "127.0.0.1:90"};
                 registerSocket[10, "TCP", "Bound", "NonBlocking"];
+                $CSockets[10, "Listener"] = AsynchronousTaskObject[1];
                 $CSockets[10, "Handler"] = Function[event,
                     AppendTo[
                         events,
                         {event["AcceptedSocket"], $CSockets[20, "Role"]}
                     ]
                 ];
-                dispatchPollEvent[
+                originalHandler = $CSockets[10, "Handler"];
+                socketListenerHandler[$CSockets[10, "Handler"]][toEvent[{
                     AsynchronousTaskObject[1],
                     "Accepted",
                     {10, 20}
-                ];
+                }]];
                 $CSockets[10, "Handler"] = Function[event,
                     "updated"
                 ];
-                {
+                With[{beforeReuse = {
                     events,
                     $CSockets[20, "Addresses"],
                     $CSockets[20, "ListenSocket"],
                     $CSockets[20, "BlockingMode"],
                     $CSockets[20, "Listener"],
                     $CSockets[20, "Handler"][<||>]
-                }
+                }},
+                    registerSocket[10, "TCP", "Bound", "NonBlocking"];
+                    $CSockets[10, "Listener"] = AsynchronousTaskObject[2];
+                    $CSockets[10, "Handler"] = Function["unrelated"];
+                    Append[beforeReuse, $CSockets[20, "Handler"] === originalHandler]
+                ]
             ],
             {
                 {
@@ -163,7 +171,8 @@ report = TestReport[
                 CSocketObject[10],
                 "NonBlocking",
                 AsynchronousTaskObject[1],
-                "updated"
+                "updated",
+                True
             },
             TestID -> "accepted-event-registers-before-callback-and-inherits-handler-dynamically"
         ],
@@ -180,11 +189,11 @@ report = TestReport[
                         event["ClosedSocket"]
                     ]
                 ];
-                dispatchPollEvent[
+                socketListenerHandler[$CSockets[socketEventSource[AsynchronousTaskObject[1], {20}], "Handler"]][toEvent[{
                     AsynchronousTaskObject[1],
                     "Closed",
                     {20}
-                ];
+                }]];
                 {events, Keys[$CSockets]}
             ],
             {

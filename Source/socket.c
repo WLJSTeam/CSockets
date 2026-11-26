@@ -446,16 +446,8 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
     }
 
     int result = recv(socketId, (char *)bufferData, (int)bufferSize, 0);
-    bool received = result > 0;
 
-    if (result == 0) {
-        int socketType = 0;
-        socklen_t typeLength = sizeof(socketType);
-        int status = getsockopt(socketId, SOL_SOCKET, SO_TYPE, (char *)&socketType, &typeLength);
-        received = status == 0 && socketType == SOCK_DGRAM;
-    }
-
-    if (received) {
+    if (result >= 0) {
         MNumericArray receivedData = MNumericArrayFromByte(libData, bufferData, (size_t)result);
         libData->numericarrayLibraryFunctions->MNumericArray_disown(buffer);
 
@@ -466,12 +458,6 @@ DLLEXPORT int socketRecv(WolframLibraryData libData, mint Argc, MArgument *Args,
 
         MArgument_setMNumericArray(Res, receivedData);
         return LIBRARY_NO_ERROR;
-    }
-
-    if (result == 0) {
-        libData->Message("socketRecv: socket closed");
-        libData->numericarrayLibraryFunctions->MNumericArray_disown(buffer);
-        return LIBRARY_FUNCTION_ERROR;
     }
 
     libData->Message(format("socketRecv: failed %d", GETSOCKETERRNO()));
@@ -847,7 +833,7 @@ DLLEXPORT int socketsPoll(WolframLibraryData libData, mint Argc, MArgument *Args
         fds[i].revents = 0;
     }
 
-    int result = sockets_poll(fds, length, timeout);
+    int result = sockets_poll_abort(libData, fds, length, timeout, 5000);
 
     if (result < 0) {
         libData->Message(format("socketsPoll: failed %d", GETSOCKETERRNO()));

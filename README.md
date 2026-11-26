@@ -139,8 +139,9 @@ WriteString[socket, address, text]
 
 The address argument is a string such as `"127.0.0.1:8080"` or `"[::1]:8080"`. It selects
 the destination of a UDP datagram. Strings are converted to UTF-8 bytes before
-sending. The wrappers recursively send any remaining bytes and return the total
-number sent; an error stops sending, and zero progress returns `$Failed`.
+sending. The wrappers send any remaining bytes in a loop and return the total
+number sent. A send error or zero progress returns a `Failure` with the native
+function name, socket ID, and byte counts.
 
 `SocketReadMessage[socket]` returns a `ByteArray` for TCP. For both UDP clients
 and UDP servers it returns `{data, address}` directly from the native result,
@@ -159,7 +160,7 @@ the sender address. `SocketReadMessage` converts that container to a list.
 ### `SocketReadyQ`
 
 `SocketReadyQ[socket, timeout]` checks whether a socket has pending activity.
-For a connected socket it returns `True` or `False`; if the socket is invalid or no longer connected, it returns `$Failed`.
+It returns `True` or `False` when the poll succeeds and a `Failure` if polling fails.
 
 #### Example
 
@@ -182,7 +183,13 @@ Close[server]
 
 ### `SocketListen`
 
-`SocketListen[socket, handler]` and `SocketListen[{socket1, socket2, ...}, handler]` start an asynchronous polling loop and forward events to the handler. The returned `AsynchronousTaskObject` controls the listener; no native list object is exposed to WL.
+`SocketListen[socket, handler]` starts an asynchronous listener for one socket.
+`SocketListen[{socket1 -> handler1, socket2 -> handler2, ...}]` starts one polling
+loop and forwards each socket's events to its assigned handler. The returned
+`AsynchronousTaskObject` controls the listener.
+
+Bindings can also be passed as an association of `socket -> handler` rules or
+a list of `{socket, handler}` pairs.
 
 ```wl
 handler = CSocketHandler[
@@ -191,6 +198,11 @@ handler = CSocketHandler[
 
 listener = SocketListen[server, handler];
 ```
+
+Use `"EventConverter" -> converter` with either form of `SocketListen` to
+customize the association passed to the handler. The converter takes one
+argument, `{task, name, data}`. Without this option, `SocketListen` produces
+the standard event association.
 
 The callback receives event associations such as:
 
@@ -228,26 +240,30 @@ CSocketHandle[{
 }];
 ```
 
-The list may contain multiple TCP and UDP servers, connected sockets, and
-accepted TCP sockets. A ready TCP server accepts a connection and adds it to
-the loop. Connected and accepted sockets produce `"Received"` events; bound
-UDP sockets produce `"ReceivedFrom"` events with the sender's `"Address"`.
+The bindings may contain multiple TCP and UDP servers, connected sockets, and
+accepted TCP sockets. `CSocketHandle` accepts the same binding forms and
+`"EventConverter"` option as `SocketListen`. A ready TCP server accepts a
+connection and adds it to the loop. Connected and accepted TCP sockets produce
+`"Received"` events. UDP sockets produce `"ReceivedFrom"` events with the
+sender's `"Address"`.
 Accepted sockets inherit their server's handler and retain their `"ListenSocket"`,
 including after the listening socket is closed. Each socket's data, accept,
 close, and error events go to its assigned handler. If a socket appears more
 than once, its last rule supplies the handler.
 
-`CSocketHandler` provides the same buffering, serialization, callbacks, and
-automatic replies as with `SocketListen`. You can also pass an ordinary function
-of the event association: its string or `ByteArray` result is sent back for
-received data, and `Null` skips the reply. Synchronous event packets have no
-`"Task"` field.
+`CSocketHandle` and `SocketListen` use the same event associations,
+`CSocketHandler` callbacks, buffering, and serialization. An ordinary function
+can handle the same association and return a string or `ByteArray` to reply to
+received data. In synchronous mode `"Task"` is `Null`. In asynchronous mode it
+contains the `AsynchronousTaskObject`.
+In synchronous mode, an `"Error"` event reports the error flags for an
+individual socket.
 
-The loop waits up to one second per poll, removes closed or failed sockets,
-and checks all remaining descriptors after an I/O error. It returns `Null` when
-no sockets remain, or `$Failed` for an unrecoverable poll error. An empty input
-list returns immediately. Abort evaluation to stop a running server; sockets
-that are still open remain available through `$CSockets` and can be closed with
+The loop requests one second of polling in slices of up to 5 ms and removes
+sockets with terminal events. OS timer rounding can extend the elapsed wait.
+It returns `Null` when no sockets remain and a `Failure` if a poll,
+accept, read, or close operation fails. Sockets that are still open after
+failure or abort remain available through `$CSockets` and can be closed with
 `Close`.
 
 ## `CSocketHandler`
@@ -292,11 +308,15 @@ sets the logger, and `handler["Logger", packet]` invokes it.
 | `"Serializer"`    | `Function[#]` | Postprocesses handler results before they are sent. |
 | `"Deserializer"` | `Function[#]` | Converts the complete message bytes into `"Data"`. |
 | `"Accumulator"` | `Function[Length[#DataByteArray]]` | Computes expected message length from the first fragment. |
-| `"Received"` | `Function[Null]` | Callback for received data. |
-| `"ReceivedFrom"` | `Function[Null]` | Callback for UDP data, including the sender's `"Address"`. |
-| `"Accepted"` | `Function[Null]` | Callback for accepted connections. |
-| `"Closed"` | `Function[Null]` | Callback for socket close events. |
-| `"Error"` | `Function[Null]` | Callback for error events. |
+| `"Received"` | Process and log received messages. | Callback for received data. |
+| `"ReceivedFrom"` | Process and log received datagrams. | Callback for UDP data, including the sender's `"Address"`. |
+| `"Accepted"` | Register the accepted socket. | Callback for accepted connections. |
+| `"Closed"` | Remove the socket and its buffered data. | Callback for socket close events. |
+| `"Error"` | Remove the socket and its buffered data if the socket is invalid. | Callback for error events. |
+
+Lifecycle actions run before custom callbacks. Data callbacks run on complete
+messages after deserialization. The returned response is serialized and sent
+when non-null.
 
 ### Example
 

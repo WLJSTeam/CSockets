@@ -187,17 +187,55 @@ handleReport = TestReport[{
             client = CSocketConnect[server["LocalAddress"]];
             WriteString[server, client["LocalAddress"], "hello"];
             handler = CSocketHandler[
-                "Received" -> (#DataByteArray&),
+                "ReceivedFrom" -> (#DataByteArray&),
                 "Logger" -> Function[received, packet = received; Close[client]]
             ];
-            result = TimeConstrained[CSocketHandle[{client -> handler}], 8, "timeout"];
-            result = result === Null && packet["Event"] === "Received" && !KeyExistsQ[packet, "Address"] &&
+            result = TimeConstrained[CSocketHandle[
+                <|client -> handler|>,
+                "EventConverter" -> Function[raw, Append[toEvent[raw], "Converted" -> True]]
+            ], 8, "timeout"];
+            result = result === Null && packet["Event"] === "ReceivedFrom" &&
+                packet["Address"] === StringDelete[server["LocalAddress"], StartOfString ~~ "udp://"] &&
+                packet["Task"] === Null && packet["Converted"] === True &&
                 SocketReadyQ[server, 1] && Last[SocketReadMessage[server]] === StringToByteArray["hello"];
             Scan[Close, CSocketObject /@ Complement[Keys[$CSockets], before]];
             result
         ],
         True,
-        TestID -> "synchronous-connected-udp-replies-without-destination"
+        TestID -> "synchronous-connected-udp-event-includes-sender-and-replies-to-peer"
+    ],
+    VerificationTest[
+        Module[{server, client, handler, converter, task, delivered = {}, events, replies, result},
+            server = CSocketOpen["127.0.0.1", 0, "UDP"];
+            client = CSocketConnect[server["LocalAddress"]];
+            handler = Function[event,
+                AppendTo[delivered, event];
+                event["DataByteArray"]
+            ];
+            converter = Function[raw, Append[toEvent[raw], "Converted" -> True]];
+            task = SocketListen[server, handler, "EventConverter" -> converter];
+            WriteString[client, "ping"];
+            Do[
+                Pause[0.02];
+                If[delivered =!= {}, Break[]],
+                {150}
+            ];
+            RemoveAsynchronousTask[task];
+            Pause[1.1];
+            replies = {If[SocketReadyQ[client, 1], ReadString[client], $Failed]};
+
+            WriteString[client, "ping"];
+            events = waitEvents[{First[server]}, 1];
+            AppendTo[replies, If[SocketReadyQ[client, 1], ReadString[client], $Failed]];
+            result = Length[delivered] === 2 && events === {Last[delivered]} &&
+                delivered[[1]]["Task"] === task && delivered[[2]]["Task"] === Null &&
+                TrueQ[delivered[[2]]["Converted"]] &&
+                SameQ @@ (KeyDrop[#, {"Timestamp", "Task"}]& /@ delivered) && replies === {"ping", "ping"};
+            Scan[Close, {client, server}];
+            result
+        ],
+        True,
+        TestID -> "sync-and-async-deliver-matching-events-and-use-the-same-function-handler"
     ],
     VerificationTest[
         Module[{server, client, count = 0, result, before = Keys[$CSockets]},
@@ -225,58 +263,48 @@ handleReport = TestReport[{
         TestID -> "synchronous-function-response-null-and-duplicate-input"
     ],
     VerificationTest[
-        Module[{
-            server, stale, client, handler, staleHandler, result,
-            events = {}, routes = {}, nativePoll = socketsPoll,
-            calls = 0, before = Keys[$CSockets]
-        },
-            server = CSocketOpen["127.0.0.1", 0, "UDP"];
-            client = CSocketConnect[server["LocalAddress"]];
-            stale = CSocketOpen["127.0.0.1", 0, "UDP"];
-            socketClose[First[stale]];
-            WriteString[client, "ping"];
-            handler = CSocketHandler[
-                "ReceivedFrom" -> (#DataByteArray&),
-                "Logger" -> Function[packet,
-                    AppendTo[events, packet];
-                    AppendTo[routes, "live"];
-
-                    If[packet["Event"] === "ReceivedFrom", Close[server]]
-                ]
+        Module[{server = CSocketOpen["127.0.0.1", 0, "UDP"], called = False, result},
+            result = Block[{socketsPoll = Function[Null, Message[CSocketHandleTest::native]; {}]},
+                TimeConstrained[CSocketHandle[server, Function[called = True]], 4, "timeout"]
             ];
-            staleHandler = CSocketHandler[
-                "Logger" -> Function[packet, AppendTo[events, packet]; AppendTo[routes, "stale"]]
-            ];
-            staleHandler["Buffer"]["Insert", {First[stale], "127.0.0.1:1"} -> CreateDataStructure["DynamicArray"]];
-            result = Block[{socketsPoll = Function[{ids, timeout, mask},
-                calls++;
-
-                If[calls === 1,
-                    Message[CSocketHandleTest::native]; $Failed,
-                    nativePoll[ids, timeout, mask]
-                ]
-            ]},
-                TimeConstrained[CSocketHandle[{stale -> staleHandler, server -> handler}], 8, "timeout"]
-            ];
-            result = result === Null && calls >= 2 && Lookup[events, "Event"] === {"Closed", "ReceivedFrom"} &&
-                routes === {"stale", "live"} && !KeyExistsQ[$CSockets, First[stale]] && staleHandler["Buffer"]["Length"] === 0 &&
-                SocketReadyQ[client, 1] && ReadString[client] === "ping";
-            Scan[Close, CSocketObject /@ Complement[Keys[$CSockets], before]];
+            result = MatchQ[result, Failure["socketsPoll", _Association]] && !called && socketValidQ[First[server]];
+            Close[server];
             result
         ],
         True,
-        TestID -> "synchronous-poll-error-prunes-invalid-descriptors-and-continues"
+        {CSocketHandleTest::native, poll::fail},
+        TestID -> "synchronous-poll-message-reaches-public-catch"
     ],
     VerificationTest[
-        Block[{socketsPoll = Function[Null, Message[CSocketHandleTest::native]; $Failed]},
-            Module[{server = CSocketOpen["127.0.0.1", 0, "UDP"], result},
-                result = Quiet[TimeConstrained[CSocketHandle[{server -> Function[Null]}], 4, "timeout"]];
-                Close[server];
-                result === $Failed
-            ]
+        Module[{server = CSocketOpen["127.0.0.1", 0, "UDP"], called = False, result},
+            result = Block[{
+                socketsPoll = Function[{ids, timeout, mask}, {{First[ids], $POLLIN}}],
+                socketRecvFrom = Function[Null, $Failed]
+            },
+                TimeConstrained[CSocketHandle[server, Function[called = True]], 4, "timeout"]
+            ];
+            result = MatchQ[result, Failure["socketRecvFrom", _Association]] && !called && socketValidQ[First[server]];
+            Close[server];
+            result
         ],
         True,
-        TestID -> "synchronous-unrecoverable-poll-error-terminates"
+        {read::fail},
+        TestID -> "synchronous-read-error-reaches-public-catch"
+    ],
+    VerificationTest[
+        Module[{server, client, result},
+            server = CSocketOpen["127.0.0.1", 0, "UDP"];
+            client = CSocketConnect[server["LocalAddress"]];
+            WriteString[client, "ping"];
+            result = Block[{socketSendTo = Function[Null, 0]},
+                TimeConstrained[CSocketHandle[server, Function["pong"]], 4, "timeout"]
+            ];
+            Scan[Close, {client, server}];
+            MatchQ[result, Failure["socketSendTo", KeyValuePattern["BytesSent" -> 0]]]
+        ],
+        True,
+        {write::fail},
+        TestID -> "synchronous-reply-error-reaches-public-catch"
     ],
     VerificationTest[
         Module[{server, client, handler, messages = {}, buffered = False, cleaned = False, result, before = Keys[$CSockets]},
@@ -386,8 +414,8 @@ handleReport = TestReport[{
         TestID -> "synchronous-empty-socket-list"
     ],
     VerificationTest[
-        Quiet[CSocketHandle[{CSocketObject[-1] -> Function[Null]}]],
-        $Failed,
+        MatchQ[Quiet[CSocketHandle[{CSocketObject[-1] -> Function[Null]}]], Failure["CSocketHandle", _Association]],
+        True,
         TestID -> "synchronous-rejects-unregistered-sockets"
     ]
 }];

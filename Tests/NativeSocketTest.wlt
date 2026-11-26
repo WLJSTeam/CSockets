@@ -62,6 +62,7 @@ nativeSocketReport = TestReport[
                 sender,
                 task,
                 events = {},
+                record,
                 ports,
                 result
             },
@@ -76,9 +77,16 @@ nativeSocketReport = TestReport[
                 ports = splitAddress[
                     $CSockets[#, "LocalAddress"]
                 ]["Port"]& /@ receivers;
-                task = SocketListen[
-                    CSocketObject /@ receivers,
-                    ( AppendTo[events, #] )&
+                record = Function[id,
+                    Function[event,
+                        AppendTo[events, {id, event["SourceSocket"], event["DataBytes"], event["Converted"]}]
+                    ]
+                ];
+                task = With[{first = receivers[[1]], second = receivers[[2]]},
+                    SocketListen[{
+                        CSocketObject[first] -> record[first],
+                        {CSocketObject[second], record[second]}
+                    }, "EventConverter" -> Function[raw, Append[toEvent[raw], "Converted" -> True]]]
                 ];
                 sender = createSocket["IPv4", "UDP"];
                 Scan[
@@ -97,12 +105,11 @@ nativeSocketReport = TestReport[
                     ],
                     {150}
                 ];
-                result = Sort[
-                    Lookup[events, "SourceSocket"]
-                ] === Sort[CSocketObject /@ receivers] && Lookup[events, "DataBytes"] === {
-                    {7},
-                    {7}
-                };
+                result = Sort[events] === Sort[Map[{#, CSocketObject[#], {7}, True}&, receivers]] &&
+                    AllTrue[receivers, Function[id,
+                        $CSockets[id, "Listener"] === task &&
+                            MemberQ[Normal[$CSockets[id]], HoldPattern["Handler" -> _Function]]
+                    ]];
                 RemoveAsynchronousTask[task];
                 Pause[1.1];
                 result = result && AllTrue[receivers, socketValidQ];

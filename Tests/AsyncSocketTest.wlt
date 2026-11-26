@@ -16,17 +16,14 @@ TestReport[
                 Module[{
                     server,
                     client,
-                    list,
                     task,
                     events = {},
                     received,
                     result
                 },
                     server = CSocketOpen[host, 0, protocol];
-                    list = {server};
                     task = SocketListen[
-                        list,
-                        ( AppendTo[events, #]& )
+                        {server -> (AppendTo[events, #]&)}
                     ];
                     client = CSocketConnect[
                         host,

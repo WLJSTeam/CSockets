@@ -116,54 +116,6 @@ char *format(const char *fmt, ...)
 }
 
 
-void print(const char* format, ...)
-{
-    #ifdef _DEBUG
-    fprintf(stderr, "[%s] ", get_current_time());
-    va_list args;
-    va_start(args, format);
-
-    vprintf(format, args);
-    printf("\n");
-
-    va_end(args);
-    #endif
-}
-
-
-char* get_current_time()
-{
-    static char time_buffer[64];
-    time_t rawtime;
-    struct tm timeinfo;
-
-    time(&rawtime);
-#ifdef _WIN32
-    localtime_s(&timeinfo, &rawtime);
-#else
-    localtime_r(&rawtime, &timeinfo);
-#endif
-
-    strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
-
-    #ifdef _WIN32
-    SYSTEMTIME st;
-    GetSystemTime(&st);
-    snprintf(time_buffer + strlen(time_buffer),
-             sizeof(time_buffer) - strlen(time_buffer),
-             ".%03d", st.wMilliseconds);
-    #else
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    snprintf(time_buffer + strlen(time_buffer),
-             sizeof(time_buffer) - strlen(time_buffer),
-             ".%06ld", (long)(tv.tv_usec));
-    #endif
-
-    return time_buffer;
-}
-
-
 void init_wsa()
  {
     #ifdef _WIN32
@@ -261,6 +213,38 @@ int sockets_poll(POLL_FD *fds, mint length, mint timeout_us)
     #endif
 
     return result;
+}
+
+
+int sockets_poll_abort(WolframLibraryData libData, POLL_FD *fds, mint length, mint timeout_us, mint slice_limit)
+{
+    if (slice_limit <= 0) {
+#ifdef _WIN32
+        WSASetLastError(WSAEINVAL);
+#else
+        errno = EINVAL;
+#endif
+        return -1;
+    }
+
+    while (true) {
+        mint slice = timeout_us == -1 || timeout_us > slice_limit ? slice_limit : timeout_us;
+        int result = sockets_poll(fds, length, slice);
+
+        if (result != 0 || slice == timeout_us) {
+            return result;
+        }
+
+        mint aborted = libData->AbortQ();
+
+        if (aborted) {
+            return 0;
+        }
+
+        if (timeout_us != -1) {
+            timeout_us -= slice;
+        }
+    }
 }
 
 

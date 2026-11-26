@@ -73,9 +73,7 @@ report = TestReport[
                         {2}
                     ];
                     task = SocketListen[
-                        servers,
-                        Function[Null
-                        ]
+                        Map[# -> Function[Null]&, servers]
                     ];
                     Switch[operation,
                         "Stop",

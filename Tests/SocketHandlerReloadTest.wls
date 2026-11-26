@@ -1,3 +1,6 @@
+socketListenOptions = Options[SocketListen];
+
+
 Get[
     FileNameJoin[
         {DirectoryName[$InputFileName, 2], "Kernel", "CSockets.wl"}
@@ -8,7 +11,13 @@ Get[
 Begin["WLJS`CSockets`Private`"];
 
 
-events = {}; checks = {};
+events = {}; checks = {Options[SocketListen] === Global`socketListenOptions};
+
+
+originalConverter = Function[raw, Append[toEvent[raw], "Converter" -> "original"]];
+
+
+replacementConverter = Function[raw, Append[toEvent[raw], "Converter" -> "replacement"]];
 
 
 serverId = createSocket["IPv4", "TCP"];
@@ -28,7 +37,8 @@ task = SocketListen[
     server,
     (
         AppendTo[events, {"old", #}]
-    )&
+    )&,
+    "EventConverter" -> originalConverter
 ];
 
 
@@ -74,7 +84,8 @@ accepted = Lookup[
 
 AppendTo[
     checks,
-    acceptedPacket[[1]] === "old" && accepted["Listener"] === task
+    acceptedPacket[[1]] === "old" && accepted["Listener"] === task &&
+        acceptedPacket[[2]]["Converter"] === "original"
 ];
 
 
@@ -100,7 +111,7 @@ AppendTo[
     checks,
     AnyTrue[
         events,
-        #[[1]] === "old" && Lookup[
+        #[[1]] === "old" && #[[2]]["Converter"] === "original" && Lookup[
             #[[2]],
             "DataBytes",
             {}
@@ -113,7 +124,8 @@ newTask = SocketListen[
     server,
     (
         AppendTo[events, {"new", #}]
-    )&
+    )&,
+    {"EventConverter" -> replacementConverter}
 ];
 
 
@@ -139,7 +151,7 @@ Do[
     Pause[0.02];
     If[AnyTrue[
             events,
-            #[[1]] === "new" && Lookup[
+            #[[1]] === "new" && #[[2]]["Converter"] === "replacement" && Lookup[
                 #[[2]],
                 "DataBytes",
                 {}
@@ -155,7 +167,7 @@ AppendTo[
     checks,
     AnyTrue[
         events,
-        #[[1]] === "new" && Lookup[
+        #[[1]] === "new" && #[[2]]["Converter"] === "replacement" && Lookup[
             #[[2]],
             "DataBytes",
             {}

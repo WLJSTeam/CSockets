@@ -34,7 +34,7 @@ CSocketHandle::usage =
 Begin["`Private`"];
 
 
-(* :$CSockets: *)
+(* :REGISTRY: *)
 
 
 $CSockets = If[AssociationQ[$CSockets],
@@ -43,7 +43,7 @@ $CSockets = If[AssociationQ[$CSockets],
 ];
 
 
-(* :CSocketOpen: *)
+(* :OPEN: *)
 
 
 CSocketOpen[address__] /; addressQ[address] :=
@@ -73,28 +73,16 @@ Options[CSocketConnect] = {
 
 
 CSocketConnect[address__, opts: OptionsPattern[]] /; addressQ[address] :=
-With[{
-    wait = OptionValue["Wait"]
-},
-    If[!BooleanQ[wait],
-        Message[CSocketConnect::opts, "Wait", wait];
-        Return[$Failed]
-    ];
+Catch @ Module[{wait = OptionValue["Wait"], addressAssoc, socketId},
+    optionValidQ["Wait", wait, BooleanQ];
+    addressAssoc = splitAddress[address];
+    socketId = createSocket[addressAssoc["Family"], addressAssoc["Protocol"]];
 
-    Catch @ With[{
-        addressAssoc = splitAddress[address]}, {
-        host = addressAssoc["Host"],
-        port = addressAssoc["Port"],
-        family = addressAssoc["Family"],
-        protocol = addressAssoc["Protocol"]}, {
-        socketId = createSocket[family, protocol]
-    },
-        If[!wait, toNonBlocking[socketId]];
-        connect[socketId, host, port];
-        If[!wait, toBlocking[socketId]];
+    If[!wait, toNonBlocking[socketId]];
+    connect[socketId, addressAssoc["Host"], addressAssoc["Port"]];
+    If[!wait, toBlocking[socketId]];
 
-        Return[CSocketObject[socketId]]
-    ]
+    CSocketObject[socketId]
 ];
 
 
@@ -102,8 +90,9 @@ With[{
 
 
 CSocketObject /: SocketReadyQ[CSocketObject[socketId_Integer], timeout: (_Integer | _Real): 0] :=
-Catch @ With[{readySockets = poll[{socketId}, timeout]},
-    readySockets === {socketId}
+Catch @ AnyTrue[
+    poll[{socketId}, timeout, "Readiness"],
+    BitAnd[Last[#], $POLLIN] != 0&
 ];
 
 
@@ -116,10 +105,6 @@ SocketWaitNext[sockets, "Timeout" -> 5];
 
 SocketWaitNext[sockets: {__CSocketObject}, opts: OptionsPattern[{"Timeout" -> 5}]] :=
 Catch @ With[{socketIds = sockets[[All, 1]], timeout = OptionValue["Timeout"]},
-    If[!NumberQ[timeout] || timeout < 0 || timeout > 60,
-        Return[$Failed]
-    ];
-
     CSocketObject[First[waitForSockets[socketIds, timeout, False]]]
 ];
 
@@ -130,10 +115,6 @@ SocketWaitAll[sockets, "Timeout" -> 5];
 
 SocketWaitAll[sockets: {__CSocketObject}, opts: OptionsPattern[{"Timeout" -> 5}]] :=
 Catch @ With[{socketIds = sockets[[All, 1]], timeout = OptionValue["Timeout"]},
-    If[!NumberQ[timeout] || timeout < 0 || timeout > 60,
-        Return[$Failed]
-    ];
-
     Map[CSocketObject] @ waitForSockets[socketIds, timeout, True]
 ];
 
@@ -141,11 +122,14 @@ Catch @ With[{socketIds = sockets[[All, 1]], timeout = OptionValue["Timeout"]},
 Protect[SocketWaitNext, SocketWaitAll];
 
 
-(* :READ/WRITE: *)
+(* :CLOSE: *)
 
 
 CSocketObject /: Close[CSocketObject[id_Integer]] :=
 Catch @ close[id];
+
+
+(* :READ: *)
 
 
 CSocketObject /: ReadByteArray[CSocketObject[id_Integer]] :=
@@ -167,7 +151,7 @@ CSocketObject /: BinaryWrite[CSocketObject[id_Integer], bytes_ByteArray] :=
 Catch @ write[id, bytes];
 
 
-CSocketObject /: BinaryWrite[CSocketObject[id_Integer], address_String?addressQ, bytes_ByteArray] :=
+CSocketObject /: BinaryWrite[CSocketObject[id_Integer], address__, bytes_ByteArray] /; addressQ[address] :=
 Catch @ With[{
     addressAssoc = splitAddress[address]}, {
     host = addressAssoc["Host"],
@@ -181,21 +165,105 @@ CSocketObject /: WriteString[object_CSocketObject, text_String] :=
 BinaryWrite[object, StringToByteArray[text]];
 
 
-CSocketObject /: WriteString[object_CSocketObject, address_String?addressQ, text_String] :=
+CSocketObject /: WriteString[object_CSocketObject, address__, text_String] /; addressQ[address] :=
 BinaryWrite[object, address, StringToByteArray[text]];
 
 
-(* :OBJECT: *)
+(* :GET/SET: *)
 
 
-CSocketObject /: SocketListen[object: CSocketObject[id_Integer], handler_] :=
-With[{listener = $CSockets[id, "Listener"]},
-    $CSockets[id, "Handler"] = handler;
+CSocketObject[id_Integer][key_String] :=
+$CSockets[id, key];
 
-    If[listener =!= Null, Return[listener]];
 
-    SocketListen[{object}, handler]
+CSocketObject /: Set[CSocketObject[id_Integer][key_String], value_] :=
+$CSockets[id, key] = value;
+
+
+(* :LISTEN OVERRIDES: *)
+
+
+CSocketObject /: SocketListen[
+    object: CSocketObject[id_Integer],
+    handler_,
+    opts: OptionsPattern[{SocketListen, "EventConverter" -> toEvent}]
+] :=
+With[{
+    listener = Lookup[Lookup[$CSockets, id, <||>], "Listener", Null],
+    eventConverter = OptionValue["EventConverter"],
+    optsRest = FilterRules[Flatten[{opts}], Options[SocketListen]]
+},
+    If[listener =!= Null,
+        $CSockets[id, "Handler"] = handler;
+        $CSockets[id, "EventConverter"] = eventConverter;
+        Return[listener]
+    ];
+
+    SocketListen[{object -> handler}, "EventConverter" -> eventConverter, optsRest]
 ];
+
+
+Unprotect[SocketListen];
+
+
+SocketListen[
+    bindings: {(Rule | List)[CSocketObject[_Integer], _] ..},
+    opts: OptionsPattern[{SocketListen, "EventConverter" -> toEvent}]
+] :=
+SocketListen[
+    socketBindings[bindings],
+    opts
+];
+
+
+SocketListen[
+    bindings_Association?(MatchQ[Normal[#], {Rule[CSocketObject[_Integer], _] ..}]&),
+    OptionsPattern[{SocketListen, "EventConverter" -> toEvent}]
+] :=
+Catch @ With[{
+    socketIds = Keys[bindings][[All, 1]],
+    converter = OptionValue["EventConverter"]}, {
+    roles = Map[socketRoleCode, socketIds]
+},
+    KeyValueMap[Function[{socket, handler},
+        socket["Handler"] = handler;
+        socket["EventConverter"] = converter;
+    ], bindings];
+
+    With[{task = createSocketListener[socketIds, roles]},
+        Scan[($CSockets[#, "Listener"] = task)&, socketIds];
+        task
+    ]
+];
+
+
+Protect[SocketListen];
+
+
+createSocketListener[socketIds: {__Integer}, roles: {__Integer}] :=
+With[{task = Check[
+    Internal`CreateAsynchronousTask[
+        socketPollLoopCreate,
+        {socketIds, roles, 10 ^ 6, $POLLIN},
+        Function[{task, name, data},
+            Catch @ With[{source = socketEventSource[task, data]},
+                If[!MissingQ[source], deliverSocketEvent[source, {task, name, data}]]
+            ]
+        ],
+        "PostStopAsynchronousTask" -> (removeSocketListener[#[[2]]]&),
+        "PostRemoveAsynchronousTask" -> (removeSocketListener[#[[2]]]&)
+    ],
+    $Failed
+]},
+    If[!MatchQ[task, _AsynchronousTaskObject],
+        Throw[Failure["socketPollLoopCreate", <|"SocketIDs" -> socketIds, "Roles" -> roles|>]]
+    ];
+
+    task
+];
+
+
+(* :FORMAT: *)
 
 
 CSocketObject /: MakeBoxes[object: CSocketObject[id_Integer], form: (StandardForm | TraditionalForm)] :=
@@ -215,41 +283,6 @@ Module[{metadata = Lookup[$CSockets, id, <||>], above, below},
 ];
 
 
-CSocketObject[id_Integer][key_String] :=
-$CSockets[id, key];
-
-
-(* :LISTEN: *)
-
-
-Unprotect[SocketListen];
-
-
-SocketListen[sockets: {__CSocketObject}, handler_] :=
-Catch @ With[{socketIds = sockets[[All, 1]]}, {
-    roles = Map[socketRoleCode, socketIds]
-},
-    Scan[($CSockets[#, "Handler"] = handler)&, socketIds];
-
-    With[{task = Internal`CreateAsynchronousTask[
-        socketPollLoopCreate,
-        {socketIds, roles, 10 ^ 6, $POLLIN},
-        dispatchPollEvent,
-        "PostStopAsynchronousTask" -> (removeSocketListener[#[[2]]]&),
-        "PostRemoveAsynchronousTask" -> (removeSocketListener[#[[2]]]&)
-    ]},
-        If[MatchQ[task, _AsynchronousTaskObject],
-            Scan[($CSockets[#, "Listener"] = task)&, socketIds];
-        ];
-
-        task
-    ]
-];
-
-
-Protect[SocketListen];
-
-
 (* :CSocketHandle: *)
 
 
@@ -257,159 +290,104 @@ CSocketHandle::socket =
 "Socket `1` must be registered with role Connected, Accepted, or Bound.";
 
 
-CSocketHandle[bindings: {Rule[CSocketObject[_Integer], _]...}] :=
-Catch @ Module[{
-    socketIds = DeleteDuplicates[First /@ bindings[[All, 1]]],
-    events, role, failed
-},
+socketBindings[bindings_List] :=
+Association[Map[Replace[#, {socket_CSocketObject, handler_} :> (socket -> handler)]&, bindings]];
+
+
+CSocketHandle[
+    socket: CSocketObject[_Integer],
+    handler_,
+    opts: OptionsPattern[{"EventConverter" -> toEvent}]
+] :=
+CSocketHandle[<|socket -> handler|>, opts];
+
+
+CSocketHandle[
+    bindings: {(Rule | List)[CSocketObject[_Integer], _] ...},
+    opts: OptionsPattern[{"EventConverter" -> toEvent}]
+] :=
+CSocketHandle[socketBindings[bindings], opts];
+
+
+CSocketHandle[
+    bindings_Association?(MatchQ[Normal[#], {Rule[CSocketObject[_Integer], _] ...}]&),
+    OptionsPattern[{"EventConverter" -> toEvent}]
+] :=
+Catch @ handleSockets[bindings, OptionValue["EventConverter"]];
+
+
+handleSockets[bindings_Association, converter_] :=
+Module[{socketIds = First /@ Keys[bindings], events, role},
     Scan[Function[id,
         role = {$CSockets[id, "Protocol"], $CSockets[id, "Role"]};
 
         If[!MatchQ[role, {"TCP", "Bound" | "Connected" | "Accepted"} | {"UDP", "Bound" | "Connected"}],
             Message[CSocketHandle::socket, CSocketObject[id]];
-            Throw[$Failed]
+            Throw[Failure["CSocketHandle", <|"SocketID" -> id, "Role" -> role|>]]
         ];
     ], socketIds];
 
-    Scan[($CSockets[#[[1, 1]], "Handler"] = Last[#])&, bindings];
+    KeyValueMap[Function[{socket, handler},
+        socket["Handler"] = handler;
+        socket["EventConverter"] = converter;
+    ], bindings];
 
     While[socketIds =!= {},
-        socketIds = Select[socketIds, KeyExistsQ[$CSockets, #]&];
-        If[socketIds === {}, Break[]];
+        events = waitEvents[socketIds, 1];
 
-        events = Quiet @ Check[socketsPoll[socketIds, 10 ^ 6, $POLLIN], $Failed];
-
-        If[!MatchQ[events, {{_Integer, _Integer}...}],
-            With[{remaining = checkHandledSockets[socketIds]},
-                If[remaining === socketIds,
-                    Message[poll::fail, socketIds];
-                    Throw[$Failed]
-                ];
-
-                socketIds = remaining;
-            ];
-            Continue[]
+        socketIds = Select[
+            DeleteDuplicates @ Join[socketIds,
+                Cases[events, KeyValuePattern["AcceptedSocket" -> CSocketObject[id_Integer]] :> id]
+            ],
+            KeyExistsQ[$CSockets, #]&
         ];
-
-        failed = False;
-
-        Check[
-            Scan[Function[event,
-                With[{added = Apply[handleSocketEvent, event]},
-                    If[added === $Failed,
-                        failed = True,
-                        socketIds = DeleteDuplicates[Join[socketIds, added]]
-                    ]
-                ]
-            ], events],
-            failed = True
-        ];
-
-        If[failed, socketIds = checkHandledSockets[socketIds]];
     ];
 ];
 
 
-handleSocketEvent[id_Integer, flags_Integer] :=
-Module[{handler, role, acceptedId, received},
-    If[!KeyExistsQ[$CSockets, id], Return[{}]];
-
-    handler = $CSockets[id, "Handler"];
-
-    If[BitAnd[flags, $POLLNVAL] != 0 ||
-        (BitAnd[flags, $POLLERR] != 0 && BitAnd[flags, $POLLIN] === 0),
-        closeHandledSocket[id, handler, "Error", flags];
-        Return[$Failed]
-    ];
-
-    If[BitAnd[flags, $POLLIN] != 0,
-        role = {$CSockets[id, "Protocol"], $CSockets[id, "Role"]};
-
-        If[role === {"TCP", "Bound"},
-            acceptedId = Quiet @ Check[socketAccept[id], $Failed];
-
-            If[!IntegerQ[acceptedId],
-                dispatchHandledEvent[handler, "Error", id, acceptedId];
-                Return[$Failed]
-            ];
-
-            received = Quiet @ Check[Catch[registerAcceptedSocket[id, acceptedId]], $Failed];
-
-            If[received === $Failed,
-                socketClose[acceptedId];
-                unregisterSocket[acceptedId];
-                dispatchHandledEvent[handler, "Error", id, $Failed];
-                Return[$Failed]
-            ];
-
-            $CSockets[acceptedId, "Handler"] = handler;
-            dispatchHandledEvent[handler, "Accepted", id, acceptedId];
-            Return[{acceptedId}],
-        (*Else*)
-            received = Quiet @ Check[Catch[read[id]], $Failed];
-
-            If[received === $Failed,
-                closeHandledSocket[id, handler, If[First[role] === "TCP", "Closed", "Error"], $Failed];
-                Return[$Failed]
-            ];
-
-            If[role === {"UDP", "Bound"},
-                dispatchHandledEvent[handler, "ReceivedFrom", id, Sequence @@ received],
-                dispatchHandledEvent[handler, "Received", id, received]
-            ]
-        ],
-    (*Else*)
-        If[BitAnd[flags, $POLLHUP] != 0,
-            closeHandledSocket[id, handler, "Closed"]
-        ]
-    ];
-
-    {}
-];
-
-
-dispatchHandledEvent[handler_, name_String, id_Integer, data___] :=
-With[{packet = Join[
-    <|"Timestamp" -> Now, "MultipartComplete" -> True, "Event" -> name|>,
-    createEventData[name, id, data]
-]},
-    With[{result = handler[packet]},
-        If[MemberQ[{"Received", "ReceivedFrom"}, name] && !MatchQ[handler, _CSocketHandler],
-            sendResponse[Append[packet, "Result" -> result]]
-        ];
-
-        result
-    ]
-];
-
-
-closeHandledSocket[id_Integer, handler_, name: "Closed" | "Error", code_: 0] :=
-(
-    If[TrueQ[Quiet @ Check[socketValidQ[id], False]],
-        close[id],
-        unregisterSocket[id]
-    ];
-
-    dispatchHandledEvent[handler, name, id, code];
-);
-
-
-checkHandledSockets[socketIds: {___Integer}] :=
-Module[{registered, valid},
+waitEvents[socketIds: {___Integer}, timeout: (_Integer | _Real)?NonNegative] :=
+Module[{registered, ready, id, flags, action, name, data, received, events = {}},
     registered = Select[socketIds, KeyExistsQ[$CSockets, #]&];
     If[registered === {}, Return[{}]];
 
-    valid = Quiet @ Check[socketsCheck[registered], $Failed];
-    If[!MatchQ[valid, {___Integer}], Throw[$Failed]];
+    ready = poll[registered, timeout];
 
-    valid = Select[valid, TrueQ[Quiet @ Check[socketValidQ[#], False]]&];
-    Scan[Function[id,
-        If[KeyExistsQ[$CSockets, id],
-            closeHandledSocket[id, $CSockets[id, "Handler"], "Closed"]
-        ]
-    ], Complement[registered, valid]];
+    Do[
+        {id, flags} = row;
+        If[!KeyExistsQ[$CSockets, id], Continue[]];
 
-    Select[valid, KeyExistsQ[$CSockets, #]&]
+        action = polledSocketAction[flags, $CSockets[id, "Protocol"], $CSockets[id, "Role"]];
+        {name, data} = Switch[action,
+            "Accept", {"Accepted", {id, accept[id]}},
+            "ReadDatagram", {"ReceivedFrom", Prepend[readDatagram[id], id]},
+            "Read",
+                received = read[id, True];
+                If[received === ByteArray[{}], {"Closed", {id}}, {"Received", {id, received}}],
+            "Error", {"Error", {id, flags}},
+            "Closed", {"Closed", {id}},
+            _, Continue[]
+        ];
+
+        If[MemberQ[{"Closed", "Error"}, name], close[id, False]];
+        AppendTo[events, deliverSocketEvent[id, {Null, name, data}]],
+        {row, ready}
+    ];
+
+    events
+];
+
+
+polledSocketAction[flags_Integer, protocol_String, role_String] :=
+Which[
+    BitAnd[flags, $POLLIN] != 0,
+        Which[
+            {protocol, role} === {"TCP", "Bound"}, "Accept",
+            protocol === "UDP", "ReadDatagram",
+            True, "Read"
+        ],
+    BitAnd[flags, BitOr[$POLLERR, $POLLNVAL]] != 0, "Error",
+    BitAnd[flags, $POLLHUP] != 0, "Closed",
+    True, None
 ];
 
 
@@ -427,17 +405,53 @@ CSocketHandler::length =
 "Accumulator returned invalid expected length `1`.";
 
 
+$Accepted = Function[event,
+    With[{listenSocket = Lookup[event, "ListenSocket"], acceptedSocket = Lookup[event, "AcceptedSocket"]},
+        If[MatchQ[{listenSocket, acceptedSocket}, {_CSocketObject, _CSocketObject}],
+            registerAcceptedSocket[First[listenSocket], First[acceptedSocket], Lookup[event, "Task", Null]]
+        ]
+    ]
+];
+
+
+$Closed = Function[event,
+    With[{socket = Lookup[event, "ClosedSocket"]},
+        If[MatchQ[socket, _CSocketObject], unregisterSocket[First[socket]]]
+    ]
+];
+
+
+$Error = Function[event,
+    With[{socket = Lookup[event, "ErrorSocket"]},
+        If[MatchQ[socket, _CSocketObject], errorEvent[First[socket]]]
+    ]
+];
+
+
+$Received = Function[event, handleReceivedEvent[event, Function[Null]]];
+
+
+$ReceivedFrom = $Received;
+
+
+$lifecycleActions = <|
+    "Accepted" :> $Accepted,
+    "Closed" :> $Closed,
+    "Error" :> $Error
+|>;
+
+
 Options[CSocketHandler] = {
     "Logger" :> Function[#],
     "Buffer" :> CreateDataStructure["HashTable"],
     "Serializer" :> Function[#],
     "Deserializer" :> Function[#],
     "Accumulator" :> Function[Length[#DataByteArray]],
-    "Received" :> Function[Null],
-    "Accepted" :> Function[Null],
-    "Closed" :> Function[Null],
-    "Error" :> Function[Null],
-    "ReceivedFrom" :> Function[Null]
+    "Received" :> $Received,
+    "Accepted" :> $Accepted,
+    "Closed" :> $Closed,
+    "Error" :> $Error,
+    "ReceivedFrom" :> $ReceivedFrom
 };
 
 
@@ -445,7 +459,7 @@ With[{store = Language`NewExpressionStore["CSocketHandler"]},
 
     CSocketHandler[OptionsPattern[]] :=
     With[{handler = CSocketHandler[CreateUUID[]]},
-        Map[store["put"[handler, #, OptionValue[#]]]&] @ Keys[Options[CSocketHandler]];
+        Scan[Function[key, handler[key] = OptionValue[key]], Keys[Options[CSocketHandler]]];
 
         handler
     ];
@@ -455,13 +469,18 @@ With[{store = Language`NewExpressionStore["CSocketHandler"]},
     store["get"[handler, key]];
 
 
+    handlerOption[handler_CSocketHandler, key_String] :=
+    store["get"[handler, {"Option", key}]];
+
+
     (handler_CSocketHandler)[key_, rest__] :=
-    store["get"[handler, key]][rest];
+    Catch @ store["get"[handler, key]][rest];
 
 
     CSocketHandler /: Set[(handler_CSocketHandler)[key_], value_] :=
     (
-        store["put"[handler, key, value]];
+        store["put"[handler, key, handlerEventFunction[handler, key, value]]];
+        store["put"[handler, {"Option", key}, value]];
         value
     );
 ];
@@ -483,31 +502,62 @@ Protect[Set];
 
 
 Format[handler_CSocketHandler, InputForm] :=
-SequenceForm[CSocketHandler] @ Map[Function[# -> handler[#]]] @ Keys @ Options[CSocketHandler];
+SequenceForm[CSocketHandler] @ Map[Function[# -> handlerOption[handler, #]]] @ Keys @ Options[CSocketHandler];
 
 
 CSocketHandler /: MakeBoxes[handler: CSocketHandler[_String], form: (StandardForm | TraditionalForm)] :=
 Module[{above, below},
-    {above, below} = TakeDrop[Map[# -> handler[#]&] @ Keys @ Options[CSocketHandler], 2];
+    {above, below} = TakeDrop[Map[# -> handlerOption[handler, #]&] @ Keys @ Options[CSocketHandler], 2];
 
     BoxForm`ArrangeSummaryBox[CSocketHandler, handler, Null, above, below, form, "Interpretable" -> Automatic]
 ];
 
 
-(handler_CSocketHandler)[packet_Association] :=
-Module[{
-    processedPacket = Append[KeyDrop[packet, "Result"], "Handler" -> handler],
-    event = packet["Event"], bytes, remaining
-},
-    If[!MemberQ[{"Received", "ReceivedFrom"}, packet["Event"]],
-        processedPacket["Result"] = handler[packet["Event"]][processedPacket];
-        handler["Logger"][processedPacket];
-        Return[processedPacket]
-    ];
+(handler_CSocketHandler)[event_Association] :=
+Catch @ applySocketHandler[handler, event];
 
+
+applySocketHandler[handler_CSocketHandler, event_Association] :=
+handler[event["Event"]][event];
+
+
+handlerEventFunction[handler_CSocketHandler, key: "Accepted" | "Closed" | "Error", callback_] :=
+With[{action = $lifecycleActions[key]},
+    Function[event,
+        Module[{packet = Append[KeyDrop[event, "Result"], "Handler" -> handler]},
+            action[packet];
+            If[KeyExistsQ[event, "Event"],
+                packet["Result"] = If[callback === action, Null, callback[packet]];
+                handler["Logger"][packet];
+                packet,
+                If[callback === action, Null, callback[event]]
+            ]
+        ]
+    ]
+];
+
+
+handlerEventFunction[handler_CSocketHandler, key: "Received" | "ReceivedFrom", callback_] :=
+With[{default = If[key === "Received", $Received, $ReceivedFrom]},
+    Function[event,
+        If[!KeyExistsQ[event, "Event"],
+            If[callback === default, Null, callback[event]],
+            With[{packet = Append[KeyDrop[event, "Result"], "Handler" -> handler]},
+                If[callback === default, default[packet], handleReceivedEvent[packet, callback]]
+            ]
+        ]
+    ]
+];
+
+
+handlerEventFunction[handler_CSocketHandler, key_, value_] :=
+value;
+
+
+handleReceivedEvent[packet_Association, callback_] :=
+Module[{processedPacket = packet, handler = packet["Handler"], bytes, remaining},
     While[True,
         processedPacket = getExtendedPacket[processedPacket];
-        If[processedPacket === $Failed, Return[$Failed]];
         If[!TrueQ[processedPacket["Completed"]],
             savePacketToBuffer[processedPacket];
             handler["Logger"][processedPacket];
@@ -520,13 +570,12 @@ Module[{
         processedPacket["DataBytes"] = Normal[processedPacket["DataByteArray"]];
         clearBuffer[processedPacket];
         processedPacket["Data"] = handler["Deserializer"][processedPacket["DataByteArray"]];
-        processedPacket = invokeHandler[processedPacket];
+        processedPacket = invokeHandler[processedPacket, callback];
         sendResponse[processedPacket];
         handler["Logger"][processedPacket];
 
         If[Length[remaining] === 0, Return[processedPacket]];
         processedPacket = Join[KeyDrop[packet, "Result"], <|
-            "Handler" -> handler,
             "DataByteArray" -> remaining,
             "DataBytes" -> Normal[remaining],
             "Data" -> ByteArrayToString[remaining]
@@ -559,25 +608,29 @@ With[{role = {$CSockets[socketId, "Protocol"], $CSockets[socketId, "Role"]}},
         {"UDP", "Connected"}, $SOCKETROLEUDPCONNECTED,
         _,
             Message[socketRoleCode::role, socketId, role];
-            Throw[$Failed]
+            Throw[Failure["socketRoleCode", <|"SocketID" -> socketId, "Role" -> role|>]]
     ]
 ];
+
+
+CSocketOpen::open =
+"Could not create a `2` socket for `1`.";
 
 
 createSocket[addressFamily: "IPv4" | "IPv6", protocol: "TCP" | "UDP": "TCP"] :=
 With[{
     af = addressFamily /. {"IPv4" -> $AFINET, "IPv6" -> $AFINET6},
     proto = protocol /. {"TCP" -> $IPPROTOTCP, "UDP" -> $IPPROTOUDP}
+}, {
+    socketId = Check[socketCreate[af, proto], $Failed]
 },
-    Check[
-        With[{socketId = socketCreate[af, proto]},
-            registerSocket[socketId, protocol, "Unspecified", "Blocking"];
-            Return[socketId]
-        ],
+    If[!IntegerQ[socketId],
+        Message[CSocketOpen::open, addressFamily, protocol];
+        Throw[Failure["socketCreate", <|"AddressFamily" -> addressFamily, "Protocol" -> protocol|>]]
+    ];
 
-        Message[CSocketOpen::open, addressFamily, protocol, "socket creation"];
-        Throw[$Failed]
-    ]
+    registerSocket[socketId, protocol, "Unspecified", "Blocking"];
+    socketId
 ];
 
 
@@ -586,21 +639,26 @@ bind::fail =
 
 
 bind[socketId_Integer, host_String, port_Integer] :=
-Check[
-    With[{result = socketBind[socketId, host, ToString[port]]},
-        $CSockets[socketId, "Role"] = "Bound";
-        $CSockets[socketId, "DirectionType"] = "Server";
-        $CSockets[socketId, "LocalAddress"] = First @ socketGetAddresses[socketId,
-            If[$CSockets[socketId, "Protocol"] === "UDP", $SOCKETROLEUDPBOUND, $SOCKETROLETCPBOUND]
-        ];
-        $CSockets[socketId, "Addresses"] = {
-            $CSockets[socketId, "LocalAddress"], $CSockets[socketId, "RemoteAddress"]
-        };
-    ],
+Module[{addresses, role},
+    Check[socketBind[socketId, host, ToString[port]],
+        Message[bind::fail, socketId, host, port];
+        close[socketId];
+        Throw[Failure["socketBind", <|"SocketID" -> socketId, "Host" -> host, "Port" -> port|>]]
+    ];
 
-    Message[bind::fail, socketId, host, port];
-    close[socketId];
-    Throw[$Failed];
+    role = If[$CSockets[socketId, "Protocol"] === "UDP", $SOCKETROLEUDPBOUND, $SOCKETROLETCPBOUND];
+    addresses = Check[List @@ socketGetAddresses[socketId, role], $Failed];
+
+    If[!MatchQ[addresses, {_String, ___String}],
+        Message[bind::fail, socketId, host, port];
+        close[socketId];
+        Throw[Failure["socketGetAddresses", <|"SocketID" -> socketId, "Role" -> role|>]]
+    ];
+
+    $CSockets[socketId, "Role"] = "Bound";
+    $CSockets[socketId, "DirectionType"] = "Server";
+    $CSockets[socketId, "LocalAddress"] = First[addresses];
+    $CSockets[socketId, "Addresses"] = {First[addresses], $CSockets[socketId, "RemoteAddress"]};
 ];
 
 
@@ -609,16 +667,16 @@ listen::fail =
 
 
 listen[socketId_Integer] :=
-Check[
-    With[{result = socketListen[socketId, $SOMAXCONN]},
-        $CSockets[socketId, "Role"] = "Bound";
-        $CSockets[socketId, "DirectionType"] = "Server";
-    ],
+(
+    Check[socketListen[socketId, $SOMAXCONN],
+        Message[listen::fail, socketId, $CSockets[socketId, "LocalAddress"]];
+        close[socketId];
+        Throw[Failure["socketListen", <|"SocketID" -> socketId, "Backlog" -> $SOMAXCONN|>]]
+    ];
 
-    Message[listen::fail, socketId, $CSockets[socketId, "LocalAddress"]];
-    close[socketId];
-    Throw[$Failed];
-];
+    $CSockets[socketId, "Role"] = "Bound";
+    $CSockets[socketId, "DirectionType"] = "Server";
+);
 
 
 connect::fail =
@@ -626,22 +684,27 @@ connect::fail =
 
 
 connect[socketId_Integer, host_String, port_Integer] :=
-Check[
-    With[{result = socketConnect[socketId, host, ToString[port]]},
-        $CSockets[socketId, "Role"] = "Connected";
-        $CSockets[socketId, "DirectionType"] = "Client";
-        With[{addresses = socketGetAddresses[socketId,
-            If[$CSockets[socketId, "Protocol"] === "UDP", $SOCKETROLEUDPCONNECTED, $SOCKETROLETCPCONNECTED]
-        ]},
-            $CSockets[socketId, "LocalAddress"] = First[addresses];
-            $CSockets[socketId, "RemoteAddress"] = Last[addresses];
-            $CSockets[socketId, "Addresses"] = List @@ addresses;
-        ];
-    ],
+Module[{addresses, role},
+    Check[socketConnect[socketId, host, ToString[port]],
+        Message[connect::fail, socketId, host, port];
+        close[socketId];
+        Throw[Failure["socketConnect", <|"SocketID" -> socketId, "Host" -> host, "Port" -> port|>]]
+    ];
 
-    Message[connect::fail, socketId, host, port];
-    close[socketId];
-    Throw[$Failed];
+    role = If[$CSockets[socketId, "Protocol"] === "UDP", $SOCKETROLEUDPCONNECTED, $SOCKETROLETCPCONNECTED];
+    addresses = Check[List @@ socketGetAddresses[socketId, role], $Failed];
+
+    If[!MatchQ[addresses, {_String, _String}],
+        Message[connect::fail, socketId, host, port];
+        close[socketId];
+        Throw[Failure["socketGetAddresses", <|"SocketID" -> socketId, "Role" -> role|>]]
+    ];
+
+    $CSockets[socketId, "Role"] = "Connected";
+    $CSockets[socketId, "DirectionType"] = "Client";
+    $CSockets[socketId, "LocalAddress"] = First[addresses];
+    $CSockets[socketId, "RemoteAddress"] = Last[addresses];
+    $CSockets[socketId, "Addresses"] = addresses;
 ];
 
 
@@ -649,24 +712,19 @@ poll::fail =
 "Poll failed on sockets `1`.";
 
 
-poll[socketIds: {___Integer}, timeout: (_Integer | _Real): 0] :=
-Check[
-    With[{events = socketsPoll[socketIds, Round[timeout * 10 ^ 6], $POLLIN]},
-        If[!MatchQ[events, {{_Integer, _Integer}...}],
-            Message[poll::fail, socketIds];
-            Throw[$Failed]
-        ];
+poll[socketIds: {___Integer}, timeout: (_Integer | _Real): 0, mode: "Events" | "Readiness": "Events"] :=
+With[{events = Check[socketsPoll[socketIds, Round[timeout * 10 ^ 6], $POLLIN], $Failed]},
+    If[!MatchQ[events, {{_Integer, _Integer}...}],
+        Message[poll::fail, socketIds];
+        Throw[Failure["socketsPoll", <|"SocketIDs" -> socketIds, "Timeout" -> timeout|>]]
+    ];
 
-        If[AnyTrue[events, BitAnd[#[[2]], BitOr[$POLLERR, $POLLNVAL]] != 0&],
-            Message[poll::fail, socketIds];
-            Throw[$Failed]
-        ];
+    If[mode === "Readiness" && AnyTrue[events, BitAnd[Last[#], BitOr[$POLLERR, $POLLNVAL]] != 0&],
+        Message[poll::fail, socketIds];
+        Throw[Failure["socketsPoll", <|"SocketIDs" -> socketIds, "Events" -> events|>]]
+    ];
 
-        Cases[events, {id_Integer, flags_Integer} /; BitAnd[flags, $POLLIN] != 0 :> id]
-    ],
-
-    Message[poll::fail, socketIds];
-    Throw[$Failed]
+    events
 ];
 
 
@@ -675,20 +733,21 @@ waitForSockets::timeout =
 
 
 waitForSockets::opts =
-"Timeout must be a nonnegative number of seconds; received `1`.";
+"Timeout must be between 0 and 60 seconds. Received `1`.";
 
 
 waitForSockets[socketIds: {__Integer}, timeout_, all: True | False] :=
-Module[{pending = DeleteDuplicates[socketIds], deadline, readySockets},
-    If[!MatchQ[timeout, _Integer | _Real] || !TrueQ[timeout >= 0],
+Module[{pending = DeleteDuplicates[socketIds], deadline, events, readySockets},
+    If[!MatchQ[timeout, _Integer | _Real] || !TrueQ[0 <= timeout <= 60],
         Message[waitForSockets::opts, timeout];
-        Throw[$Failed]
+        Throw[Failure["InvalidTimeout", <|"SocketIDs" -> socketIds, "Timeout" -> timeout|>]]
     ];
 
     deadline = SessionTime[] + timeout;
 
     While[pending =!= {},
-        readySockets = poll[pending, Max[0, deadline - SessionTime[]]];
+        events = poll[pending, Max[0, deadline - SessionTime[]], "Readiness"];
+        readySockets = Cases[events, {id_Integer, flags_Integer} /; BitAnd[flags, $POLLIN] != 0 :> id];
 
         If[!all && readySockets =!= {}, Return[readySockets]];
 
@@ -696,7 +755,7 @@ Module[{pending = DeleteDuplicates[socketIds], deadline, readySockets},
 
         If[pending =!= {} && SessionTime[] >= deadline,
             Message[waitForSockets::timeout, pending];
-            Throw[$Failed]
+            Throw[Failure["SocketWaitTimeout", <|"SocketIDs" -> pending, "Timeout" -> timeout|>]]
         ];
     ];
 
@@ -704,35 +763,47 @@ Module[{pending = DeleteDuplicates[socketIds], deadline, readySockets},
 ];
 
 
+accept::fail =
+"Accept failed on socket `1`.";
+
+
+accept[socketId_Integer] :=
+With[{acceptedId = Check[socketAccept[socketId], $Failed]},
+    If[!IntegerQ[acceptedId],
+        Message[accept::fail, socketId];
+        Throw[Failure["socketAccept", <|"SocketID" -> socketId|>]]
+    ];
+
+    acceptedId
+];
+
+
 read::fail =
 "Read failed on socket `1`.";
 
 
-read[socketId_Integer] :=
-With[{buffer = $CSockets[socketId, "Buffer"]},
-    Check[
-        If[$CSockets[socketId, "Protocol"] === "UDP" && $CSockets[socketId, "Role"] === "Bound",
-            With[{received = Apply[List] @ socketRecvFrom[socketId, buffer]},
-                If[!MatchQ[received, {_String} | {_String, _NumericArray | _ByteArray}],
-                    Message[read::fail, socketId];
-                    Throw[$Failed]
-                ];
-
-                {First[received], If[Length[received] === 1, ByteArray[{}], ByteArray[Last[received]]]}
-            ],
-        (*Else*)
-            With[{received = socketRecv[socketId, buffer]},
-                If[!ByteArrayQ[received],
-                    Message[read::fail, socketId];
-                    Throw[$Failed]
-                ];
-
-                received
-            ]
-        ],
-
+readDatagram[socketId_Integer] :=
+With[{received = Check[Apply[List] @ socketRecvFrom[socketId, $CSockets[socketId, "Buffer"]], $Failed]},
+    If[!MatchQ[received, {_String} | {_String, _NumericArray | _ByteArray}],
         Message[read::fail, socketId];
-        Throw[$Failed]
+        Throw[Failure["socketRecvFrom", <|"SocketID" -> socketId|>]]
+    ];
+
+    {First[received], If[Length[received] === 1, ByteArray[{}], ByteArray[Last[received]]]}
+];
+
+
+read[socketId_Integer, allowEOF: True | False: False] :=
+If[$CSockets[socketId, "Protocol"] === "UDP" && $CSockets[socketId, "Role"] === "Bound",
+    readDatagram[socketId],
+    With[{received = Check[socketRecv[socketId, $CSockets[socketId, "Buffer"]], $Failed]},
+        If[!ByteArrayQ[received] ||
+            (!allowEOF && received === ByteArray[{}] && $CSockets[socketId, "Protocol"] === "TCP"),
+            Message[read::fail, socketId];
+            Throw[Failure["socketRecv", <|"SocketID" -> socketId|>]]
+        ];
+
+        received
     ]
 ];
 
@@ -743,13 +814,15 @@ write::fail =
 
 write[socketId_Integer, bytes_ByteArray, host_String: "", port_Integer: 0] :=
 Module[{
-    remaining = bytes, sent, total = 0,
+    remaining = bytes, sent, total = 0, sendFunction,
     boundUDP = $CSockets[socketId, "Protocol"] === "UDP" && $CSockets[socketId, "Role"] === "Bound"
 },
     If[boundUDP === (host === ""),
         Message[write::fail, socketId];
-        Throw[$Failed]
+        Throw[Failure["write", <|"SocketID" -> socketId, "Host" -> host, "Port" -> port|>]]
     ];
+
+    sendFunction = If[boundUDP, "socketSendTo", "socketSend"];
 
     While[True,
         sent = Check[
@@ -757,23 +830,23 @@ Module[{
                 socketSendTo[socketId, host, ToString[port], remaining],
                 socketSend[socketId, remaining]
             ],
-            Message[write::fail, socketId];
-            Throw[$Failed]
+            $Failed
         ];
 
-        If[!IntegerQ[sent] || sent < 0 || sent > Length[remaining],
+        If[!IntegerQ[sent] || sent < 0 || sent > Length[remaining] || (sent === 0 && Length[remaining] > 0),
             Message[write::fail, socketId];
-            Throw[$Failed]
+            Throw[Failure[sendFunction, <|
+                "SocketID" -> socketId,
+                "Host" -> host,
+                "Port" -> port,
+                "BytesSent" -> total,
+                "BytesRequested" -> Length[bytes]
+            |>]]
         ];
 
         total += sent;
 
         If[sent === Length[remaining], Return[total]];
-
-        If[sent === 0,
-            Message[write::fail, socketId];
-            Throw[$Failed]
-        ];
 
         remaining = remaining[[sent + 1 ;;]];
     ]
@@ -784,16 +857,20 @@ close::fail =
 "Close failed on socket `1`.";
 
 
-close[socketId_Integer] :=
-If[KeyExistsQ[$CSockets, socketId],
-    Check[
-        socketClose[socketId],
+closeDescriptor[socketId_Integer] :=
+Check[socketClose[socketId],
+    Message[close::fail, socketId];
+    Throw[Failure["socketClose", <|"SocketID" -> socketId|>]]
+];
 
-        Message[close::fail, socketId];
-        Throw[$Failed]
+
+close[socketId_Integer, unregister: True | False: True] :=
+If[KeyExistsQ[$CSockets, socketId],
+    If[unregister || validSocketQ[socketId],
+        closeDescriptor[socketId]
     ];
 
-    unregisterSocket[socketId];
+    If[unregister, unregisterSocket[socketId]];
 ];
 
 
@@ -807,7 +884,7 @@ toBlocking[socketId_Integer] :=
         socketSetBlockingMode[socketId],
 
         Message[toBlocking::fail, socketId];
-        Throw[$Failed]
+        Throw[Failure["socketSetBlockingMode", <|"SocketID" -> socketId|>]]
     ];
 
     $CSockets[socketId, "BlockingMode"] = "Blocking";
@@ -824,15 +901,18 @@ toNonBlocking[socketId_Integer] :=
         socketSetNonBlockingMode[socketId],
 
         Message[toNonBlocking::fail, socketId];
-        Throw[$Failed]
+        Throw[Failure["socketSetNonBlockingMode", <|"SocketID" -> socketId|>]]
     ];
 
     $CSockets[socketId, "BlockingMode"] = "NonBlocking";
 );
 
 
-makeSocketEvent[task_AsynchronousTaskObject, name_String, id_Integer, data___] :=
-Join[<|"Timestamp" -> Now, "MultipartComplete" -> True, "Task" -> task, "Event" -> name|>, createEventData[name, id, data]];
+toEvent[{task: _AsynchronousTaskObject | Null, name_String, data_List}] :=
+Join[
+    <|"Timestamp" -> Now, "MultipartComplete" -> True, "Task" -> task, "Event" -> name|>,
+    createEventData[name, Sequence @@ data]
+];
 
 
 createEventData["Accepted", listenId_Integer, acceptedId_Integer] :=
@@ -871,26 +951,44 @@ registerAcceptedSocket::addresses =
 "Failed to obtain addresses for accepted socket `1`.";
 
 
-registerAcceptedSocket[listenId_Integer, acceptedId_Integer] :=
-Module[{addresses},
-    addresses = Check[
+registerAcceptedSocket[listenId_Integer, acceptedId_Integer, task: (_AsynchronousTaskObject | Null): Null] :=
+With[{addresses = Check[
         List @@ socketGetAddresses[acceptedId, $SOCKETROLETCPACCEPTED],
-        Throw[$Failed]
-    ];
+        $Failed
+    ],
+    listenSocket = CSocketObject[listenId],
+    handler = Lookup[$CSockets[listenId], "Handler", Null],
+    converter = Lookup[$CSockets[listenId], "EventConverter", toEvent]
+},
 
     If[!MatchQ[addresses, {_String, _String}],
         Message[registerAcceptedSocket::addresses, acceptedId];
-        Throw[$Failed]
+        closeDescriptor[acceptedId];
+        Throw[Failure["socketGetAddresses", <|"SocketID" -> acceptedId, "ListenSocketID" -> listenId|>]]
     ];
 
     registerSocket[acceptedId, "TCP", "Accepted", $CSockets[listenId, "BlockingMode"]];
+
     $CSockets[acceptedId, "LocalAddress"] = First[addresses];
     $CSockets[acceptedId, "RemoteAddress"] = Last[addresses];
     $CSockets[acceptedId, "Addresses"] = addresses;
-    $CSockets[acceptedId, "ListenSocket"] = CSocketObject[listenId];
-    $CSockets[acceptedId] = Append[$CSockets[acceptedId],
-        "Handler" :> $CSockets[listenId, "Handler"]
+    $CSockets[acceptedId, "ListenSocket"] = listenSocket;
+    $CSockets[acceptedId, "Listener"] = task;
+
+    If[task === Null,
+        $CSockets[acceptedId, "Handler"] = handler;
+        $CSockets[acceptedId, "EventConverter"] = converter,
+        $CSockets[acceptedId] = Join[$CSockets[acceptedId], <|
+            "Handler" :> inheritedSocketOption[listenId, task, "Handler", handler],
+            "EventConverter" :> inheritedSocketOption[listenId, task, "EventConverter", converter]
+        |>];
     ];
+];
+
+
+inheritedSocketOption[listenId_Integer, task_AsynchronousTaskObject, key_String, fallback_] :=
+With[{metadata = Lookup[$CSockets, listenId, <||>]},
+    If[Lookup[metadata, {"Listener", "Role"}] === {task, "Bound"}, Lookup[metadata, key, fallback], fallback]
 ];
 
 
@@ -904,43 +1002,56 @@ With[{handler = Lookup[Lookup[$CSockets, socketId, <||>], "Handler", Null]},
 ];
 
 
-acceptedEvent[task_AsynchronousTaskObject, listenId_Integer, acceptedId_Integer] :=
-(
-    registerAcceptedSocket[listenId, acceptedId];
-    $CSockets[acceptedId, "Listener"] = task;
-);
-
-
-closedEvent[socketId_Integer] :=
-unregisterSocket[socketId];
+validSocketQ[socketId_Integer] :=
+With[{valid = Check[socketValidQ[socketId], $Failed]},
+    If[!BooleanQ[valid], Throw[Failure["socketValidQ", <|"SocketID" -> socketId|>]]];
+    valid
+];
 
 
 errorEvent[socketId_Integer] :=
-If[KeyExistsQ[$CSockets, socketId] && !TrueQ[socketValidQ[socketId]],
+If[KeyExistsQ[$CSockets, socketId] && !validSocketQ[socketId],
     unregisterSocket[socketId]
 ];
 
 
-dispatchPollEvent[task_AsynchronousTaskObject, name_String, data_List] :=
-Catch @ Module[{id, handlerId, handler},
-    If[data === {}, Return[Null]];
+socketEventSource[task_AsynchronousTaskObject, {id_Integer, ___}] :=
+If[KeyExistsQ[$CSockets, id],
+    id,
+    SelectFirst[Keys[$CSockets], $CSockets[#, "Listener"] === task&, Missing["NotAvailable"]]
+];
 
-    id = First[data];
-    handlerId = If[KeyExistsQ[$CSockets, id],
-        id,
-        SelectFirst[Keys[$CSockets], $CSockets[#, "Listener"] === task&, Missing["NotAvailable"]]
-    ];
 
-    If[MissingQ[handlerId], Return[Null]];
+socketEventSource[task_AsynchronousTaskObject, {}] :=
+Missing["NotAvailable"];
 
-    handler = $CSockets[handlerId, "Handler"];
-    Switch[name,
-        "Accepted", acceptedEvent[task, Sequence @@ data],
-        "Closed", closedEvent[id],
-        "Error", errorEvent[id]
-    ];
 
-    handler[makeSocketEvent[task, name, Sequence @@ data]]
+deliverSocketEvent[id_Integer, raw: {_AsynchronousTaskObject | Null, _String, _List}] :=
+With[{
+    handler = socketListenerHandler[$CSockets[id, "Handler"]],
+    converter = Lookup[$CSockets[id], "EventConverter", toEvent]
+},
+    With[{event = converter[raw]},
+        handler[event];
+        event
+    ]
+];
+
+
+socketListenerHandler[handler_CSocketHandler] :=
+Function[event, applySocketHandler[handler, event]];
+
+
+socketListenerHandler[handler_] :=
+Function[event,
+    Lookup[$lifecycleActions, event["Event"], Function[Null]][event];
+    With[{result = handler[event]},
+        If[MemberQ[{"Received", "ReceivedFrom"}, event["Event"]] && MatchQ[result, _String | _ByteArray],
+            sendResponse[Append[event, "Result" -> result]]
+        ];
+
+        result
+    ]
 ];
 
 
@@ -968,7 +1079,7 @@ With[{handler = packet["Handler"], key = packetBufferKey[packet]},
 
         If[!IntegerQ[expectedLength] || expectedLength < 0 || (expectedLength === 0 && dataLength > 0),
             Message[CSocketHandler::length, expectedLength];
-            Return[$Failed]
+            Throw[Failure["CSocketHandler", <|"Option" -> "Accumulator", "Value" -> expectedLength|>]]
         ];
 
         Join[packet, <|
@@ -991,9 +1102,8 @@ With[{buffer = packet["Handler"]["Buffer"]["Lookup", packet["BufferKey"]]},
 ];
 
 
-invokeHandler[packet_Association] :=
-Module[{processedPacket = packet, handler = packet["Handler"], callback},
-    callback = handler[packet["Event"]];
+invokeHandler[packet_Association, callback_] :=
+Module[{processedPacket = packet, handler = packet["Handler"]},
     processedPacket["Result"] = If[AssociationQ[callback], conditionApply[callback][packet], callback[packet]];
     processedPacket["Result"] = handler["Serializer"][processedPacket["Result"]];
     processedPacket
@@ -1009,34 +1119,35 @@ CSocketHandler::packet =
 
 
 sendResponse[packet_Association] :=
-Module[{result, write},
-    If[!KeyExistsQ[packet, "Result"] || packet["Result"] === Null,
-        Return[Null]
-    ];
-
-    result = packet["Result"];
+Module[{result = Lookup[packet, "Result", Null], source, bytes, address},
+    If[result === Null, Return[Null]];
 
     If[!MatchQ[result, _String | _ByteArray],
         Message[CSocketHandler::cntsnd, result];
-        Return[$Failed]
+        Throw[Failure["CSocketHandler", <|"Field" -> "Result", "Value" -> result|>]]
     ];
 
-    If[!MatchQ[Lookup[packet, "SourceSocket"], _CSocketObject],
+    source = Lookup[packet, "SourceSocket"];
+
+    If[!MatchQ[source, CSocketObject[_Integer]],
         Message[CSocketHandler::packet, "SourceSocket"];
-        Return[$Failed]
+        Throw[Failure["CSocketHandler", <|"Field" -> "SourceSocket", "Value" -> source|>]]
     ];
 
-    write = If[StringQ[result], WriteString, BinaryWrite];
+    bytes = If[StringQ[result], StringToByteArray[result], result];
 
-    If[KeyExistsQ[packet, "Address"],
-        If[(!StringQ[packet["Address"]] || splitAddress[packet["Address"]] === $Failed),
+    If[KeyExistsQ[packet, "Address"] &&
+        {source["Protocol"], source["Role"]} =!= {"UDP", "Connected"},
+        address = packet["Address"];
+
+        If[!StringQ[address] || !protohostportQ[address],
             Message[CSocketHandler::packet, "Address"];
-            Return[$Failed]
+            Throw[Failure["CSocketHandler", <|"Field" -> "Address", "Value" -> address|>]]
         ];
 
-        write[packet["SourceSocket"], packet["Address"], result],
-    (*Else*)
-        write[packet["SourceSocket"], result]
+        address = splitAddress[address];
+        write[First[source], bytes, address["Host"], address["Port"]],
+        write[First[source], bytes]
     ]
 ];
 
@@ -1071,6 +1182,17 @@ Function[
     },
         selected[[-1]][##]
     ]
+];
+
+
+optionValidQ::invalid =
+"Invalid value `2` for option `1`.";
+
+
+optionValidQ[optName_String, optValue_, validator_] :=
+If[!TrueQ[validator[optValue]],
+    Message[optionValidQ::invalid, optName, optValue];
+    Throw[Failure["InvalidOption", <|"Option" -> optName, "Value" -> optValue|>]]
 ];
 
 
@@ -1120,7 +1242,13 @@ splitAddress[host_String?ipv6HostQ, port_Integer?portQ, protocol: "TCP" | "UDP":
 
 
 splitAddress[host_String?hostnameQ, port_Integer?portQ, protocol: "TCP" | "UDP": "TCP"] :=
-splitAddress[HostLookup[host][[1, 1]], port, protocol];
+With[{numericHost = Check[HostLookup[host][[1, 1]], $Failed]},
+    If[!StringQ[numericHost] || !numericHostQ[numericHost],
+        Throw[Failure["HostLookup", <|"Host" -> host, "Port" -> port, "Protocol" -> protocol|>]]
+    ];
+
+    splitAddress[numericHost, port, protocol]
+];
 
 
 splitAddress[port_Integer?portQ, protocol: "TCP" | "UDP": "TCP"] :=
@@ -1129,9 +1257,9 @@ splitAddress["localhost", port, protocol];
 
 splitAddress[address_String] :=
 With[{parts = parseAddress[address]},
-    If[parts === $Failed, $Failed,
-        splitAddress[parts[[2]], parts[[3]], parts[[1]]]
-    ]
+    If[MissingQ[parts], Throw[Failure["InvalidAddress", <|"Address" -> address|>]]];
+
+    splitAddress[parts[[2]], parts[[3]], parts[[1]]]
 ];
 
 
@@ -1160,10 +1288,10 @@ Module[{
         ]
     ];
 
-    If[Length[pairs] =!= 1, Return[$Failed]];
+    If[Length[pairs] =!= 1, Return[Missing["InvalidAddress"]]];
 
     {host, port} = First[pairs];
-    If[!portQ[port] || !If[bracketed, ipv6HostQ[host], hostQ[host]], Return[$Failed]];
+    If[!portQ[port] || !If[bracketed, ipv6HostQ[host], hostQ[host]], Return[Missing["InvalidAddress"]]];
 
     {protocol, host, port}
 ];
@@ -1210,7 +1338,7 @@ $ipv6Pattern =
 
 ipv6HostQ[host_String] :=
 StringMatchQ[host,
-    $ipv6Pattern ~~ ("" | "%" ~~ (LetterCharacter | DigitCharacter | "_" | "-" | "." | "~")..)
+    $ipv6Pattern ~~ ("" | ("%" ~~ (LetterCharacter | DigitCharacter | "_" | "-" | "." | "~")..))
 ];
 
 
@@ -1239,7 +1367,7 @@ numericHostQ[host];
 
 
 protohostportQ[address_String] :=
-parseAddress[address] =!= $Failed;
+!MissingQ[parseAddress[address]];
 
 
 (* Library constants *)

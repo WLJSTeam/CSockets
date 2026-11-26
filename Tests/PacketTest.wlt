@@ -202,20 +202,19 @@ Block[{
                 TestID -> "packet-without-response-does-not-send"
             ],
             VerificationTest[
-                Quiet[
+                Quiet[Map[
+                    Catch[WLJS`CSockets`Private`sendResponse[#]]&,
                     {
-                        WLJS`CSockets`Private`sendResponse[<|"Result" -> 123|>],
-                        WLJS`CSockets`Private`sendResponse[<|"Result" -> "ok"|>],
-                        WLJS`CSockets`Private`sendResponse[
-                            <|
-                                "Result" -> "ok",
-                                "SourceSocket" -> CSocketObject[42],
-                                "Address" -> "invalid"
-                            |>
-                        ]
+                        <|"Result" -> 123|>,
+                        <|"Result" -> "ok"|>,
+                        <|"Result" -> "ok", "SourceSocket" -> CSocketObject[42], "Address" -> "invalid"|>
                     }
-                ],
-                {$Failed, $Failed, $Failed},
+                ]],
+                {
+                    Failure["CSocketHandler", <|"Field" -> "Result", "Value" -> 123|>],
+                    Failure["CSocketHandler", <|"Field" -> "SourceSocket", "Value" -> Missing["KeyAbsent", "SourceSocket"]|>],
+                    Failure["CSocketHandler", <|"Field" -> "Address", "Value" -> "invalid"|>]
+                },
                 TestID -> "response-validates-packet-fields"
             ]
         }

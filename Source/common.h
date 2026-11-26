@@ -5,9 +5,6 @@
 #undef UNICODE
 
 
-#define _DEBUG 1
-
-
 #ifdef _WIN32
     #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
@@ -30,8 +27,6 @@
     #include <wchar.h>
     #include <netinet/tcp.h>
     #include <sys/select.h>
-    #include <time.h>
-    #include <sys/time.h>
     #include <pthread.h>
     #include <dlfcn.h>
     #define INVALID_SOCKET -1
@@ -61,7 +56,6 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <time.h>
 #include <stdarg.h>
 
 
@@ -90,12 +84,6 @@ SOCKET *SocketFromMTensor(WolframLibraryData libData, MTensor tensor, size_t *le
 
 
 char *format(const char *fmt, ...);
-
-
-void print(const char* format, ...);
-
-
-char* get_current_time();
 
 
 void init_wsa();
@@ -161,6 +149,9 @@ bool is_connect_pending_err(int err);
 
 
 int sockets_poll(POLL_FD *fds, mint length, mint timeout_us);
+
+
+int sockets_poll_abort(WolframLibraryData libData, POLL_FD *fds, mint length, mint timeout_us, mint slice_limit);
 
 
 int convert_wl_to_native_events(mint wl_events);

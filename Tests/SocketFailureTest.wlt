@@ -25,7 +25,7 @@ failureReport = TestReport[
                 );
                 Quiet[
                     CSocketOpen["127.0.0.1", 0]
-                ] === $Failed && $CSockets === <||>
+                ] === Failure["socketCreate", <|"AddressFamily" -> "IPv4", "Protocol" -> "TCP"|>] && $CSockets === <||>
             ],
             True,
             TestID -> "creation-error-does-not-register-socket"
@@ -42,7 +42,7 @@ failureReport = TestReport[
                         ]["Port"]
                     ]
                 ];
-                before = result === $Failed && Keys[$CSockets] === before;
+                before = MatchQ[result, Failure["socketBind", _Association]] && Keys[$CSockets] === before;
                 Close[server];
                 before
             ],
@@ -60,7 +60,7 @@ failureReport = TestReport[
                 result = Quiet[
                     CSocketConnect["127.0.0.1", port]
                 ];
-                result === $Failed && Keys[$CSockets] === before
+                MatchQ[result, Failure["socketConnect", _Association]] && Keys[$CSockets] === before
             ],
             True,
             TestID -> "connection-refused-cleans-up-created-socket"
@@ -81,7 +81,7 @@ failureReport = TestReport[
                         Close[socket]
                     ]
                 ];
-                before = result === $Failed && $CSockets[
+                before = result === Failure["socketClose", <|"SocketID" -> First[socket]|>] && $CSockets[
                     First[socket]
                 ] === before;
                 Close[socket];

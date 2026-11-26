@@ -170,9 +170,7 @@ coreReport = TestReport[
             Module[{socket, task, result},
                 socket = CSocketOpen["127.0.0.1", 0, "UDP"];
                 task = SocketListen[
-                    {socket},
-                    Function[Null
-                    ]
+                    {socket -> Function[Null]}
                 ];
                 RemoveAsynchronousTask[task];
                 Pause[1.1];
@@ -189,10 +187,17 @@ coreReport = TestReport[
             TestID -> "cancel-listener-preserves-socket-and-clears-listener"
         ],
         VerificationTest[
-            Quiet[
-                CSocketConnect["localhost", 80, "TCP", "Wait" -> "invalid"]
+            Block[{socketsPoll = Function[Null, {{42, $POLLNVAL}}]},
+                {SocketReadyQ[CSocketObject[42]], SocketWaitNext[{CSocketObject[42]}]}
             ],
-            $Failed,
+            ConstantArray[Failure["socketsPoll", <|"SocketIDs" -> {42}, "Events" -> {{42, $POLLNVAL}}|>], 2],
+            {poll::fail, poll::fail},
+            TestID -> "poll-rejects-invalid-descriptors-for-readiness-probes"
+        ],
+        VerificationTest[
+            CSocketConnect["localhost", 80, "TCP", "Wait" -> "invalid"],
+            Failure["InvalidOption", <|"Option" -> "Wait", "Value" -> "invalid"|>],
+            {optionValidQ::invalid},
             TestID -> "invalid-wait-option-is-rejected"
         ]
     }
