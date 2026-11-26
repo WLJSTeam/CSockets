@@ -211,6 +211,45 @@ socketHandlerTests = {
         TestID -> "handler-response-sends-supported-types"
     ],
     VerificationTest[
+        Module[{server, listener, clients, handler, logged = {}, fragmented, replies = {}, custom, result},
+            handler = CSocketHandler[
+                "Accumulator" -> Function[4],
+                "Received" -> (#DataByteArray&),
+                "Serializer" -> Function[bytes, Join[bytes, ByteArray[{254}]]],
+                "Logger" -> (AppendTo[logged, #]&)
+            ];
+            server = SocketOpen[0];
+            listener = SocketListen[server, handler];
+            clients = Table[SocketConnect[server["DestinationPort"]], {2}];
+            BinaryWrite[clients[[1]], ByteArray[{0, 128}]];
+            BinaryWrite[clients[[2]], ByteArray[{2, 3}]];
+            Do[Pause[0.02]; If[Length[logged] >= 2, Break[]], {100}];
+            fragmented = Lookup[logged, "Completed"] === {False, False} &&
+                Length[DeleteDuplicates[Lookup[logged, "BufferKey"]]] === 2;
+
+            BinaryWrite[clients[[1]], ByteArray[{255, 1}]];
+            BinaryWrite[clients[[2]], ByteArray[{4, 5}]];
+            Do[Pause[0.02]; If[Length[logged] >= 4, Break[]], {100}];
+            If[Length[logged] === 4, replies = ReadByteArray[#, 5]& /@ clients];
+
+            handler["NativeReceived"] = Function[ByteArray[{42}]];
+            BinaryWrite[clients[[1]], ByteArray[{6, 7, 8, 9}]];
+            Do[Pause[0.02]; If[Length[logged] >= 5, Break[]], {100}];
+            custom = If[Length[logged] === 5, ReadByteArray[First[clients], 2], Missing["NoReply"]];
+
+            result = fragmented && replies === {ByteArray[{0, 128, 255, 1, 254}], ByteArray[{2, 3, 4, 5, 254}]} &&
+                custom === ByteArray[{42, 254}] && handler["Buffer"]["Length"] === 0 &&
+                AllTrue[logged, #["Event"] === "Received" && MatchQ[#["Timestamp"], _DateObject] &&
+                    #["Socket"] === server && MatchQ[#["SourceSocket"], _SocketObject]&];
+            Scan[Close, clients];
+            DeleteObject[listener];
+            Close[server];
+            result
+        ],
+        True,
+        TestID -> "handler-supports-native-tcp-listener-with-binary-fragments-and-custom-callback"
+    ],
+    VerificationTest[
         Block[{
             message = WLJS`CSockets`Private`conditionApply[
                 <|

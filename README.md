@@ -310,6 +310,7 @@ sets the logger, and `handler["Logger", packet]` invokes it.
 | `"Accumulator"` | `Function[Length[#DataByteArray]]` | Computes expected message length from the first fragment. |
 | `"Received"` | Process and log received messages. | Callback for received data. |
 | `"ReceivedFrom"` | Process and log received datagrams. | Callback for UDP data, including the sender's `"Address"`. |
+| `"NativeReceived"` | `Automatic` | Uses `"Received"` for native TCP sockets. Set a function to supply a separate callback. |
 | `"Accepted"` | Register the accepted socket. | Callback for accepted connections. |
 | `"Closed"` | Remove the socket and its buffered data. | Callback for socket close events. |
 | `"Error"` | Remove the socket and its buffered data if the socket is invalid. | Callback for error events. |
@@ -317,6 +318,22 @@ sets the logger, and `handler["Logger", packet]` invokes it.
 Lifecycle actions run before custom callbacks. Data callbacks run on complete
 messages after deserialization. The returned response is serialized and sent
 when non-null.
+
+### Built-in TCP sockets
+
+The same handler can be passed directly to the built-in `SocketListen`.
+
+```wl
+handler = CSocketHandler["Received" -> (#DataByteArray&)];
+listener = SocketListen[SocketOpen[8082], handler];
+```
+
+An association without `"Event"` enters through `"NativeReceived"` and is
+normalized to a `"Received"` packet. Native TCP replies use `BinaryWrite` on
+the built-in `"SourceSocket"`. For exact binary data, the listener must
+provide `"DataByteArray"` or `"DataBytes"`. Built-in TCP listeners deliver
+data events. An incomplete fragment left by a disconnected native client can
+be removed with `handler["Buffer"]["KeyDrop", sourceSocket]`.
 
 ### Example
 

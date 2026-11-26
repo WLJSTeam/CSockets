@@ -451,7 +451,8 @@ Options[CSocketHandler] = {
     "Accepted" :> $Accepted,
     "Closed" :> $Closed,
     "Error" :> $Error,
-    "ReceivedFrom" :> $ReceivedFrom
+    "ReceivedFrom" :> $ReceivedFrom,
+    "NativeReceived" -> Automatic
 };
 
 
@@ -518,7 +519,7 @@ Catch @ applySocketHandler[handler, event];
 
 
 applySocketHandler[handler_CSocketHandler, event_Association] :=
-handler[event["Event"]][event];
+handler[Lookup[event, "Event", "NativeReceived"]][event];
 
 
 handlerEventFunction[handler_CSocketHandler, key: "Accepted" | "Closed" | "Error", callback_] :=
@@ -550,8 +551,53 @@ With[{default = If[key === "Received", $Received, $ReceivedFrom]},
 ];
 
 
+handlerEventFunction[handler_CSocketHandler, "NativeReceived", Automatic] :=
+Function[event, handler["Received"][nativeReceivedEvent[event]]];
+
+
+handlerEventFunction[handler_CSocketHandler, "NativeReceived", callback_] :=
+Function[event,
+    handleReceivedEvent[Append[nativeReceivedEvent[event], "Handler" -> handler], callback]
+];
+
+
 handlerEventFunction[handler_CSocketHandler, key_, value_] :=
 value;
+
+
+nativeReceivedEvent[event_Association] :=
+Module[{source = Lookup[event, "SourceSocket"], bytes = Lookup[event, "DataByteArray"], data},
+    If[!MatchQ[source, _SocketObject] || source["Protocol"] =!= "TCP",
+        Message[CSocketHandler::packet, "SourceSocket"];
+        Throw[Failure["CSocketHandler", <|"Field" -> "SourceSocket", "Value" -> source|>]]
+    ];
+
+    If[!ByteArrayQ[bytes],
+        data = Lookup[event, "DataBytes", Lookup[event, "Data"]];
+        bytes = Switch[data,
+            {___Integer}, ByteArray[data],
+            _String, StringToByteArray[data],
+            _,
+                Message[CSocketHandler::packet, "DataByteArray"];
+                Throw[Failure["CSocketHandler", <|"Field" -> "DataByteArray", "Value" -> data|>]]
+        ]
+    ];
+
+    With[{byteArray = bytes},
+        Join[
+            <|
+                "Socket" -> source,
+                "Task" -> Null,
+                "Timestamp" :> Lookup[event, "TimeStamp", Now],
+                "MultipartComplete" -> True,
+                "Data" :> ByteArrayToString[byteArray],
+                "DataBytes" :> Normal[byteArray]
+            |>,
+            KeyDrop[event, "Result"],
+            <|"Event" -> "Received", "DataByteArray" -> byteArray|>
+        ]
+    ]
+];
 
 
 handleReceivedEvent[packet_Association, callback_] :=
@@ -1056,9 +1102,12 @@ Function[event,
 
 
 packetBufferKey[packet_Association] :=
-If[KeyExistsQ[packet, "Address"],
-    {packet["SourceSocket"]["UUID"], packet["Address"]},
-    packet["SourceSocket"]["UUID"]
+With[{source = packet["SourceSocket"]},
+    Which[
+        MatchQ[source, _SocketObject], source,
+        KeyExistsQ[packet, "Address"], {source["UUID"], packet["Address"]},
+        True, source["UUID"]
+    ]
 ];
 
 
@@ -1129,12 +1178,18 @@ Module[{result = Lookup[packet, "Result", Null], source, bytes, address},
 
     source = Lookup[packet, "SourceSocket"];
 
-    If[!MatchQ[source, CSocketObject[_Integer]],
+    If[!MatchQ[source, CSocketObject[_Integer] | _SocketObject],
         Message[CSocketHandler::packet, "SourceSocket"];
         Throw[Failure["CSocketHandler", <|"Field" -> "SourceSocket", "Value" -> source|>]]
     ];
 
     bytes = If[StringQ[result], StringToByteArray[result], result];
+
+    If[MatchQ[source, _SocketObject],
+        Return[Check[BinaryWrite[source, bytes],
+            Throw[Failure["BinaryWrite", <|"SourceSocket" -> source, "BytesRequested" -> Length[bytes]|>]]
+        ]]
+    ];
 
     If[KeyExistsQ[packet, "Address"] &&
         {source["Protocol"], source["Role"]} =!= {"UDP", "Connected"},
