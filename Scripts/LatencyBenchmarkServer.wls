@@ -102,6 +102,11 @@ If[!AllTrue[{tcpServer, udpServer, controlServer}, MatchQ[#, _CSocketObject]&],
 ];
 
 
+$CSockets[First[tcpServer], "Handler"] = tcpHandler;
+$CSockets[First[udpServer], "Handler"] = udpHandler;
+$CSockets[First[controlServer], "Handler"] = controlHandler;
+
+
 readyFile = configuration["ReadyFile"];
 
 
@@ -123,11 +128,10 @@ Print["BENCHMARK_READY"];
 
 
 result = CheckAbort[
-    CSocketHandle[{
-        tcpServer -> tcpHandler,
-        udpServer -> udpHandler,
-        controlServer -> controlHandler
-    }],
+    Catch @ While[Length[$CSockets] > 0,
+        events = CSocketHandle[];
+        If[FailureQ[events], Throw[events]];
+    ],
     benchmarkFailed = True;
     $Aborted
 ];

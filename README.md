@@ -232,10 +232,10 @@ The callback receives event associations such as:
 
 ### `CSocketHandle`
 
-`CSocketHandle[{socket1 -> handler1, socket2 -> handler2, ...}]` runs a
-synchronous polling loop in the current kernel. Each socket has its own handler.
-Use it in a server script without a separate
-`While[True, Pause[1]]`:
+`CSocketHandle[]` polls `$CSockets` once with a zero timeout, dispatches
+the ready events, and returns their associations. An idle step returns `{}`.
+Set the handlers on the sockets before calling it. Put the loop in the
+caller when running a server continuously.
 
 ```wl
 tcpServer = CSocketOpen["127.0.0.1", 8080];
@@ -248,22 +248,29 @@ udpHandler = CSocketHandler[
   "ReceivedFrom" -> (#DataByteArray &)
 ];
 
-CSocketHandle[{
-  tcpServer -> tcpHandler,
-  udpServer -> udpHandler
-}];
+$CSockets[First[tcpServer], "Handler"] = tcpHandler;
+$CSockets[First[udpServer], "Handler"] = udpHandler;
+
+While[Length[$CSockets] > 0,
+  events = CSocketHandle[];
+  If[FailureQ[events], Print[events]; Break[]]
+];
 ```
 
-The bindings may contain multiple TCP and UDP servers, connected sockets, and
-accepted TCP sockets. `CSocketHandle` accepts the same binding forms as
-`SocketListen`. A ready TCP server accepts a
-connection and adds it to the loop. Connected and accepted TCP sockets produce
+`CSocketHandle[registry]` takes a variable containing an association in the
+same format as `$CSockets`, with integer socket IDs as keys and metadata
+associations as values. It has the `HoldFirst` attribute and writes changes
+back to that variable. During the step, callbacks and socket operations see
+the supplied registry as `$CSockets`. Sockets already assigned to an
+asynchronous listener are skipped.
+
+A ready TCP server accepts a connection and adds it to the registry for
+subsequent steps. Connected and accepted TCP sockets produce
 `"Received"` events. UDP sockets produce `"ReceivedFrom"` events with the
 sender's `"Address"`.
 Accepted sockets inherit their server's handler and retain their `"ListenSocket"`,
 including after the listening socket is closed. Each socket's data, accept,
-close, and error events go to its assigned handler. If a socket appears more
-than once, its last rule supplies the handler.
+close, and error events go to its assigned handler.
 
 `CSocketHandle` and `SocketListen` use the same event associations,
 `CSocketHandler` callbacks, buffering, and serialization. An ordinary function
@@ -273,12 +280,10 @@ contains the `AsynchronousTaskObject`.
 In synchronous mode, an `"Error"` event reports the error flags for an
 individual socket.
 
-The loop requests one second of polling in slices of up to 5 ms and removes
-sockets with terminal events. OS timer rounding can extend the elapsed wait.
-It returns `Null` when no sockets remain and a `Failure` if a poll,
-accept, read, or close operation fails. Sockets that are still open after
-failure or abort remain available through `$CSockets` and can be closed with
-`Close`.
+The step removes sockets with terminal events and returns a `Failure` if
+an operation such as poll, accept, read, or close fails. The zero timeout
+applies to polling. The step runs handlers synchronously, so their
+execution time is part of the call.
 
 ## `CSocketHandler`
 

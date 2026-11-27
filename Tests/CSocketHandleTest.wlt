@@ -11,6 +11,34 @@ CSocketHandleTest::native =
 "Injected poll failure.";
 
 
+runHandleTest[socket_CSocketObject, handler_] :=
+runHandleTest[{socket -> handler}];
+
+
+runHandleTest[bindings_Association] :=
+runHandleTest[Normal[bindings]];
+
+
+runHandleTest[bindings_List] :=
+Module[{socketIds = First /@ Keys[Association[bindings]], parked, events},
+    parked = AssociationMap[$CSockets[#, "Listener"]&, Complement[Keys[$CSockets], socketIds]];
+    KeyValueMap[(#1["Handler"] = #2)&, Association[bindings]];
+
+    Internal`WithLocalSettings[
+        Scan[($CSockets[#, "Listener"] = AsynchronousTaskObject[0, 0])&, Keys[parked]],
+        While[socketIds =!= {},
+            events = CSocketHandle[];
+            If[!ListQ[events], Return[events]];
+            socketIds = Select[
+                Union[socketIds, Cases[Lookup[events, "AcceptedSocket"], CSocketObject[socketId_Integer] :> socketId]],
+                KeyExistsQ[$CSockets, #]&
+            ];
+        ],
+        KeyValueMap[If[KeyExistsQ[$CSockets, #1], $CSockets[#1, "Listener"] = #2]&, parked]
+    ]
+];
+
+
 handleReport = TestReport[{
     VerificationTest[
         Module[{
@@ -50,7 +78,7 @@ handleReport = TestReport[{
                 ],
                 {index, 2}
             ];
-            result = TimeConstrained[CSocketHandle[MapThread[Rule, {servers, handlers}]], 8, "timeout"];
+            result = TimeConstrained[runHandleTest[MapThread[Rule, {servers, handlers}]], 8, "timeout"];
             result = result === Null && inherited && replies === <|"one" -> {"one:AB"}, "two" -> {"two:XYZ"}|> &&
                 AllTrue[Values[events], # === {"Accepted", "Received", "Closed"}&];
             Scan[Close, CSocketObject /@ Complement[Keys[$CSockets], before]];
@@ -81,7 +109,7 @@ handleReport = TestReport[{
                     "two:" <> packet["Data"]
                 ]
             ];
-            result = TimeConstrained[CSocketHandle[{
+            result = TimeConstrained[runHandleTest[{
                 servers[[1]] -> firstHandler,
                 servers[[2]] -> secondHandler
             }], 8, "timeout"];
@@ -103,7 +131,7 @@ handleReport = TestReport[{
             BinaryWrite[client, ByteArray[{1, 2}]];
             BinaryWrite[client, ByteArray[{3, 4, 5}]];
 
-            result = TimeConstrained[CSocketHandle[server, Function[packet,
+            result = TimeConstrained[runHandleTest[server, Function[packet,
                 AppendTo[packets, packet];
                 If[Length[packets] === 2, Close[server]];
                 Null
@@ -137,7 +165,7 @@ handleReport = TestReport[{
                     ]
                 ]
             ];
-            result = TimeConstrained[CSocketHandle[{server -> handler}], 8, "timeout"];
+            result = TimeConstrained[runHandleTest[{server -> handler}], 8, "timeout"];
             result = result === Null && replies === {"PING", "PING"} &&
                 Counts[Lookup[events, "Event"]] === <|"Accepted" -> 2, "Received" -> 2, "Closed" -> 2|> &&
                 AllTrue[Select[events, #["Event"] === "Received"&], #["Socket"] === server&] &&
@@ -164,7 +192,7 @@ handleReport = TestReport[{
                     If[Length[packet["DataByteArray"]] > 0, Close[packet["SourceSocket"]]]
                 ]
             ];
-            result = TimeConstrained[CSocketHandle[Map[# -> handler&, servers]], 8, "timeout"];
+            result = TimeConstrained[runHandleTest[Map[# -> handler&, servers]], 8, "timeout"];
             result = result === Null && Length[packets] === 4 &&
                 Sort[Lookup[packets, "DataBytes"]] === {{}, {}, {112, 105, 110, 103}, {112, 105, 110, 103}} &&
                 AllTrue[packets, #["Event"] === "ReceivedFrom" && StringQ[#["Address"]]&] &&
@@ -190,7 +218,7 @@ handleReport = TestReport[{
                     "Received" -> (#DataByteArray&),
                     "Logger" -> Function[packet, AppendTo[packets, packet]; Close[managed]]
                 ];
-                result = TimeConstrained[CSocketHandle[{managed -> handler}], 8, "timeout"];
+                result = TimeConstrained[runHandleTest[{managed -> handler}], 8, "timeout"];
                 result = result === Null && Length[packets] === 1 && First[packets]["Event"] === "Received" &&
                     First[packets]["SourceSocket"] === managed && SocketReadyQ[peer, 1] && ReadString[peer] === "hello";
                 Scan[Close, CSocketObject /@ Complement[Keys[$CSockets], before]];
@@ -210,7 +238,7 @@ handleReport = TestReport[{
                 "ReceivedFrom" -> (#DataByteArray&),
                 "Logger" -> Function[received, packet = received; Close[client]]
             ];
-            result = TimeConstrained[CSocketHandle[<|client -> handler|>], 8, "timeout"];
+            result = TimeConstrained[runHandleTest[<|client -> handler|>], 8, "timeout"];
             result = result === Null && packet["Event"] === "ReceivedFrom" &&
                 packet["Address"] === StringDelete[server["LocalAddress"], StartOfString ~~ "udp://"] &&
                 packet["Task"] === Null &&
@@ -258,7 +286,7 @@ handleReport = TestReport[{
             client = CSocketConnect[server["LocalAddress"]];
             WriteString[client, "first"];
             WriteString[client, "second"];
-            result = TimeConstrained[CSocketHandle[{
+            result = TimeConstrained[runHandleTest[{
                 server -> Function[Throw["wrong handler"]],
                 server -> Function[packet,
                     count++;
@@ -280,7 +308,7 @@ handleReport = TestReport[{
     VerificationTest[
         Module[{server = CSocketOpen["127.0.0.1", 0, "UDP"], called = False, result},
             result = Block[{socketsPoll = Function[Null, Message[CSocketHandleTest::native]; {}]},
-                TimeConstrained[CSocketHandle[server, Function[called = True]], 4, "timeout"]
+                TimeConstrained[runHandleTest[server, Function[called = True]], 4, "timeout"]
             ];
             result = MatchQ[result, Failure["socketsPoll", _Association]] && !called && socketValidQ[First[server]];
             Close[server];
@@ -296,7 +324,7 @@ handleReport = TestReport[{
                 socketsPoll = Function[{ids, timeout, mask}, {{First[ids], $POLLIN}}],
                 socketRecvFromInto = Function[Null, $Failed]
             },
-                TimeConstrained[CSocketHandle[server, Function[called = True]], 4, "timeout"]
+                TimeConstrained[runHandleTest[server, Function[called = True]], 4, "timeout"]
             ];
             result = MatchQ[result, Failure["socketRecvFrom", _Association]] && !called && socketValidQ[First[server]];
             Close[server];
@@ -312,7 +340,7 @@ handleReport = TestReport[{
             client = CSocketConnect[server["LocalAddress"]];
             WriteString[client, "ping"];
             result = Block[{socketSendToRange = Function[Null, 0]},
-                TimeConstrained[CSocketHandle[server, Function["pong"]], 4, "timeout"]
+                TimeConstrained[runHandleTest[server, Function["pong"]], 4, "timeout"]
             ];
             Scan[Close, {client, server}];
             MatchQ[result, Failure["socketSendTo", KeyValuePattern["BytesSent" -> 0]]]
@@ -342,7 +370,7 @@ handleReport = TestReport[{
                     ]
                 ]
             ];
-            result = TimeConstrained[CSocketHandle[{server -> handler}], 8, "timeout"];
+            result = TimeConstrained[runHandleTest[{server -> handler}], 8, "timeout"];
             result = result === Null && messages === {"ab", "cd"} && buffered && cleaned;
             Scan[Close, CSocketObject /@ Complement[Keys[$CSockets], before]];
             result
@@ -354,7 +382,7 @@ handleReport = TestReport[{
         And @@ Table[
             Module[{server = CSocketOpen["127.0.0.1", 0, "UDP"], events = {}, cleaned = False, result},
                 result = Block[{socketsPoll = Function[{ids, timeout, mask}, {{First[ids], First[flag]}}]},
-                    CSocketHandle[{server -> Function[packet,
+                    runHandleTest[{server -> Function[packet,
                         AppendTo[events, packet];
                         cleaned = !KeyExistsQ[$CSockets, First[server]];
                         Null
@@ -376,7 +404,7 @@ handleReport = TestReport[{
             result = Block[{socketsPoll = Function[{ids, timeout, mask},
                 {{First[ids], $POLLERR}, {Last[ids], $POLLHUP}}
             ]},
-                CSocketHandle[{
+                runHandleTest[{
                     servers[[1]] -> Function[packet,
                         AppendTo[events, {"one", packet["Event"], packet["ErrorSocket"]}]; Null
                     ],
@@ -404,7 +432,7 @@ handleReport = TestReport[{
             result = Block[{socketsPoll = Function[{ids, timeout, mask},
                 Map[{First[#], BitOr[Last[#], $POLLERR, $POLLHUP]}&, nativePoll[ids, timeout, mask]]
             ]},
-                TimeConstrained[CSocketHandle[{server -> handler}], 8, "timeout"]
+                TimeConstrained[runHandleTest[{server -> handler}], 8, "timeout"]
             ];
             result = result === Null && SocketReadyQ[client, 1] && ReadString[client] === "pending";
             Scan[Close, CSocketObject /@ Complement[Keys[$CSockets], before]];
@@ -414,24 +442,103 @@ handleReport = TestReport[{
         TestID -> "synchronous-readable-data-drains-before-error-or-hangup"
     ],
     VerificationTest[
-        Module[{server = CSocketOpen["127.0.0.1", 0, "UDP"], result, called = False},
-            result = TimeConstrained[CSocketHandle[{server -> Function[called = True]}], 0.2, "stopped"];
-            result = result === "stopped" && !called && socketValidQ[First[server]] && server["Listener"] === Null;
+        Module[{server = CSocketOpen["127.0.0.1", 0, "UDP"], client, received = {}, timeouts = {}, first, second, idle,
+            nativePoll = socketsPoll, payloads = {ByteArray[{1}], ByteArray[{2}]}},
+            client = CSocketConnect[server["LocalAddress"]];
+            $CSockets[First[server], "Handler"] = Function[event, AppendTo[received, event["DataByteArray"]]; Null];
+            $CSockets[First[client], "Listener"] = AsynchronousTaskObject[0, 0];
+            Scan[BinaryWrite[client, #]&, payloads];
+
+            {first, second, idle} = Block[{socketsPoll = Function[{ids, timeout, mask},
+                AppendTo[timeouts, {ids, timeout}];
+                nativePoll[ids, timeout, mask]
+            ]},
+                {CSocketHandle[], CSocketHandle[$CSockets], CSocketHandle[]}
+            ];
+            Scan[Close, {client, server}];
+            MemberQ[Attributes[CSocketHandle], HoldFirst] && Options[CSocketHandle] === {} &&
+                Length[first] === 1 && Length[second] === 1 && idle === {} && received === payloads &&
+                timeouts === ConstantArray[{{First[server]}, 0}, 3]
+        ],
+        True,
+        TestID -> "synchronous-step-polls-once-with-zero-timeout-and-returns-events"
+    ],
+    VerificationTest[
+        Module[{server, client, registry, listenerId, before, accepted, acceptedId, received, closed, handler,
+            observed = {}, payload = ByteArray[{42, 0, 255}], reply},
+            server = CSocketOpen["127.0.0.1", 0];
+            client = CSocketConnect[server["LocalAddress"]];
+            listenerId = First[server];
+            before = Keys[$CSockets];
+            registry = KeyTake[$CSockets, {listenerId}];
+            handler = Function[event,
+                AppendTo[observed,
+                    Switch[event["Event"],
+                        "Accepted", event["AcceptedSocket"]["Role"] === "Accepted",
+                        "Received", event["SourceSocket"]["Role"] === "Accepted",
+                        "Closed", !KeyExistsQ[$CSockets, First[event["ClosedSocket"]]],
+                        _, False
+                    ]
+                ];
+                If[event["Event"] === "Received", event["DataByteArray"], Null]
+            ];
+            registry[listenerId, "Handler"] = handler;
+            accepted = First[CSocketHandle[registry]]["AcceptedSocket"];
+            acceptedId = First[accepted];
+            If[!KeyExistsQ[registry, acceptedId] || Keys[$CSockets] =!= before ||
+                registry[acceptedId, "Handler"] =!= handler || server["Handler"] =!= Null,
+                Scan[Close, {client, server}];
+                Return[False]
+            ];
+
+            BinaryWrite[client, payload];
+            received = CSocketHandle[registry];
+            reply = If[SocketReadyQ[client, 1], ReadByteArray[client], None];
+            Close[client];
+            closed = CSocketHandle[registry];
             Close[server];
+            Lookup[received, "DataByteArray"] === {payload} && reply === payload &&
+                Keys[registry] === {listenerId} && Length[closed] === 1 &&
+                First[closed]["ClosedSocket"] === accepted &&
+                observed === {True, True, True}
+        ],
+        True,
+        TestID -> "synchronous-step-updates-the-held-registry-and-isolates-the-global-registry"
+    ],
+    VerificationTest[
+        Module[{server, client, registry, result, before},
+            server = CSocketOpen["127.0.0.1", 0, "UDP"];
+            client = CSocketConnect[server["LocalAddress"]];
+            before = Keys[$CSockets];
+            registry = KeyTake[$CSockets, {First[server]}];
+            registry[First[server], "Handler"] = Function[event,
+                Close[event["SourceSocket"]];
+                Throw[Failure["TestHandler", <||>]]
+            ];
+            BinaryWrite[client, ByteArray[{1}]];
+            Block[{socketClose = Function[Null, Null]},
+                result = CSocketHandle[registry]
+            ];
+            result = result === Failure["TestHandler", <||>] && registry === <||> && Keys[$CSockets] === before;
+            Scan[Close, {client, server}];
             result
         ],
         True,
-        TestID -> "synchronous-idle-loop-is-abortable-and-keeps-open-sockets"
+        TestID -> "synchronous-step-keeps-registry-mutations-when-a-handler-throws"
     ],
     VerificationTest[
-        CSocketHandle[{}],
-        Null,
-        TestID -> "synchronous-empty-socket-list"
+        Block[{$CSockets = <||>, socketsPoll = Function[Throw["unexpected poll"]]},
+            Module[{registry = <||>}, {CSocketHandle[], CSocketHandle[registry]}]
+        ],
+        {{}, {}},
+        TestID -> "synchronous-empty-registry-does-not-poll"
     ],
     VerificationTest[
-        MatchQ[Quiet[CSocketHandle[{CSocketObject[-1] -> Function[Null]}]], Failure["CSocketHandle", _Association]],
-        True,
-        TestID -> "synchronous-rejects-unregistered-sockets"
+        Module[{registry = {1}},
+            Quiet[CSocketHandle[registry], CSocketHandle::registry]
+        ],
+        Failure["CSocketHandle", <|"Reason" -> "InvalidRegistry"|>],
+        TestID -> "synchronous-step-rejects-invalid-registry"
     ]
 }];
 

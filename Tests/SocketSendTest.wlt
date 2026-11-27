@@ -115,7 +115,7 @@ Block[{
                     {Failure["socketSend", <|
                         "SocketID" -> 42, "Host" -> "", "Port" -> 0, "BytesSent" -> sent, "BytesRequested" -> 3
                     |>], 1},
-                    {sent, {1, 0, 0}}
+                    {sent, {1, 0, Missing["Unknown"]}}
                 ],
                 TestID -> "incomplete-native-send-reports-progress-without-wl-retry"
             ],

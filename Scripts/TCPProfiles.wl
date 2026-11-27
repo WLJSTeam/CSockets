@@ -34,11 +34,19 @@ Check[
 
 
 CSocketTCPConfigure[
-    socket: CSocketObject[socketId_Integer],
+    socket: CSocketObject[_Integer],
     profile: "Latency" | "BulkSend" | "BulkReceive",
     mode: ("Synchronous" | "Asynchronous"): "Synchronous"
 ] :=
-Catch @ With[{metadata = Lookup[$CSockets, socketId, <||>]},
+Catch @ configureTCPSocket[socket, profile, mode];
+
+
+configureTCPSocket[
+    socket: CSocketObject[socketId_Integer],
+    profile: "Latency" | "BulkSend" | "BulkReceive",
+    mode: "Synchronous" | "Asynchronous"
+] :=
+With[{metadata = Lookup[$CSockets, socketId, <||>]},
     If[Lookup[metadata, "Protocol"] =!= "TCP",
         Message[CSocketTCPConfigure::socket, socket];
         Throw[Failure["CSocketTCPConfigure", <|"SocketID" -> socketId, "Profile" -> profile|>]]

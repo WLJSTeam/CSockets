@@ -15,7 +15,11 @@ CSocketRawEcho[
     onAccepted_: (Null&),
     bufferSize_Integer: 65536
 ] :=
-Catch @ With[{
+Catch @ runRawEcho[listenSocketId, onAccepted, bufferSize];
+
+
+runRawEcho[listenSocketId_Integer, onAccepted_, bufferSize_Integer] :=
+With[{
     poll = WLJS`CSockets`Private`socketsPoll,
     receive = WLJS`CSockets`Private`socketRecvInto,
     send = WLJS`CSockets`Private`socketSendRange,
@@ -35,7 +39,9 @@ Catch @ With[{
             Null,
             While[True,
                 ready = Check[poll[socketIds, 10 ^ 6, pollIn], $Failed];
-                If[!ListQ[ready], Throw[Failure["socketsPoll", <|"SocketIDs" -> socketIds|>]]];
+                If[!MatchQ[ready, {{_Integer, _Integer}...}],
+                    Throw[Failure["socketsPoll", <|"SocketIDs" -> socketIds|>]]
+                ];
 
                 Do[
                     {socketId, flags} = row;
@@ -48,8 +54,10 @@ Catch @ With[{
                             Continue[]
                         ];
 
-                        bytesRead = receive[socketId, buffer];
-                        If[!IntegerQ[bytesRead], Throw[Failure["socketRecvInto", <|"SocketID" -> socketId|>]]];
+                        bytesRead = Check[receive[socketId, buffer], $Failed];
+                        If[!IntegerQ[bytesRead] || !TrueQ[0 <= bytesRead <= bufferSize],
+                            Throw[Failure["socketRecvInto", <|"SocketID" -> socketId|>]]
+                        ];
                         If[bytesRead > 0,
                             If[Check[send[socketId, buffer, 0, bytesRead], $Failed] =!= bytesRead,
                                 Throw[Failure["socketSendRange", <|"SocketID" -> socketId, "BytesRequested" -> bytesRead|>]]

@@ -665,38 +665,41 @@ static int sendSocketBytes(WolframLibraryData libData, SOCKET socketId, const ch
 
         if (status == SOCKET_ERROR) {
             int error = GETSOCKETERRNO();
-            libData->Message(format("socketSend: SO_TYPE failed %d", error));
-        } else if (socketType != SOCK_STREAM) {
+            libData->Message(format("socketSend: SO_TYPE failed %d after %d bytes", error, sentLength));
+            return LIBRARY_FUNCTION_ERROR;
+        }
+
+        if (socketType != SOCK_STREAM) {
             libData->Message("socketSend: short datagram");
-        } else {
-            while (sentLength < requested) {
-                mint aborted = libData->AbortQ();
+            return LIBRARY_FUNCTION_ERROR;
+        }
 
-                if (aborted) {
-                    libData->Message("socketSend: aborted");
-                    break;
-                }
+        while (sentLength < requested) {
+            mint aborted = libData->AbortQ();
 
-                int remaining = requested - sentLength;
-                int sent = send(socketId, buffer + sentLength, remaining, 0);
-
-                if (sent == SOCKET_ERROR) {
-                    int error = GETSOCKETERRNO();
-                    libData->Message(format("socketSend: failed %d", error));
-                    break;
-                }
-
-                if (sent == 0) {
-                    libData->Message("socketSend: no progress");
-                    break;
-                }
-
-                sentLength += sent;
+            if (aborted) {
+                libData->Message(format("socketSend: aborted after %d bytes", sentLength));
+                return LIBRARY_FUNCTION_ERROR;
             }
+
+            int remaining = requested - sentLength;
+            int sent = send(socketId, buffer + sentLength, remaining, 0);
+
+            if (sent == SOCKET_ERROR) {
+                int error = GETSOCKETERRNO();
+                libData->Message(format("socketSend: failed %d after %d bytes", error, sentLength));
+                return LIBRARY_FUNCTION_ERROR;
+            }
+
+            if (sent == 0) {
+                libData->Message(format("socketSend: no progress after %d bytes", sentLength));
+                return LIBRARY_FUNCTION_ERROR;
+            }
+
+            sentLength += sent;
         }
     }
 
-    /* Return the byte count alongside any diagnostic after partial progress. */
     *bytesSent = sentLength;
     return LIBRARY_NO_ERROR;
 }
@@ -732,6 +735,7 @@ static int sendSocketDatagram(WolframLibraryData libData, SOCKET socketId, const
 
     if (sentLength != requested) {
         libData->Message("socketSendTo: short datagram");
+        return LIBRARY_FUNCTION_ERROR;
     }
 
     *bytesSent = sentLength;
