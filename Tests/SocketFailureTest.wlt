@@ -72,7 +72,7 @@ failureReport = TestReport[
                     First[socket]
                 ];
                 result = Block[{socketClose},
-                    socketClose[id_Integer] :=
+                    socketClose[socketId_Integer] :=
                     (
                         Message[SocketFailureTest::native];
                         LibraryFunctionError["close", 6]

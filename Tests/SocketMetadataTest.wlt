@@ -14,27 +14,27 @@ Begin["WLJS`CSockets`Private`"];
 metadataReport = TestReport[
     {
         VerificationTest[
-            Module[{receiver, id, initial, bound, connected, result},
+            Module[{receiver, socketId, initial, bound, connected, result},
                 receiver = CSocketOpen["127.0.0.1", 0, "UDP"];
-                id = createSocket["IPv4", "UDP"];
-                initial = $CSockets[id];
-                bind[id, "127.0.0.1", 0];
-                bound = $CSockets[id];
-                toNonBlocking[id];
+                socketId = createSocket["IPv4", "UDP"];
+                initial = $CSockets[socketId];
+                bind[socketId, "127.0.0.1", 0];
+                bound = $CSockets[socketId];
+                toNonBlocking[socketId];
                 connect[
-                    id,
+                    socketId,
                     "127.0.0.1",
                     splitAddress[
                         receiver["LocalAddress"]
                     ]["Port"]
                 ];
-                connected = $CSockets[id];
+                connected = $CSockets[socketId];
                 result = initial["Role"] === "Unspecified" && initial["BlockingMode"] === "Blocking" && initial["Addresses"] === {"-", "-"} && bound["Role"] === "Bound" && StringStartsQ[
                     bound["LocalAddress"],
                     "udp://127.0.0.1:"
                 ] && connected["Role"] === "Connected" && connected["BlockingMode"] === "NonBlocking" && connected["LocalAddress"] === bound["LocalAddress"] && connected["RemoteAddress"] === receiver["LocalAddress"];
-                close[id];
-                result = result && !KeyExistsQ[$CSockets, id];
+                close[socketId];
+                result = result && !KeyExistsQ[$CSockets, socketId];
                 Close[receiver];
                 result
             ],
@@ -42,23 +42,23 @@ metadataReport = TestReport[
             TestID -> "metadata-tracks-create-bind-connect-mode-and-close"
         ],
         VerificationTest[
-            Module[{server, client, id, metadata, result},
+            Module[{server, client, acceptedSocketId, metadata, result},
                 server = CSocketOpen["127.0.0.1", 0];
                 client = CSocketConnect[
                     server["LocalAddress"]
                 ];
-                id = socketAccept[
+                acceptedSocketId = socketAccept[
                     First[server]
                 ];
                 registerAcceptedSocket[
                     First[server],
-                    id
+                    acceptedSocketId
                 ];
-                metadata = $CSockets[id];
-                result = metadata["Object"] === CSocketObject[id] && metadata["Role"] === "Accepted" && metadata["ListenSocket"] === server && metadata["LocalAddress"] === client["RemoteAddress"] && metadata["RemoteAddress"] === client["LocalAddress"];
+                metadata = $CSockets[acceptedSocketId];
+                result = metadata["Object"] === CSocketObject[acceptedSocketId] && metadata["Role"] === "Accepted" && metadata["ListenSocket"] === server && metadata["LocalAddress"] === client["RemoteAddress"] && metadata["RemoteAddress"] === client["LocalAddress"];
                 Scan[
                     Close,
-                    {CSocketObject[id], client, server}
+                    {CSocketObject[acceptedSocketId], client, server}
                 ];
                 result
             ],

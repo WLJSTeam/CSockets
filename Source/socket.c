@@ -404,16 +404,17 @@ DLLEXPORT int socketAccept(WolframLibraryData libData, mint Argc, MArgument *Arg
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
+    SOCKET listenSocketId = (SOCKET)MArgument_getInteger(Args[0]);
 
-    SOCKET acceptedSocketId = accept(socketId, NULL, NULL);
+    SOCKET acceptedSocket = accept(listenSocketId, NULL, NULL);
 
-    if (acceptedSocketId == INVALID_SOCKET) {
+    if (acceptedSocket == INVALID_SOCKET) {
+        libData->Message("socketAccept: failed to accept a connection");
         return LIBRARY_FUNCTION_ERROR;
     }
 
-    mint acceptedId = (mint)acceptedSocketId;
-    MArgument_setInteger(Res, acceptedId);
+    mint acceptedSocketId = (mint)acceptedSocket;
+    MArgument_setInteger(Res, acceptedSocketId);
     return LIBRARY_NO_ERROR;
 }
 
@@ -545,6 +546,252 @@ DLLEXPORT int socketRecvFrom(WolframLibraryData libData, mint Argc, MArgument *A
 }
 
 
+static int receiveArrayInto(WolframLibraryData libData, SOCKET socketId, MNumericArray buffer,
+    struct sockaddr_storage *addressStorage, int *bytesRead)
+{
+    size_t capacity = 0;
+    BYTE *data = ByteFromMNumericArray(libData, buffer, &capacity);
+
+    if (!data || capacity == 0 || capacity > INT_MAX) {
+        libData->numericarrayLibraryFunctions->MNumericArray_disown(buffer);
+        libData->Message("socket receive into: invalid buffer");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    int received;
+
+    if (addressStorage) {
+        socklen_t addressLength = sizeof(*addressStorage);
+        received = recvfrom(socketId, (char *)data, (int)capacity, 0,
+            (struct sockaddr *)addressStorage, &addressLength);
+    } else {
+        received = recv(socketId, (char *)data, (int)capacity, 0);
+    }
+
+    if (received == SOCKET_ERROR) {
+        int error = GETSOCKETERRNO();
+        libData->numericarrayLibraryFunctions->MNumericArray_disown(buffer);
+        libData->Message(format("socket receive into: failed %d", error));
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    libData->numericarrayLibraryFunctions->MNumericArray_disown(buffer);
+    *bytesRead = received;
+    return LIBRARY_NO_ERROR;
+}
+
+
+DLLEXPORT int socketRecvInto(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    if (Argc != 2) {
+        libData->Message("socketRecvInto: invalid argument count");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
+    MNumericArray buffer = MArgument_getMNumericArray(Args[1]);
+
+    int bytesRead = 0;
+    int status = receiveArrayInto(libData, socketId, buffer, NULL, &bytesRead);
+
+    if (status != LIBRARY_NO_ERROR) {
+        return status;
+    }
+
+    MArgument_setInteger(Res, bytesRead);
+    return LIBRARY_NO_ERROR;
+}
+
+
+DLLEXPORT int socketRecvFromInto(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    if (Argc != 2) {
+        libData->Message("socketRecvFromInto: invalid argument count");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
+    MNumericArray buffer = MArgument_getMNumericArray(Args[1]);
+
+    struct sockaddr_storage addressStorage = {0};
+    int bytesRead = 0;
+    int status = receiveArrayInto(libData, socketId, buffer, &addressStorage, &bytesRead);
+
+    if (status != LIBRARY_NO_ERROR) {
+        return status;
+    }
+
+    char *senderAddress = sockaddr_storage_to_string(addressStorage);
+
+    if (!senderAddress) {
+        libData->Message("socketRecvFromInto: failed to format sender address");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    DataStore result = libData->ioLibraryFunctions->createDataStore();
+
+    if (!result) {
+        libData->Message("socketRecvFromInto: failed to allocate data store");
+        return LIBRARY_MEMORY_ERROR;
+    }
+
+    libData->ioLibraryFunctions->DataStore_addInteger(result, bytesRead);
+    libData->ioLibraryFunctions->DataStore_addString(result, senderAddress);
+    MArgument_setDataStore(Res, result);
+    return LIBRARY_NO_ERROR;
+}
+
+
+static int sendSocketBytes(WolframLibraryData libData, SOCKET socketId, const char *buffer,
+    int requested, int *bytesSent)
+{
+    int sentLength = send(socketId, buffer, requested, 0);
+
+    if (sentLength == SOCKET_ERROR) {
+        int error = GETSOCKETERRNO();
+        libData->Message(format("socketSend: failed %d", error));
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    if (sentLength == 0 && requested > 0) {
+        libData->Message("socketSend: no progress");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    if (sentLength < requested) {
+        int socketType;
+        socklen_t typeLength = sizeof(socketType);
+        int status = getsockopt(socketId, SOL_SOCKET, SO_TYPE, (char *)&socketType, &typeLength);
+
+        if (status == SOCKET_ERROR) {
+            int error = GETSOCKETERRNO();
+            libData->Message(format("socketSend: SO_TYPE failed %d", error));
+        } else if (socketType != SOCK_STREAM) {
+            libData->Message("socketSend: short datagram");
+        } else {
+            while (sentLength < requested) {
+                mint aborted = libData->AbortQ();
+
+                if (aborted) {
+                    libData->Message("socketSend: aborted");
+                    break;
+                }
+
+                int remaining = requested - sentLength;
+                int sent = send(socketId, buffer + sentLength, remaining, 0);
+
+                if (sent == SOCKET_ERROR) {
+                    int error = GETSOCKETERRNO();
+                    libData->Message(format("socketSend: failed %d", error));
+                    break;
+                }
+
+                if (sent == 0) {
+                    libData->Message("socketSend: no progress");
+                    break;
+                }
+
+                sentLength += sent;
+            }
+        }
+    }
+
+    /* Return the byte count alongside any diagnostic after partial progress. */
+    *bytesSent = sentLength;
+    return LIBRARY_NO_ERROR;
+}
+
+
+static int sendSocketDatagram(WolframLibraryData libData, SOCKET socketId, const char *buffer,
+    int requested, const struct sockaddr_storage *addressStorage, int *bytesSent)
+{
+    socklen_t addressLength;
+
+    switch (addressStorage->ss_family) {
+        case AF_INET:
+            addressLength = sizeof(struct sockaddr_in);
+            break;
+
+        case AF_INET6:
+            addressLength = sizeof(struct sockaddr_in6);
+            break;
+
+        default:
+            libData->Message("socketSendTo: unsupported address family");
+            return LIBRARY_FUNCTION_ERROR;
+    }
+
+    const struct sockaddr *address = (const struct sockaddr *)addressStorage;
+    int sentLength = sendto(socketId, buffer, requested, 0, address, addressLength);
+
+    if (sentLength == SOCKET_ERROR) {
+        int error = GETSOCKETERRNO();
+        libData->Message(format("socketSendTo: failed %d", error));
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    if (sentLength != requested) {
+        libData->Message("socketSendTo: short datagram");
+    }
+
+    *bytesSent = sentLength;
+    return LIBRARY_NO_ERROR;
+}
+
+
+static int sendArray(WolframLibraryData libData, SOCKET socketId, MNumericArray bytes,
+    mint offset, mint length, bool wholeArray, const struct sockaddr_storage *address, int *bytesSent)
+{
+    size_t capacity = 0;
+    BYTE *data = ByteFromMNumericArray(libData, bytes, &capacity);
+    numericarray_data_t arrayType = libData->numericarrayLibraryFunctions->MNumericArray_getType(bytes);
+    mint arrayRank = libData->numericarrayLibraryFunctions->MNumericArray_getRank(bytes);
+
+    if (arrayType != MNumericArray_Type_UBit8 || arrayRank != 1) {
+        libData->numericarrayLibraryFunctions->MNumericArray_disown(bytes);
+        libData->Message("socket send: expected a rank-one byte array");
+        return LIBRARY_TYPE_ERROR;
+    }
+
+    size_t requested = wholeArray ? capacity : (size_t)length;
+
+    if (offset < 0 || length < 0 || (uintmax_t)offset > capacity ||
+        (!wholeArray && (uintmax_t)length > capacity - (size_t)offset) || requested > INT_MAX) {
+        libData->numericarrayLibraryFunctions->MNumericArray_disown(bytes);
+        libData->Message("socket send: invalid offset or length");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    const char *buffer = requested > 0 ? (const char *)data + (size_t)offset : "";
+    int status;
+
+    if (address) {
+        status = sendSocketDatagram(libData, socketId, buffer, (int)requested, address, bytesSent);
+    } else {
+        status = sendSocketBytes(libData, socketId, buffer, (int)requested, bytesSent);
+    }
+
+    libData->numericarrayLibraryFunctions->MNumericArray_disown(bytes);
+    return status;
+}
+
+
+static struct sockaddr_storage takeSendAddress(WolframLibraryData libData, char *host, char *port)
+{
+    struct sockaddr_storage address = create_sockaddr_storage(host, port);
+
+    if (host) {
+        libData->UTF8String_disown(host);
+    }
+
+    if (port) {
+        libData->UTF8String_disown(port);
+    }
+
+    return address;
+}
+
+
 DLLEXPORT int socketSend(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
     if (Argc != 2) {
@@ -554,35 +801,39 @@ DLLEXPORT int socketSend(WolframLibraryData libData, mint Argc, MArgument *Args,
 
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
     MNumericArray bytes = MArgument_getMNumericArray(Args[1]);
-    size_t length = 0;
-    BYTE *byteData = ByteFromMNumericArray(libData, bytes, &length);
-    numericarray_data_t arrayType = libData->numericarrayLibraryFunctions->MNumericArray_getType(bytes);
-    mint arrayRank = libData->numericarrayLibraryFunctions->MNumericArray_getRank(bytes);
 
-    if (arrayType != MNumericArray_Type_UBit8 || arrayRank != 1) {
-        libData->numericarrayLibraryFunctions->MNumericArray_disown(bytes);
-        libData->Message("socketSend: expected a rank-one byte array");
-        return LIBRARY_TYPE_ERROR;
-    }
+    int sentLength = 0;
+    int status = sendArray(libData, socketId, bytes, 0, 0, true, NULL, &sentLength);
 
-    if (length > INT_MAX) {
-        libData->numericarrayLibraryFunctions->MNumericArray_disown(bytes);
-        libData->Message("socketSend: buffer too large");
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    BYTE *data = byteData;
-    int sentLength = send(socketId, (char *)data, (int)length, 0);
-
-    if (sentLength < 0) {
-        libData->numericarrayLibraryFunctions->MNumericArray_disown(bytes);
-        libData->Message(format("socketSend: failed %d", GETSOCKETERRNO()));
-        return LIBRARY_FUNCTION_ERROR;
+    if (status != LIBRARY_NO_ERROR) {
+        return status;
     }
 
     MArgument_setInteger(Res, sentLength);
-    libData->numericarrayLibraryFunctions->MNumericArray_disown(bytes);
+    return LIBRARY_NO_ERROR;
+}
 
+
+DLLEXPORT int socketSendRange(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    if (Argc != 4) {
+        libData->Message("socketSendRange: invalid argument count");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
+    MNumericArray bytes = MArgument_getMNumericArray(Args[1]);
+    mint offset = MArgument_getInteger(Args[2]);
+    mint length = MArgument_getInteger(Args[3]);
+
+    int sentLength = 0;
+    int status = sendArray(libData, socketId, bytes, offset, length, false, NULL, &sentLength);
+
+    if (status != LIBRARY_NO_ERROR) {
+        return status;
+    }
+
+    MArgument_setInteger(Res, sentLength);
     return LIBRARY_NO_ERROR;
 }
 
@@ -595,68 +846,46 @@ DLLEXPORT int socketSendTo(WolframLibraryData libData, mint Argc, MArgument *Arg
     }
 
     SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
-    MNumericArray data = MArgument_getMNumericArray(Args[3]);
     char *numerichost = MArgument_getUTF8String(Args[1]);
     char *port = MArgument_getUTF8String(Args[2]);
-    struct sockaddr_storage addressStorage = create_sockaddr_storage(numerichost, port);
+    MNumericArray data = MArgument_getMNumericArray(Args[3]);
 
-    if (numerichost) {
-        libData->UTF8String_disown(numerichost);
-    }
+    struct sockaddr_storage address = takeSendAddress(libData, numerichost, port);
+    int sentLength = 0;
+    int status = sendArray(libData, socketId, data, 0, 0, true, &address, &sentLength);
 
-    if (port) {
-        libData->UTF8String_disown(port);
-    }
-
-    socklen_t addressLength;
-
-    switch (addressStorage.ss_family) {
-        case AF_INET:
-            addressLength = sizeof(struct sockaddr_in);
-            break;
-
-        case AF_INET6:
-            addressLength = sizeof(struct sockaddr_in6);
-            break;
-
-        default:
-            libData->numericarrayLibraryFunctions->MNumericArray_disown(data);
-            libData->Message("socketSendTo: unsupported address family");
-            return LIBRARY_FUNCTION_ERROR;
-    }
-
-    struct sockaddr *address = (struct sockaddr *)&addressStorage;
-
-    size_t length = 0;
-    BYTE *byteData = ByteFromMNumericArray(libData, data, &length);
-    numericarray_data_t arrayType = libData->numericarrayLibraryFunctions->MNumericArray_getType(data);
-    mint arrayRank = libData->numericarrayLibraryFunctions->MNumericArray_getRank(data);
-
-    if (arrayType != MNumericArray_Type_UBit8 || arrayRank != 1) {
-        libData->numericarrayLibraryFunctions->MNumericArray_disown(data);
-        libData->Message("socketSendTo: expected a rank-one byte array");
-        return LIBRARY_TYPE_ERROR;
-    }
-
-    if (length > INT_MAX) {
-        libData->numericarrayLibraryFunctions->MNumericArray_disown(data);
-        libData->Message("socketSendTo: buffer too large");
-        return LIBRARY_FUNCTION_ERROR;
-    }
-
-    const char *bytes = (const char *)byteData;
-
-    int sentLength = sendto(socketId, bytes, (int)length, 0, address, addressLength);
-
-    if (sentLength == SOCKET_ERROR) {
-        libData->numericarrayLibraryFunctions->MNumericArray_disown(data);
-        libData->Message(format("socketSendTo: failed %d", GETSOCKETERRNO()));
-        return LIBRARY_FUNCTION_ERROR;
+    if (status != LIBRARY_NO_ERROR) {
+        return status;
     }
 
     MArgument_setInteger(Res, sentLength);
-    libData->numericarrayLibraryFunctions->MNumericArray_disown(data);
+    return LIBRARY_NO_ERROR;
+}
 
+
+DLLEXPORT int socketSendToRange(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
+{
+    if (Argc != 6) {
+        libData->Message("socketSendToRange: invalid argument count");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    SOCKET socketId = (SOCKET)MArgument_getInteger(Args[0]);
+    char *numerichost = MArgument_getUTF8String(Args[1]);
+    char *port = MArgument_getUTF8String(Args[2]);
+    MNumericArray data = MArgument_getMNumericArray(Args[3]);
+    mint offset = MArgument_getInteger(Args[4]);
+    mint length = MArgument_getInteger(Args[5]);
+
+    struct sockaddr_storage address = takeSendAddress(libData, numerichost, port);
+    int sentLength = 0;
+    int status = sendArray(libData, socketId, data, offset, length, false, &address, &sentLength);
+
+    if (status != LIBRARY_NO_ERROR) {
+        return status;
+    }
+
+    MArgument_setInteger(Res, sentLength);
     return LIBRARY_NO_ERROR;
 }
 

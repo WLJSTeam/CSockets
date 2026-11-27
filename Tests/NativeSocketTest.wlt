@@ -17,16 +17,93 @@ nativeSocketReport = TestReport[
             And @@ (
                 MatchQ[#, _LibraryFunctionError]& /@ Quiet[
                     {
-                        socketPollLoopCreate[{10}, {}, 1000, $POLLIN],
-                        socketPollLoopCreate[{}, {}, -2, $POLLIN],
-                        socketPollLoopCreate[{}, {}, -1, $POLLIN],
-                        socketPollLoopCreate[{-1}, {$SOCKETROLETCPBOUND}, 1000, $POLLIN],
-                        socketPollLoopCreate[{10}, {99}, 1000, $POLLIN]
+                        socketPollLoopCreate[{10}, {}, 1000, $POLLIN, 65536],
+                        socketPollLoopCreate[{}, {}, -2, $POLLIN, 65536],
+                        socketPollLoopCreate[{}, {}, -1, $POLLIN, 65536],
+                        socketPollLoopCreate[{-1}, {$SOCKETROLETCPBOUND}, 1000, $POLLIN, 65536],
+                        socketPollLoopCreate[{10}, {99}, 1000, $POLLIN, 65536],
+                        socketPollLoopCreate[{}, {}, 1000, $POLLIN, 0],
+                        socketPollLoopCreate[{}, {}, 1000, $POLLIN, 2 ^ 31]
                     }
                 ]
             ),
             True,
-            TestID -> "poll-loop-rejects-invalid-lengths-timeout-descriptors-and-roles"
+            TestID -> "poll-loop-rejects-invalid-lengths-timeout-descriptors-roles-and-buffer-size"
+        ],
+        VerificationTest[
+            Module[{
+                server = CSocketOpen["127.0.0.1", 0],
+                client, acceptedSocketId, accepted, count, invalid, result,
+                payload = NumericArray[Range[0, 127], "UnsignedInteger8"],
+                buffer = ByteArray[ConstantArray[255, 512]]
+            },
+                client = CSocketConnect[server["LocalAddress"]];
+                acceptedSocketId = accept[First[server]];
+                registerAcceptedSocket[First[server], acceptedSocketId];
+                accepted = CSocketObject[acceptedSocketId];
+
+                invalid = Quiet[{
+                    socketSendRange[First[client], payload, -1, 1],
+                    socketSendRange[First[client], payload, 0, -1],
+                    socketSendRange[First[client], payload, 129, 0],
+                    socketSendRange[First[client], payload, 127, 2],
+                    socketSendRange[First[client], payload, 1, 2 ^ 62],
+                    socketRecvInto[acceptedSocketId, ByteArray[{}]]
+                }];
+
+                result = AllTrue[invalid, MatchQ[#, _LibraryFunctionError]&] &&
+                    !TrueQ[SocketReadyQ[accepted]] &&
+                    socketSendRange[First[client], payload, 32, 96] === 96;
+
+                count = 0;
+                While[result && count < 96 && TrueQ[SocketReadyQ[accepted, 1]],
+                    With[{received = socketRecvInto[acceptedSocketId, buffer]},
+                        If[!IntegerQ[received] || received <= 0,
+                            result = False,
+                            result = Take[Normal[buffer], received] === Range[32 + count, 31 + count + received] &&
+                                Last[Normal[buffer]] === 255;
+                            count += received
+                        ]
+                    ]
+                ];
+
+                Close[client];
+                result = result && count === 96 &&
+                    AnyTrue[poll[{acceptedSocketId}, 1], BitAnd[Last[#], BitOr[$POLLIN, $POLLHUP]] != 0&] &&
+                    socketRecvInto[acceptedSocketId, buffer] === 0;
+                Scan[Close, {accepted, server}];
+                result
+            ],
+            True,
+            TestID -> "tcp-receive-into-and-send-range-preserve-offset-buffer-and-eof"
+        ],
+        VerificationTest[
+            Module[{
+                server = CSocketOpen["127.0.0.1", 0, "UDP"],
+                sender = CSocketOpen["127.0.0.1", 0, "UDP"],
+                buffer = NumericArray[ConstantArray[255, 16], "UnsignedInteger8"],
+                payload = ByteArray[{0, 7, 11, 19, 255}],
+                destination, senderAddress, result
+            },
+                destination = splitAddress[server["LocalAddress"]];
+                senderAddress = StringDelete[sender["LocalAddress"], StartOfString ~~ "udp://"];
+
+                result = socketSendToRange[
+                    First[sender], destination["Host"], ToString[destination["Port"]], payload, 1, 3
+                ] === 3 && TrueQ[SocketReadyQ[server, 1]] &&
+                    List @@ socketRecvFromInto[First[server], buffer] === {3, senderAddress} &&
+                    Normal[buffer] === Join[{7, 11, 19}, ConstantArray[255, 13]];
+
+                result = result && socketSendToRange[
+                    First[sender], destination["Host"], ToString[destination["Port"]], payload, 5, 0
+                ] === 0 && TrueQ[SocketReadyQ[server, 1]] &&
+                    List @@ socketRecvFromInto[First[server], buffer] === {0, senderAddress};
+
+                Scan[Close, {sender, server}];
+                result
+            ],
+            True,
+            TestID -> "udp-range-and-receive-into-return-length-and-address"
         ],
         VerificationTest[
             Module[{
@@ -39,7 +116,8 @@ nativeSocketReport = TestReport[
                         {},
                         {},
                         10000,
-                        $POLLIN
+                        $POLLIN,
+                        65536
                     },
                     (
                         AppendTo[events, {#2, #3}]
@@ -77,16 +155,16 @@ nativeSocketReport = TestReport[
                 ports = splitAddress[
                     $CSockets[#, "LocalAddress"]
                 ]["Port"]& /@ receivers;
-                record = Function[id,
+                record = Function[socketId,
                     Function[event,
-                        AppendTo[events, {id, event["SourceSocket"], event["DataBytes"], event["Converted"]}]
+                        AppendTo[events, {socketId, event["SourceSocket"], event["DataBytes"], event["Event"]}]
                     ]
                 ];
                 task = With[{first = receivers[[1]], second = receivers[[2]]},
                     SocketListen[{
                         CSocketObject[first] -> record[first],
                         {CSocketObject[second], record[second]}
-                    }, "EventConverter" -> Function[raw, Append[toEvent[raw], "Converted" -> True]]]
+                    }]
                 ];
                 sender = createSocket["IPv4", "UDP"];
                 Scan[
@@ -105,10 +183,10 @@ nativeSocketReport = TestReport[
                     ],
                     {150}
                 ];
-                result = Sort[events] === Sort[Map[{#, CSocketObject[#], {7}, True}&, receivers]] &&
-                    AllTrue[receivers, Function[id,
-                        $CSockets[id, "Listener"] === task &&
-                            MemberQ[Normal[$CSockets[id]], HoldPattern["Handler" -> _Function]]
+                result = Sort[events] === Sort[Map[{#, CSocketObject[#], {7}, "ReceivedFrom"}&, receivers]] &&
+                    AllTrue[receivers, Function[socketId,
+                        $CSockets[socketId, "Listener"] === task &&
+                            MemberQ[Normal[$CSockets[socketId]], HoldPattern["Handler" -> _Function]]
                     ]];
                 RemoveAsynchronousTask[task];
                 Pause[1.1];
@@ -124,21 +202,22 @@ nativeSocketReport = TestReport[
         ],
         VerificationTest[
             Module[{
-                id,
+                socketId,
                 task,
                 events = {},
                 result
             },
-                id = createSocket["IPv4", "UDP"];
-                bind[id, "127.0.0.1", 0];
+                socketId = createSocket["IPv4", "UDP"];
+                bind[socketId, "127.0.0.1", 0];
                 Do[
                     task = Internal`CreateAsynchronousTask[
                         socketPollLoopCreate,
                         {
-                            {id, id},
+                            {socketId, socketId},
                             {$SOCKETROLEUDPBOUND, $SOCKETROLEUDPBOUND},
                             1000,
-                            $POLLIN
+                            $POLLIN,
+                            65536
                         },
                         (
                             AppendTo[events, {#2, #3}]
@@ -148,8 +227,8 @@ nativeSocketReport = TestReport[
                     {25}
                 ];
                 Pause[0.1];
-                result = events === {} && socketValidQ[id];
-                close[id];
+                result = events === {} && socketValidQ[socketId];
+                close[socketId];
                 result
             ],
             True,
@@ -170,7 +249,8 @@ nativeSocketReport = TestReport[
                         {receiver},
                         {$SOCKETROLEUDPBOUND},
                         500000,
-                        $POLLIN
+                        $POLLIN,
+                        65536
                     },
                     Function[Null
                     ]
@@ -225,9 +305,9 @@ nativeSocketReport = TestReport[
                     ( AppendTo[events, #] )&
                 ];
                 clients = Table[
-                    With[{id = createSocket["IPv4", "TCP"]},
-                        connect[id, "127.0.0.1", port];
-                        id
+                    With[{socketId = createSocket["IPv4", "TCP"]},
+                        connect[socketId, "127.0.0.1", port];
+                        socketId
                     ],
                     {12}
                 ];

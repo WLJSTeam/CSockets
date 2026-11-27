@@ -98,7 +98,7 @@ CSocketConnect["127.0.0.1", 8080, "UDP"]
 
 `CSocketObject[socketId]` wraps a numeric native descriptor. The `$CSockets` association maps each ID to an association with `"Object"`, `"Protocol"`, `"BlockingMode"`, `"LocalAddress"`, `"RemoteAddress"`, `"State"` and `"Role"`. Closing a socket removes its entry from `$CSockets`. Native functions receive only the descriptor. `socketsCheck[ids]` filters a list of descriptors; `socketsPoll[ids, timeout, eventsMask]` returns pairs `{socketId, eventMask}`.
 
-Native asynchronous polling performs accept/read/close and delivers `"Accepted"`, `"Received"`, `"ReceivedFrom"`, `"Closed"` and `"Error"` events to WL handlers. `socketPollLoopCreate[socketIds, roles, timeout, eventsMask]` copies the initial descriptors and roles into a dynamic list owned entirely by the C task. The list is freed when the loop exits, including cancellation and error paths. Cancel a listener with `RemoveAsynchronousTask[task]`; this releases the list without closing sockets that remain open.
+Native asynchronous polling performs accept/read/close and delivers `"Accepted"`, `"Received"`, `"ReceivedFrom"`, `"Closed"` and `"Error"` events to WL handlers. `socketPollLoopCreate[socketIds, roles, timeout, eventsMask, bufferSize]` copies the initial descriptors and roles into a dynamic list owned entirely by the C task. The list is freed when the loop exits, including cancellation and error paths. Cancel a listener with `RemoveAsynchronousTask[task]`; this releases the list without closing sockets that remain open.
 
 Common properties:
 
@@ -139,23 +139,38 @@ WriteString[socket, address, text]
 
 The address argument is a string such as `"127.0.0.1:8080"` or `"[::1]:8080"`. It selects
 the destination of a UDP datagram. Strings are converted to UTF-8 bytes before
-sending. The wrappers send any remaining bytes in a loop and return the total
-number sent. A send error or zero progress returns a `Failure` with the native
-function name, socket ID, and byte counts.
+sending. TCP writes send any remainder in the native retry loop and return the
+total number sent. Each UDP write sends one datagram. A send error returns a
+`Failure` with the native function name, socket ID, and byte counts.
 
-`SocketReadMessage[socket]` returns a `ByteArray` for TCP. For both UDP clients
-and UDP servers it returns `{data, address}` directly from the native result,
-where `data` is a `NumericArray` and `address` is a string. Empty UDP data is returned as `{}`.
+`SocketReadMessage[socket]` returns a `ByteArray` for TCP and connected UDP. On a
+bound UDP socket it returns `{address, data}`, with a `ByteArray` for the payload,
+including empty datagrams.
 
 ```wl
-{data, address} = SocketReadMessage[udpSocket];
-BinaryWrite[udpSocket, address, ByteArray[data]];
+{address, data} = SocketReadMessage[udpSocket];
+BinaryWrite[udpSocket, address, data];
 ```
 
-The private native functions are `socketRecv[socketRow, buffer]` and
-`socketRecvFrom[socketRow, buffer]`; both infer the capacity of the byte buffer.
-`socketRecvFrom` returns a ``Developer`DataStore`` containing data followed by
-the sender address. `SocketReadMessage` converts that container to a list.
+The private native `socketRecv[socketId, buffer]` returns a new `ByteArray`.
+`socketRecvFrom[socketId, buffer]` returns a data store with the sender address
+first and a `NumericArray` payload when the datagram contains bytes. Both
+functions infer the capacity of the supplied buffer.
+
+The private native receive functions also have variants that reuse caller memory.
+`socketRecvInto[socketId, buffer]` returns the number of bytes read.
+`socketRecvFromInto[socketId, buffer]` returns a data store whose entries are
+`{bytesRead, senderAddress}`. A zero read on TCP marks EOF. A zero read with a
+sender address represents an empty UDP datagram.
+
+Use a dedicated, nonempty, rank-one byte buffer (`ByteArray` or unsigned 8-bit
+`NumericArray`). Only the prefix up to the returned count contains the latest
+read. Give a UDP buffer enough capacity for the complete datagram.
+
+`socketSendRange[socketId, buffer, offset, length]` and
+`socketSendToRange[socketId, host, port, buffer, offset, length]` send bytes
+directly from the same array. Offsets start at zero, so `32, 96` selects bytes
+at offsets 32 through 127. Use a decimal port string for `socketSendToRange`.
 
 ### `SocketReadyQ`
 
@@ -185,8 +200,12 @@ Close[server]
 
 `SocketListen[socket, handler]` starts an asynchronous listener for one socket.
 `SocketListen[{socket1 -> handler1, socket2 -> handler2, ...}]` starts one polling
-loop and forwards each socket's events to its assigned handler. The returned
-`AsynchronousTaskObject` controls the listener.
+loop and forwards each socket's events to its assigned handler. Pass an optional
+buffer size in bytes as the last argument when starting a TCP listener, for example
+`SocketListen[server, handler, 4 * 1024 * 1024]`. The default is 64 KiB. UDP reads
+keep a full datagram buffer. The returned
+`AsynchronousTaskObject` controls the listener. Replacing a handler on a live
+listener retains its buffer size.
 
 Bindings can also be passed as an association of `socket -> handler` rules or
 a list of `{socket, handler}` pairs.
@@ -198,11 +217,6 @@ handler = CSocketHandler[
 
 listener = SocketListen[server, handler];
 ```
-
-Use `"EventConverter" -> converter` with either form of `SocketListen` to
-customize the association passed to the handler. The converter takes one
-argument, `{task, name, data}`. Without this option, `SocketListen` produces
-the standard event association.
 
 The callback receives event associations such as:
 
@@ -241,8 +255,8 @@ CSocketHandle[{
 ```
 
 The bindings may contain multiple TCP and UDP servers, connected sockets, and
-accepted TCP sockets. `CSocketHandle` accepts the same binding forms and
-`"EventConverter"` option as `SocketListen`. A ready TCP server accepts a
+accepted TCP sockets. `CSocketHandle` accepts the same binding forms as
+`SocketListen`. A ready TCP server accepts a
 connection and adds it to the loop. Connected and accepted TCP sockets produce
 `"Received"` events. UDP sockets produce `"ReceivedFrom"` events with the
 sender's `"Address"`.
@@ -373,6 +387,31 @@ wolframscript -f Example.wls -p 8080
 ```
 
 The `Scripts/` folder also contains sample programs such as `Echo.wls`, `HTTPEcho.wls`, `TCPStreamingServer.wls`, and `SpeedTestServer.wls`.
+
+### TCP tuning profiles
+
+After loading CSockets, load [TCPProfiles.wl](Scripts/TCPProfiles.wl) from the
+repository root.
+
+```wl
+Get["Scripts/TCPProfiles.wl"];
+```
+
+- `CSocketTCPConfigure[socket, "Latency"]` sets `TCP_NODELAY = 1`. Apply it
+  to the connected client and to each accepted server socket before exchanging
+  small frames.
+- `CSocketTCPConfigure[socket, "BulkSend"]` enables Nagle and requests an
+  8 MiB TCP send buffer on the sending socket. The loopback benchmark used
+  8 MiB calls to `BinaryWrite`.
+- `CSocketTCPConfigure[socket, "BulkReceive"]` enables Nagle and requests
+  an 8 MiB TCP receive buffer. Apply it to the listener before accepting
+  connections and to each accepted socket in its `"Accepted"` callback.
+  The synchronous profile also gives each receiving connection a 4 MiB CSockets
+  read buffer. For `SocketListen`, pass `"Asynchronous"` as the third
+  argument and pass the desired read buffer size to `SocketListen`.
+
+The configurator returns the socket on success or a `Failure` on error.
+The measured presets use TCP loopback on Windows.
 
 ### Synchronous server latency benchmark
 

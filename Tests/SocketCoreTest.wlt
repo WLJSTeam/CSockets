@@ -136,19 +136,19 @@ coreReport = TestReport[
             TestID -> "close-inside-empty-udp-callback-is-idempotent"
         ],
         VerificationTest[
-            Module[{server, client, id, accepted, result},
+            Module[{server, client, acceptedSocketId, accepted, result},
                 server = CSocketOpen["127.0.0.1", 0];
                 client = CSocketConnect[
                     server["LocalAddress"]
                 ];
-                id = socketAccept[
+                acceptedSocketId = socketAccept[
                     First[server]
                 ];
                 registerAcceptedSocket[
                     First[server],
-                    id
+                    acceptedSocketId
                 ];
-                accepted = CSocketObject[id];
+                accepted = CSocketObject[acceptedSocketId];
                 result = server["Role"] === "Bound" && client["Role"] === "Connected" && accepted["Role"] === "Accepted" && accepted["Addresses"] === Reverse[
                     client["Addresses"]
                 ];
@@ -157,7 +157,7 @@ coreReport = TestReport[
                     ByteArray[{1, 2, 3, 4, 5}]
                 ];
                 result = result && socketRecv[
-                    id,
+                    acceptedSocketId,
                     ByteArray[{0, 0}]
                 ] === ByteArray[{1, 2}] && SocketReadyQ[accepted, 1] && SocketWaitNext[{accepted}] === accepted && SocketWaitAll[{accepted}] === {accepted} && SocketReadMessage[accepted] === ByteArray[{3, 4, 5}];
                 Scan[Close, {accepted, client, server}];

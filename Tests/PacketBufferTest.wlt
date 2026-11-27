@@ -17,7 +17,7 @@ TestReport[
                 logged = {},
                 decoded = {},
                 expectedCalls = 0,
-                WLJS`CSockets`Private`socketSend = Function[{row, bytes},
+                WLJS`CSockets`Private`socketSendRange = Function[{row, bytes, offset, length},
                     AppendTo[sent, bytes];
                     Length[bytes]
                 ]

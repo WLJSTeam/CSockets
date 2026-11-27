@@ -18,7 +18,7 @@ report = TestReport[
                 Module[{handler = CSocketHandler["Accumulator" -> Function[2]], before},
                     registerSocket[42];
                     $CSockets[42, "Handler"] = handler;
-                    handler[toEvent[{
+                    handler[getEvent[{
                         AsynchronousTaskObject[1],
                         "Received",
                         {
@@ -67,7 +67,7 @@ report = TestReport[
                     ];
                     registerSocket[42];
                     $CSockets[42, "Handler"] = handler;
-                    handler[toEvent[{
+                    handler[getEvent[{
                         AsynchronousTaskObject[1],
                         "Received",
                         {
@@ -78,14 +78,14 @@ report = TestReport[
                     before = !MissingQ[
                         handler["Buffer"]["Lookup", 42]
                     ];
-                    handler[toEvent[{
+                    handler[getEvent[{
                         AsynchronousTaskObject[1],
                         "Closed",
                         {42}
                     }]];
                     registerSocket[42];
                     $CSockets[42, "Handler"] = handler;
-                    packet = handler[toEvent[{
+                    packet = handler[getEvent[{
                         AsynchronousTaskObject[1],
                         "Received",
                         {
@@ -94,7 +94,7 @@ report = TestReport[
                         }
                     }]];
                     before = before && cleaned && !packet["Completed"] && messages === {};
-                    handler[toEvent[{
+                    handler[getEvent[{
                         AsynchronousTaskObject[1],
                         "Received",
                         {
@@ -117,7 +117,7 @@ report = TestReport[
                 Module[{handler = CSocketHandler["Accumulator" -> Function[2]], preserved},
                     registerSocket[42];
                     $CSockets[42, "Handler"] = handler;
-                    handler[toEvent[{
+                    handler[getEvent[{
                         AsynchronousTaskObject[1],
                         "Received",
                         {
@@ -127,7 +127,7 @@ report = TestReport[
                     }]];
                     socketValidQ[_Integer] :=
                     True;
-                    handler[toEvent[{
+                    handler[getEvent[{
                         AsynchronousTaskObject[1],
                         "Error",
                         {42, 99}
@@ -137,7 +137,7 @@ report = TestReport[
                     ] && KeyExistsQ[$CSockets, 42];
                     socketValidQ[_Integer] :=
                     False;
-                    handler[toEvent[{
+                    handler[getEvent[{
                         AsynchronousTaskObject[1],
                         "Error",
                         {42, 99}
@@ -161,31 +161,31 @@ report = TestReport[
                         ( $CSockets[#, "Handler"] = handler )&,
                         {42, 43}
                     ];
-                    handler[toEvent[{
+                    handler[getEvent[{
                         AsynchronousTaskObject[1],
                         "ReceivedFrom",
                         {
                             42,
                             "127.0.0.1:1",
-                            ByteArray[{1}]
+                            NumericArray[{1}, "UnsignedInteger8"]
                         }
                     }]];
-                    handler[toEvent[{
+                    handler[getEvent[{
                         AsynchronousTaskObject[1],
                         "ReceivedFrom",
                         {
                             42,
                             "127.0.0.1:2",
-                            ByteArray[{2}]
+                            NumericArray[{2}, "UnsignedInteger8"]
                         }
                     }]];
-                    handler[toEvent[{
+                    handler[getEvent[{
                         AsynchronousTaskObject[1],
                         "ReceivedFrom",
                         {
                             43,
                             "127.0.0.1:1",
-                            ByteArray[{3}]
+                            NumericArray[{3}, "UnsignedInteger8"]
                         }
                     }]];
                     before = Length[

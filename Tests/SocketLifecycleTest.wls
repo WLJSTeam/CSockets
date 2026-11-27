@@ -14,13 +14,13 @@ Begin["WLJS`CSockets`Private`"];
 report = TestReport[
     {
         VerificationTest[
-            Module[{socket, id, result},
+            Module[{socket, socketId, result},
                 socket = CSocketObject[
                     createSocket["IPv4", "UDP"]
                 ];
-                id = First[socket];
+                socketId = First[socket];
                 Close[socket];
-                result = !KeyExistsQ[$CSockets, id] && !socketValidQ[id] && Close[socket] === Null;
+                result = !KeyExistsQ[$CSockets, socketId] && !socketValidQ[socketId] && Close[socket] === Null;
                 result
             ],
             True,
@@ -64,7 +64,7 @@ report = TestReport[
                         {event["ClosedSocket"], KeyExistsQ[$CSockets, 10]}
                     ]
                 ];
-                socketListenerHandler[$CSockets[10, "Handler"]][toEvent[{
+                socketListenerHandler[$CSockets[10, "Handler"]][getEvent[{
                     AsynchronousTaskObject[1],
                     "Closed",
                     {10}
@@ -95,7 +95,7 @@ report = TestReport[
                         {event["ErrorCode"], KeyExistsQ[$CSockets, 10]}
                     ]
                 ];
-                socketListenerHandler[$CSockets[10, "Handler"]][toEvent[{
+                socketListenerHandler[$CSockets[10, "Handler"]][getEvent[{
                     AsynchronousTaskObject[1],
                     "Error",
                     {10, 99}
@@ -141,7 +141,7 @@ report = TestReport[
                     ]
                 ];
                 originalHandler = $CSockets[10, "Handler"];
-                socketListenerHandler[$CSockets[10, "Handler"]][toEvent[{
+                socketListenerHandler[$CSockets[10, "Handler"]][getEvent[{
                     AsynchronousTaskObject[1],
                     "Accepted",
                     {10, 20}
@@ -189,7 +189,7 @@ report = TestReport[
                         event["ClosedSocket"]
                     ]
                 ];
-                socketListenerHandler[$CSockets[socketEventSource[AsynchronousTaskObject[1], {20}], "Handler"]][toEvent[{
+                socketListenerHandler[$CSockets[socketEventSource[AsynchronousTaskObject[1], {20}], "Handler"]][getEvent[{
                     AsynchronousTaskObject[1],
                     "Closed",
                     {20}

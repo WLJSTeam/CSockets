@@ -31,7 +31,7 @@ Block[{
                             "Role" -> "Bound"
                         |>
                     |>,
-                    WLJS`CSockets`Private`socketSendTo = Function[{row, host, port, bytes},
+                    WLJS`CSockets`Private`socketSendToRange = Function[{row, host, port, bytes, offset, length},
                         AppendTo[sent, {row, host <> ":" <> port, bytes}];
                         Length[bytes]
                     ]
@@ -85,11 +85,11 @@ Block[{
                 Block[{
                     sent = 0,
                     logged = {},
-                    WLJS`CSockets`Private`socketSend = Function[Null,
+                    WLJS`CSockets`Private`socketSendRange = Function[Null,
                         sent++;
                         0
                     ],
-                    WLJS`CSockets`Private`socketSendTo = Function[Null,
+                    WLJS`CSockets`Private`socketSendToRange = Function[Null,
                         sent++;
                         0
                     ]
@@ -130,7 +130,7 @@ Block[{
                 Block[{
                     sent = {},
                     logged = {},
-                    WLJS`CSockets`Private`socketSend = Function[{row, bytes},
+                    WLJS`CSockets`Private`socketSendRange = Function[{row, bytes, offset, length},
                         AppendTo[sent, bytes];
                         Length[bytes]
                     ]
@@ -183,11 +183,11 @@ Block[{
             VerificationTest[
                 Block[{
                     sent = 0,
-                    WLJS`CSockets`Private`socketSend = Function[Null,
+                    WLJS`CSockets`Private`socketSendRange = Function[Null,
                         sent++;
                         0
                     ],
-                    WLJS`CSockets`Private`socketSendTo = Function[Null,
+                    WLJS`CSockets`Private`socketSendToRange = Function[Null,
                         sent++;
                         0
                     ]

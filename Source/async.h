@@ -10,6 +10,8 @@ typedef struct SocketPollLoopArgs_st {
     socket_list *socketList;
     mint eventsMask;
     mint timeout;
+    int bufferSize;
+    BYTE *buffer;
 } *SocketPollLoopArgs;
 
 

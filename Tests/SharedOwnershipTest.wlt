@@ -68,7 +68,8 @@ TestReport[
                 server,
                 client,
                 bytes = ByteArray[{1, 2}],
-                before,
+                buffer = ByteArray[ConstantArray[0, 16]],
+                before, bufferBefore,
                 result
             },
                 server = CSocketOpen["127.0.0.1", 0, "UDP"];
@@ -85,11 +86,18 @@ TestReport[
                 result = result && Last[
                     SocketReadMessage[server]
                 ] === bytes;
+                bufferBefore = arrayShares[buffer];
+                result = result &&
+                    WLJS`CSockets`Private`socketSendRange[First[client], bytes, 1, 1] === 1 &&
+                    TrueQ[SocketReadyQ[server, 1]] &&
+                    MatchQ[List @@ WLJS`CSockets`Private`socketRecvFromInto[First[server], buffer], {1, _String}] &&
+                    First[Normal[buffer]] === 2 &&
+                    arrayShares[bytes] === before && arrayShares[buffer] === bufferBefore;
                 Scan[Close, {client, server}];
                 result
             ],
             True,
-            TestID -> "descriptor-send-releases-byte-array-share-on-success"
+            TestID -> "send-and-receive-into-release-byte-array-shares-on-success"
         ]
     }
 ]

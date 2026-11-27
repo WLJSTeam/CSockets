@@ -96,6 +96,26 @@ handleReport = TestReport[{
         TestID -> "synchronous-udp-servers-route-to-object-and-function-handlers"
     ],
     VerificationTest[
+        Module[{server, client, packets = {}, result},
+            server = CSocketOpen["127.0.0.1", 0, "UDP"];
+            client = CSocketConnect[server["LocalAddress"]];
+            $CSockets[First[server], "Buffer"] = ByteArray[{0, 0, 0}];
+            BinaryWrite[client, ByteArray[{1, 2}]];
+            BinaryWrite[client, ByteArray[{3, 4, 5}]];
+
+            result = TimeConstrained[CSocketHandle[server, Function[packet,
+                AppendTo[packets, packet];
+                If[Length[packets] === 2, Close[server]];
+                Null
+            ]], 5, $Aborted];
+
+            Close[client];
+            result === Null && Lookup[packets, "DataByteArray"] === {ByteArray[{1, 2}], ByteArray[{3, 4, 5}]}
+        ],
+        True,
+        TestID -> "synchronous-events-keep-the-valid-prefix-across-buffer-reuse"
+    ],
+    VerificationTest[
         Module[{server, clients, handler, events = {}, replies = {}, result, before = Keys[$CSockets]},
             server = CSocketOpen["127.0.0.1", 0];
             clients = Table[CSocketConnect[server["LocalAddress"]], {2}];
@@ -190,13 +210,10 @@ handleReport = TestReport[{
                 "ReceivedFrom" -> (#DataByteArray&),
                 "Logger" -> Function[received, packet = received; Close[client]]
             ];
-            result = TimeConstrained[CSocketHandle[
-                <|client -> handler|>,
-                "EventConverter" -> Function[raw, Append[toEvent[raw], "Converted" -> True]]
-            ], 8, "timeout"];
+            result = TimeConstrained[CSocketHandle[<|client -> handler|>], 8, "timeout"];
             result = result === Null && packet["Event"] === "ReceivedFrom" &&
                 packet["Address"] === StringDelete[server["LocalAddress"], StartOfString ~~ "udp://"] &&
-                packet["Task"] === Null && packet["Converted"] === True &&
+                packet["Task"] === Null &&
                 SocketReadyQ[server, 1] && Last[SocketReadMessage[server]] === StringToByteArray["hello"];
             Scan[Close, CSocketObject /@ Complement[Keys[$CSockets], before]];
             result
@@ -205,15 +222,14 @@ handleReport = TestReport[{
         TestID -> "synchronous-connected-udp-event-includes-sender-and-replies-to-peer"
     ],
     VerificationTest[
-        Module[{server, client, handler, converter, task, delivered = {}, events, replies, result},
+        Module[{server, client, handler, task, delivered = {}, events, replies, result},
             server = CSocketOpen["127.0.0.1", 0, "UDP"];
             client = CSocketConnect[server["LocalAddress"]];
             handler = Function[event,
                 AppendTo[delivered, event];
                 event["DataByteArray"]
             ];
-            converter = Function[raw, Append[toEvent[raw], "Converted" -> True]];
-            task = SocketListen[server, handler, "EventConverter" -> converter];
+            task = SocketListen[server, handler];
             WriteString[client, "ping"];
             Do[
                 Pause[0.02];
@@ -229,7 +245,6 @@ handleReport = TestReport[{
             AppendTo[replies, If[SocketReadyQ[client, 1], ReadString[client], $Failed]];
             result = Length[delivered] === 2 && events === {Last[delivered]} &&
                 delivered[[1]]["Task"] === task && delivered[[2]]["Task"] === Null &&
-                TrueQ[delivered[[2]]["Converted"]] &&
                 SameQ @@ (KeyDrop[#, {"Timestamp", "Task"}]& /@ delivered) && replies === {"ping", "ping"};
             Scan[Close, {client, server}];
             result
@@ -279,7 +294,7 @@ handleReport = TestReport[{
         Module[{server = CSocketOpen["127.0.0.1", 0, "UDP"], called = False, result},
             result = Block[{
                 socketsPoll = Function[{ids, timeout, mask}, {{First[ids], $POLLIN}}],
-                socketRecvFrom = Function[Null, $Failed]
+                socketRecvFromInto = Function[Null, $Failed]
             },
                 TimeConstrained[CSocketHandle[server, Function[called = True]], 4, "timeout"]
             ];
@@ -296,7 +311,7 @@ handleReport = TestReport[{
             server = CSocketOpen["127.0.0.1", 0, "UDP"];
             client = CSocketConnect[server["LocalAddress"]];
             WriteString[client, "ping"];
-            result = Block[{socketSendTo = Function[Null, 0]},
+            result = Block[{socketSendToRange = Function[Null, 0]},
                 TimeConstrained[CSocketHandle[server, Function["pong"]], 4, "timeout"]
             ];
             Scan[Close, {client, server}];

@@ -9,6 +9,10 @@ Get[
 ];
 
 
+SocketSendTest::native =
+"Injected failure after partial native send.";
+
+
 Block[{
     WLJS`CSockets`$CSockets = <|
         42 -> <|
@@ -22,15 +26,12 @@ Block[{
             VerificationTest[
                 Block[{
                     calls = {},
-                    WLJS`CSockets`Private`socketSend = Function[{row, bytes},
+                    WLJS`CSockets`Private`socketSendRange = Function[{row, bytes, offset, length},
                         AppendTo[
                             calls,
                             Normal[bytes]
                         ];
-                        Min[
-                            2,
-                            Length[bytes]
-                        ]
+                        Length[bytes]
                     ]
                 },
                     {
@@ -44,25 +45,20 @@ Block[{
                 {
                     5,
                     {
-                        {1, 2, 3, 4, 5},
-                        {3, 4, 5},
-                        {5}
+                        {1, 2, 3, 4, 5}
                     }
                 },
-                TestID -> "binary-write-recursively-sends-remainder"
+                TestID -> "binary-write-passes-full-byte-array-to-native"
             ],
             VerificationTest[
                 Block[{
                     calls = {},
-                    WLJS`CSockets`Private`socketSend = Function[{row, bytes},
+                    WLJS`CSockets`Private`socketSendRange = Function[{row, bytes, offset, length},
                         AppendTo[
                             calls,
                             Normal[bytes]
                         ];
-                        Min[
-                            1,
-                            Length[bytes]
-                        ]
+                        Length[bytes]
                     ]
                 },
                     {WriteString[CSocketObject[42], FromCharacterCode[233]], calls}
@@ -70,16 +66,15 @@ Block[{
                 {
                     2,
                     {
-                        {195, 169},
-                        {169}
+                        {195, 169}
                     }
                 },
-                TestID -> "write-string-resumes-inside-utf8-character"
+                TestID -> "write-string-passes-complete-utf8-to-native"
             ],
             VerificationTest[
                 Block[{
                     calls = {},
-                    WLJS`CSockets`Private`socketSend = Function[{row, bytes},
+                    WLJS`CSockets`Private`socketSendRange = Function[{row, bytes, offset, length},
                         AppendTo[
                             calls,
                             Normal[bytes]
@@ -107,36 +102,37 @@ Block[{
                 Table[
                     Block[{
                         calls = 0,
-                        WLJS`CSockets`Private`socketSend = Function[{row, bytes},
+                        WLJS`CSockets`Private`socketSendRange = Function[{socketId, bytes, offset, length},
                             calls++;
-                            If[calls === 1,
-                                1,
-                                failure
-                            ]
+                            failure
                         ]
                     },
-                        {
-                            Quiet[
-                                BinaryWrite[
-                                    CSocketObject[42],
-                                    ByteArray[{1, 2, 3}]
-                                ]
-                            ],
-                            calls
-                        }
+                        {Quiet[BinaryWrite[CSocketObject[42], ByteArray[{1, 2, 3}]]], calls}
                     ],
-                    {
-                        failure,
-                        {0, LibraryFunctionError["send", 6]}
-                    }
+                    {failure, {1, 0, LibraryFunctionError["send", 6]}}
                 ],
-                ConstantArray[{
-                    Failure["socketSend", <|
-                        "SocketID" -> 42, "Host" -> "", "Port" -> 0, "BytesSent" -> 1, "BytesRequested" -> 3
-                    |>],
-                    2
-                }, 2],
-                TestID -> "send-stops-on-zero-progress-or-error"
+                Table[
+                    {Failure["socketSend", <|
+                        "SocketID" -> 42, "Host" -> "", "Port" -> 0, "BytesSent" -> sent, "BytesRequested" -> 3
+                    |>], 1},
+                    {sent, {1, 0, 0}}
+                ],
+                TestID -> "incomplete-native-send-reports-progress-without-wl-retry"
+            ],
+            VerificationTest[
+                Block[{
+                    WLJS`CSockets`Private`socketSendRange = Function[{socketId, bytes, offset, length},
+                        Message[SocketSendTest::native];
+                        1
+                    ]
+                },
+                    BinaryWrite[CSocketObject[42], ByteArray[{1, 2, 3}]]
+                ],
+                Failure["socketSend", <|
+                    "SocketID" -> 42, "Host" -> "", "Port" -> 0, "BytesSent" -> 1, "BytesRequested" -> 3
+                |>],
+                {SocketSendTest::native, WLJS`CSockets`Private`write::fail},
+                TestID -> "native-send-message-retains-partial-byte-count"
             ],
             VerificationTest[
                 Block[{
@@ -147,15 +143,12 @@ Block[{
                             "Role" -> "Bound"
                         |>
                     |>,
-                    WLJS`CSockets`Private`socketSendTo = Function[{row, host, port, bytes},
+                    WLJS`CSockets`Private`socketSendToRange = Function[{row, host, port, bytes, offset, length},
                         AppendTo[
                             calls,
                             {host <> ":" <> port, Normal[bytes]}
                         ];
-                        Min[
-                            2,
-                            Length[bytes]
-                        ]
+                        2
                     ]
                 },
                     {
@@ -168,19 +161,14 @@ Block[{
                     }
                 ],
                 {
-                    3,
-                    {
-                        {
-                            "127.0.0.1:9000",
-                            {1, 2, 3}
-                        },
-                        {
-                            "127.0.0.1:9000",
-                            {3}
-                        }
-                    }
+                    Failure["socketSendTo", <|
+                        "SocketID" -> 42, "Host" -> "127.0.0.1", "Port" -> 9000,
+                        "BytesSent" -> 2, "BytesRequested" -> 3
+                    |>],
+                    {{"127.0.0.1:9000", {1, 2, 3}}}
                 },
-                TestID -> "udp-binary-write-resends-remainder-to-same-address"
+                {WLJS`CSockets`Private`write::fail},
+                TestID -> "short-udp-write-keeps-datagram-in-one-native-call"
             ],
             VerificationTest[
                 Block[{
@@ -191,15 +179,12 @@ Block[{
                             "Role" -> "Bound"
                         |>
                     |>,
-                    WLJS`CSockets`Private`socketSendTo = Function[{row, host, port, bytes},
+                    WLJS`CSockets`Private`socketSendToRange = Function[{row, host, port, bytes, offset, length},
                         AppendTo[
                             calls,
                             {host <> ":" <> port, Normal[bytes]}
                         ];
-                        Min[
-                            1,
-                            Length[bytes]
-                        ]
+                        Length[bytes]
                     ]
                 },
                     {
@@ -214,21 +199,14 @@ Block[{
                 {
                     2,
                     {
-                        {
-                            "127.0.0.1:9000",
-                            {195, 169}
-                        },
-                        {
-                            "127.0.0.1:9000",
-                            {169}
-                        }
+                        {"127.0.0.1:9000", {195, 169}}
                     }
                 },
-                TestID -> "udp-write-string-converts-utf8-and-resends-remainder"
+                TestID -> "udp-write-string-sends-utf8-in-one-native-call"
             ],
             VerificationTest[
                 Block[{
-                    WLJS`CSockets`Private`socketSend = Function[{row, bytes},
+                    WLJS`CSockets`Private`socketSendRange = Function[{row, bytes, offset, length},
                         Length[bytes]
                     ]
                 },

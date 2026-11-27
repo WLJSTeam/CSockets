@@ -34,20 +34,20 @@ With[{bytes = StringToByteArray[body]},
 ];
 
 
-forgetHTTPConnection[socket: CSocketObject[id_Integer]] :=
+forgetHTTPConnection[socket: CSocketObject[socketId_Integer]] :=
 (
-    KeyDropFrom[$httpHeaders, id];
-    KeyDropFrom[$httpConnections, id];
+    KeyDropFrom[$httpHeaders, socketId];
+    KeyDropFrom[$httpConnections, socketId];
 );
 
 
 receiveHTTPRequest[packet_Association] :=
 Module[{
-    id = First[packet["SourceSocket"]],
+    socketId = First[packet["SourceSocket"]],
     headers, request, parts, method, target, headOnly
 },
-    headers = Join[Lookup[$httpHeaders, id, ByteArray[{}]], packet["DataByteArray"]];
-    $httpHeaders[id] = headers;
+    headers = Join[Lookup[$httpHeaders, socketId, ByteArray[{}]], packet["DataByteArray"]];
+    $httpHeaders[socketId] = headers;
 
     If[Length[headers] > 16 * 1024,
         Return[httpResponse["431 Request Header Fields Too Large", "Request headers are too large.\n"]]

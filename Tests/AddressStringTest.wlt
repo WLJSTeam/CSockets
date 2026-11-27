@@ -163,16 +163,16 @@ report = TestReport[
                     {"", "0"}
                 },
                 Function[pair,
-                    Module[{id, result},
-                        id = socketCreate[2, 17];
+                    Module[{socketId, result},
+                        socketId = socketCreate[2, 17];
                         result = Quiet[
                             socketBind[
-                                id,
+                                socketId,
                                 pair[[1]],
                                 pair[[2]]
                             ]
                         ];
-                        socketClose[id];
+                        socketClose[socketId];
                         MatchQ[result, _LibraryFunctionError]
                     ]
                 ]

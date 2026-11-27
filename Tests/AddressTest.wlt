@@ -118,7 +118,7 @@ addressReport = TestReport[
         ],
         VerificationTest[
             Block[{$CSockets = <||>, socketRecvFrom},
-                socketRecvFrom[id_Integer, buffer_ByteArray] :=
+                socketRecvFrom[socketId_Integer, buffer_ByteArray] :=
                 Developer`DataStore[
                     "127.0.0.1:9000",
                     NumericArray[{1, 2}, "UnsignedInteger8"]
@@ -135,12 +135,12 @@ addressReport = TestReport[
             TestID -> "bound-udp-wrapper-converts-native-data-store"
         ],
         VerificationTest[
-            Module[{server, id, result},
+            Module[{server, socketId, result},
                 server = CSocketOpen["127.0.0.1", 0];
-                id = First[server];
-                result = KeyExistsQ[$CSockets, id];
+                socketId = First[server];
+                result = KeyExistsQ[$CSockets, socketId];
                 Close[server];
-                result && !KeyExistsQ[$CSockets, id]
+                result && !KeyExistsQ[$CSockets, socketId]
             ],
             True,
             TestID -> "closed-socket-is-removed-from-registry"

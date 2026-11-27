@@ -25,39 +25,39 @@ descriptorReport = TestReport[
         ],
         VerificationTest[
             And @@ Table[
-                Module[{server, client, id, accepted, result},
+                Module[{server, client, acceptedSocketId, accepted, result},
                     server = CSocketOpen["127.0.0.1", 0];
                     client = CSocketConnect[
                         server["LocalAddress"]
                     ];
-                    id = socketAccept[
+                    acceptedSocketId = socketAccept[
                         First[server]
                     ];
                     registerAcceptedSocket[
                         First[server],
-                        id
+                        acceptedSocketId
                     ];
-                    accepted = CSocketObject[id];
+                    accepted = CSocketObject[acceptedSocketId];
                     If[nonblocking,
-                        toNonBlocking[id]
+                        toNonBlocking[acceptedSocketId]
                     ];
                     BinaryWrite[
                         client,
                         ByteArray[{1, 2, 3}]
                     ];
-                    result = IntegerQ[id] && socketConnectedQ[id] && SocketReadyQ[accepted, 1] && SocketReadMessage[accepted] === ByteArray[{1, 2, 3}];
+                    result = IntegerQ[acceptedSocketId] && socketConnectedQ[acceptedSocketId] && SocketReadyQ[accepted, 1] && SocketReadMessage[accepted] === ByteArray[{1, 2, 3}];
                     Close[client];
                     If[!nonblocking,
-                        toNonBlocking[id]
+                        toNonBlocking[acceptedSocketId]
                     ];
                     Do[
                         Pause[0.02];
-                        If[!socketConnectionAliveQ[id],
+                        If[!socketConnectionAliveQ[acceptedSocketId],
                             Break[]
                         ],
                         {100}
                     ];
-                    result = result && !socketConnectionAliveQ[id];
+                    result = result && !socketConnectionAliveQ[acceptedSocketId];
                     Scan[Close, {accepted, server}];
                     result
                 ],

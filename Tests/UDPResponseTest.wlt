@@ -20,14 +20,14 @@ TestReport[
                         "Role" -> "Connected"
                     |>
                 |>,
-                WLJS`CSockets`Private`socketSend = Function[{id, bytes},
+                WLJS`CSockets`Private`socketSendRange = Function[{socketId, bytes, offset, length},
                     AppendTo[
                         calls,
                         {"TCP", Normal[bytes]}
                     ];
                     Length[bytes]
                 ],
-                WLJS`CSockets`Private`socketSendTo = Function[{id, host, port, bytes},
+                WLJS`CSockets`Private`socketSendToRange = Function[{socketId, host, port, bytes, offset, length},
                     AppendTo[
                         calls,
                         {"UDP", host <> ":" <> port, Normal[bytes]}

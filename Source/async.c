@@ -1,6 +1,9 @@
 #include "async.h"
 
 
+#define UDP_RECEIVE_BUFFER_SIZE 65536
+
+
 static void raiseError(WolframLibraryData libData, mint taskId, SOCKET socketId, int error)
 {
     DataStore store = libData->ioLibraryFunctions->createDataStore();
@@ -126,7 +129,7 @@ static void socketPollLoop(mint taskId, void *taskArgs)
     bool needPrune = false;
 
     int nativeEvents = convert_wl_to_native_events(args->eventsMask);
-    BYTE buffer[65536];
+    BYTE *buffer = args->buffer;
 
     while (true) {
         bool alive = libData->ioLibraryFunctions->asynchronousTaskAliveQ(taskId);
@@ -229,7 +232,7 @@ static void socketPollLoop(mint taskId, void *taskArgs)
                     case SOCKET_ROLE_TCP_ACCEPTED:
                     case SOCKET_ROLE_TCP_CONNECTED:
                         {
-                            received = recv(socketId, (char *)buffer, sizeof(buffer), 0);
+                            received = recv(socketId, (char *)buffer, args->bufferSize, 0);
 
                             if (received > 0) {
                                 raiseReceived(libData, taskId, socketId, buffer, received);
@@ -252,7 +255,7 @@ static void socketPollLoop(mint taskId, void *taskArgs)
                     case SOCKET_ROLE_UDP_CONNECTED:
                         {
                             socklen_t addressLength = sizeof(address);
-                            received = recvfrom(socketId, (char *)buffer, sizeof(buffer), 0,
+                            received = recvfrom(socketId, (char *)buffer, UDP_RECEIVE_BUFFER_SIZE, 0,
                                 (struct sockaddr *)&address, &addressLength);
 
                             if (received >= 0) {
@@ -302,6 +305,7 @@ static void socketPollLoop(mint taskId, void *taskArgs)
     }
 
     free(fds);
+    free(buffer);
     remove_socket_list(socketList);
     free(args);
 }
@@ -309,7 +313,7 @@ static void socketPollLoop(mint taskId, void *taskArgs)
 
 DLLEXPORT int socketPollLoopCreate(WolframLibraryData libData, mint Argc, MArgument *Args, MArgument Res)
 {
-    if (Argc != 4) {
+    if (Argc != 5) {
         libData->Message("socketPollLoopCreate: invalid argument count");
         return LIBRARY_FUNCTION_ERROR;
     }
@@ -318,6 +322,7 @@ DLLEXPORT int socketPollLoopCreate(WolframLibraryData libData, mint Argc, MArgum
     MTensor roles = MArgument_getMTensor(Args[1]);
     mint timeout = MArgument_getInteger(Args[2]);
     mint eventsMask = MArgument_getInteger(Args[3]);
+    mint bufferSize = MArgument_getInteger(Args[4]);
 
     mint idsType = libData->MTensor_getType(socketIds);
     mint rolesType = libData->MTensor_getType(roles);
@@ -334,6 +339,11 @@ DLLEXPORT int socketPollLoopCreate(WolframLibraryData libData, mint Argc, MArgum
 
     if (length != rolesLength || length > INT_MAX || timeout < 0) {
         libData->Message("socketPollLoopCreate: invalid vector lengths or timeout");
+        return LIBRARY_FUNCTION_ERROR;
+    }
+
+    if (bufferSize <= 0 || bufferSize > INT_MAX) {
+        libData->Message("socketPollLoopCreate: invalid buffer size");
         return LIBRARY_FUNCTION_ERROR;
     }
 
@@ -365,14 +375,32 @@ DLLEXPORT int socketPollLoopCreate(WolframLibraryData libData, mint Argc, MArgum
         return LIBRARY_MEMORY_ERROR;
     }
 
+    size_t allocationSize = (size_t)bufferSize;
+
+    if (allocationSize < UDP_RECEIVE_BUFFER_SIZE) {
+        allocationSize = UDP_RECEIVE_BUFFER_SIZE;
+    }
+
+    BYTE *buffer = malloc(allocationSize);
+
+    if (!buffer) {
+        remove_socket_list(list);
+        free(args);
+        libData->Message("socketPollLoopCreate: failed to allocate read buffer");
+        return LIBRARY_MEMORY_ERROR;
+    }
+
     args->libData = libData;
     args->socketList = list;
     args->eventsMask = eventsMask;
     args->timeout = timeout;
+    args->bufferSize = (int)bufferSize;
+    args->buffer = buffer;
 
     mint taskId = libData->ioLibraryFunctions->createAsynchronousTaskWithThread(socketPollLoop, args);
 
     if (taskId <= 0) {
+        free(buffer);
         remove_socket_list(list);
         free(args);
         libData->Message("socketPollLoopCreate: failed to create asynchronous task");

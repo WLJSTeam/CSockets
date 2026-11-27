@@ -29,16 +29,16 @@ Block[{
                                     "Buffer" -> ByteArray[{0}]
                                 |>
                             |>,
-                            WLJS`CSockets`Private`socketRecv = Function[{id, buffer},
+                            WLJS`CSockets`Private`socketRecv = Function[{socketId, buffer},
                                 ByteArray[{97}]
                             ],
                             WLJS`CSockets`Private`socketRecvFrom = Function[Null,
                                 Throw["unexpected recvfrom"]
                             ],
-                            WLJS`CSockets`Private`socketSend = Function[{id, bytes},
+                            WLJS`CSockets`Private`socketSendRange = Function[{socketId, bytes, offset, length},
                                 Length[bytes]
                             ],
-                            WLJS`CSockets`Private`socketSendTo = Function[Null,
+                            WLJS`CSockets`Private`socketSendToRange = Function[Null,
                                 Throw["unexpected sendto"]
                             ]
                         },
@@ -92,7 +92,7 @@ Block[{
                             "Role" -> "Bound"
                         |>
                     |>,
-                    WLJS`CSockets`Private`socketSend = Function[Null,
+                    WLJS`CSockets`Private`socketSendRange = Function[Null,
                         Throw["unexpected send"]
                     ]
                 },
@@ -109,7 +109,7 @@ Block[{
             VerificationTest[
                 Block[{
                     WLJS`CSockets`$CSockets = <||>,
-                    WLJS`CSockets`Private`socketRecv = Function[{id, buffer},
+                    WLJS`CSockets`Private`socketRecv = Function[{socketId, buffer},
                         buffer
                     ]
                 },
@@ -147,15 +147,12 @@ Block[{
             VerificationTest[
                 Block[{
                     calls = {},
-                    WLJS`CSockets`Private`socketSend = Function[{id, bytes},
+                    WLJS`CSockets`Private`socketSendRange = Function[{socketId, bytes, offset, length},
                         AppendTo[
                             calls,
                             Normal[bytes]
                         ];
-                        Min[
-                            2,
-                            Length[bytes]
-                        ]
+                        Length[bytes]
                     ]
                 },
                     {BinaryWrite[CSocketObject[42], ByteArray[Range[5]]], calls}
@@ -163,22 +160,20 @@ Block[{
                 {
                     5,
                     {
-                        {1, 2, 3, 4, 5},
-                        {3, 4, 5},
-                        {5}
+                        {1, 2, 3, 4, 5}
                     }
                 },
-                TestID -> "partial-stream-write"
+                TestID -> "stream-write-delegates-full-payload"
             ],
             VerificationTest[
                 Block[{
                     calls = {},
-                    WLJS`CSockets`Private`socketSend = Function[{id, bytes},
+                    WLJS`CSockets`Private`socketSendRange = Function[{socketId, bytes, offset, length},
                         AppendTo[
                             calls,
                             Normal[bytes]
                         ];
-                        1
+                        Length[bytes]
                     ]
                 },
                     {WriteString[CSocketObject[42], FromCharacterCode[233]], calls}
@@ -186,15 +181,14 @@ Block[{
                 {
                     2,
                     {
-                        {195, 169},
-                        {169}
+                        {195, 169}
                     }
                 },
-                TestID -> "partial-utf8-write"
+                TestID -> "utf8-write-delegates-full-payload"
             ],
             VerificationTest[
                 Block[{
-                    WLJS`CSockets`Private`socketSend = Function[{id, bytes},
+                    WLJS`CSockets`Private`socketSendRange = Function[{socketId, bytes, offset, length},
                         0
                     ]
                 },
@@ -222,7 +216,7 @@ Block[{
                             "Role" -> "Bound"
                         |>
                     |>,
-                    WLJS`CSockets`Private`socketSendTo = Function[{id, host, port, bytes},
+                    WLJS`CSockets`Private`socketSendToRange = Function[{socketId, host, port, bytes, offset, length},
                         If[{host, port, Normal[bytes]} === {
                                 "127.0.0.1",
                                 "9000",
@@ -250,7 +244,7 @@ Block[{
                             "Buffer" -> ByteArray[{0}]
                         |>
                     |>,
-                    WLJS`CSockets`Private`socketRecv = Function[{id, buffer},
+                    WLJS`CSockets`Private`socketRecv = Function[{socketId, buffer},
                         ByteArray[{97}]
                     ]
                 },
@@ -282,7 +276,7 @@ Block[{
                             "Buffer" -> ByteArray[{0}]
                         |>
                     |>,
-                    WLJS`CSockets`Private`socketRecvFrom = Function[{id, buffer},
+                    WLJS`CSockets`Private`socketRecvFrom = Function[{socketId, buffer},
                         Developer`DataStore[
                             "127.0.0.1:9000",
                             NumericArray[{97}, "UnsignedInteger8"]
@@ -309,7 +303,7 @@ Block[{
                             "Buffer" -> ByteArray[{0}]
                         |>
                     |>,
-                    WLJS`CSockets`Private`socketRecvFrom = Function[{id, buffer},
+                    WLJS`CSockets`Private`socketRecvFrom = Function[{socketId, buffer},
                         Developer`DataStore["127.0.0.1:9000"]
                     ]
                 },
@@ -328,7 +322,7 @@ Block[{
                             "Buffer" -> ByteArray[{0}]
                         |>
                     |>,
-                    WLJS`CSockets`Private`socketRecv = Function[{id, buffer},
+                    WLJS`CSockets`Private`socketRecv = Function[{socketId, buffer},
                         $Failed
                     ]
                 },

@@ -30,7 +30,7 @@ socketHandlerTests = {
     ],
     VerificationTest[
         Lookup[
-            WLJS`CSockets`Private`createEventData["Accepted", 10, 20],
+            WLJS`CSockets`Private`getEvent[AsynchronousTaskObject[1], "Accepted", {10, 20}],
             "AcceptedSocket"
         ] === WLJS`CSockets`CSocketObject[20],
         True,
@@ -38,7 +38,7 @@ socketHandlerTests = {
     ],
     VerificationTest[
         Lookup[
-            WLJS`CSockets`Private`createEventData["Closed", 1, Null],
+            WLJS`CSockets`Private`getEvent[AsynchronousTaskObject[1], "Closed", {1}],
             "ClosedSocket"
         ] === WLJS`CSockets`CSocketObject[1],
         True,
@@ -46,7 +46,7 @@ socketHandlerTests = {
     ],
     VerificationTest[
         Lookup[
-            WLJS`CSockets`Private`createEventData["Error", 4, 99],
+            WLJS`CSockets`Private`getEvent[AsynchronousTaskObject[1], "Error", {4, 99}],
             "ErrorCode"
         ] === 99,
         True,
@@ -54,11 +54,14 @@ socketHandlerTests = {
     ],
     VerificationTest[
         With[{
-            event = WLJS`CSockets`Private`createEventData["ReceivedFrom", 7, "127.0.0.1:123"]
+            event = WLJS`CSockets`Private`getEvent[AsynchronousTaskObject[1], "ReceivedFrom", {7, "127.0.0.1:123"}]
         },
             And[
                 Lookup[event, "SourceSocket"] === WLJS`CSockets`CSocketObject[7],
-                Lookup[event, "Address"] === "127.0.0.1:123"
+                Lookup[event, "Address"] === "127.0.0.1:123",
+                Lookup[event, "Data"] === "",
+                Lookup[event, "DataBytes"] === {},
+                Lookup[event, "DataByteArray"] === ByteArray[{}]
             ]
         ],
         True,
@@ -66,7 +69,7 @@ socketHandlerTests = {
     ],
     VerificationTest[
         With[{
-            event = WLJS`CSockets`Private`createEventData["ReceivedFrom", 7, "127.0.0.1:123", {65, 66, 67}]
+            event = WLJS`CSockets`Private`getEvent[AsynchronousTaskObject[1], "ReceivedFrom", {7, "127.0.0.1:123", NumericArray[{65, 66, 67}, "UnsignedInteger8"]}]
         },
             And[
                 Lookup[event, "SourceSocket"] === WLJS`CSockets`CSocketObject[7],
@@ -81,7 +84,7 @@ socketHandlerTests = {
     ],
     VerificationTest[
         With[{
-            event = WLJS`CSockets`Private`createEventData["Received", 7, {65, 66, 67}]
+            event = WLJS`CSockets`Private`getEvent[AsynchronousTaskObject[1], "Received", {7, NumericArray[{65, 66, 67}, "UnsignedInteger8"]}]
         },
             And[
                 Lookup[event, "SourceSocket"] === WLJS`CSockets`CSocketObject[7],
@@ -171,10 +174,10 @@ socketHandlerTests = {
     VerificationTest[
         Block[{
             sent = {},
-            WLJS`CSockets`Private`socketSend = Function[{id, bytes},
+            WLJS`CSockets`Private`socketSendRange = Function[{socketId, bytes, offset, length},
                 AppendTo[
                     sent,
-                    {id, Normal[bytes]}
+                    {socketId, Normal[bytes]}
                 ];
                 Length[bytes]
             ]

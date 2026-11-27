@@ -14,15 +14,15 @@ Begin["WLJS`CSockets`Private`"];
 report = TestReport[
     {
         VerificationTest[
-            Module[{id, result},
-                id = createSocket["IPv4", "UDP"];
+            Module[{socketId, result},
+                socketId = createSocket["IPv4", "UDP"];
                 result = Catch[
-                    toNonBlocking[id]
-                ] === Null && $CSockets[id, "BlockingMode"] === "NonBlocking";
+                    toNonBlocking[socketId]
+                ] === Null && $CSockets[socketId, "BlockingMode"] === "NonBlocking";
                 result = result && Catch[
-                    toBlocking[id]
-                ] === Null && $CSockets[id, "BlockingMode"] === "Blocking";
-                close[id];
+                    toBlocking[socketId]
+                ] === Null && $CSockets[socketId, "BlockingMode"] === "Blocking";
+                close[socketId];
                 result
             ],
             True,
@@ -30,37 +30,37 @@ report = TestReport[
         ],
         VerificationTest[
             Module[{
-                id,
+                socketId,
                 before,
                 nativeFailures,
                 nonblockingFailure,
                 blockingFailure,
                 result
             },
-                id = createSocket["IPv4", "UDP"];
-                before = $CSockets[id];
-                socketClose[id];
+                socketId = createSocket["IPv4", "UDP"];
+                before = $CSockets[socketId];
+                socketClose[socketId];
                 nativeFailures = Quiet[
-                    {socketSetNonBlockingMode[id], socketSetBlockingMode[id]}
+                    {socketSetNonBlockingMode[socketId], socketSetBlockingMode[socketId]}
                 ];
                 nonblockingFailure = Quiet[
                     Catch[
-                        toNonBlocking[id]
+                        toNonBlocking[socketId]
                     ]
                 ];
                 result = AllTrue[
                     nativeFailures,
                     MatchQ[#, _LibraryFunctionError]&
-                ] && nonblockingFailure === Failure["socketSetNonBlockingMode", <|"SocketID" -> id|>] && $CSockets[id] === before;
-                $CSockets[id, "BlockingMode"] = "NonBlocking";
-                before = $CSockets[id];
+                ] && nonblockingFailure === Failure["socketSetNonBlockingMode", <|"SocketID" -> socketId|>] && $CSockets[socketId] === before;
+                $CSockets[socketId, "BlockingMode"] = "NonBlocking";
+                before = $CSockets[socketId];
                 blockingFailure = Quiet[
                     Catch[
-                        toBlocking[id]
+                        toBlocking[socketId]
                     ]
                 ];
-                result = result && blockingFailure === Failure["socketSetBlockingMode", <|"SocketID" -> id|>] && $CSockets[id] === before;
-                unregisterSocket[id];
+                result = result && blockingFailure === Failure["socketSetBlockingMode", <|"SocketID" -> socketId|>] && $CSockets[socketId] === before;
+                unregisterSocket[socketId];
                 result
             ],
             True,
