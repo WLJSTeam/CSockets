@@ -12,11 +12,11 @@ $CSockets::usage =
 
 
 CSocketOpen::usage =
-"CSocketOpen[host, port, protocol]";
+"CSocketOpen[\"tcp://localhost:8080\"] opens a TCP listener. Use a udp:// address to bind a UDP socket. CSocketOpen[host, port, protocol] also accepts the address parts separately.";
 
 
 CSocketConnect::usage =
-"CSocketConnect[host, port, protocol]";
+"CSocketConnect[\"tcp://localhost:8080\"] connects to a TCP server. Use a udp:// address to select a UDP peer. CSocketConnect[host, port, protocol] also accepts the address parts separately. The \"Wait\" option defaults to True.";
 
 
 CSocketObject::usage =
@@ -295,16 +295,10 @@ Module[{metadata = Lookup[$CSockets, socketId, <||>], above, below},
 (* :CSocketHandle: *)
 
 
-CSocketHandle::socket =
-"Socket `1` must be registered with role Connected, Accepted, or Bound.";
-
-
 socketBindings[bindings_List] :=
 Association[Map[Replace[#, {socket_CSocketObject, handler_} :> (socket -> handler)]&, bindings]];
 
 
-DownValues[CSocketHandle] = {};
-Options[CSocketHandle] = {};
 SetAttributes[CSocketHandle, HoldFirst];
 
 
@@ -342,13 +336,8 @@ With[{socketIds = synchronousSocketIds[registry]},
 ];
 
 
-CSocketHandle::registry =
-"The registry must be an association of integer socket IDs to metadata associations.";
-
-
 synchronousSocketIds[registry_] :=
 If[!AssociationQ[registry] || !MatchQ[Keys[registry], {___Integer}] || !AllTrue[Values[registry], AssociationQ],
-    Message[CSocketHandle::registry];
     Throw[Failure["CSocketHandle", <|"Reason" -> "InvalidRegistry"|>]],
     Keys @ Select[registry, !MatchQ[Lookup[#, "Listener", Null], _AsynchronousTaskObject]&]
 ];
@@ -357,7 +346,6 @@ If[!AssociationQ[registry] || !MatchQ[Keys[registry], {___Integer}] || !AllTrue[
 validateManagedSocket[socketId_Integer] :=
 With[{role = {$CSockets[socketId, "Protocol"], $CSockets[socketId, "Role"]}},
     If[!MatchQ[role, {"TCP", "Bound" | "Connected" | "Accepted"} | {"UDP", "Bound" | "Connected"}],
-        Message[CSocketHandle::socket, CSocketObject[socketId]];
         Throw[Failure["CSocketHandle", <|"SocketID" -> socketId, "Role" -> role|>]]
     ]
 ];
@@ -395,10 +383,6 @@ KeyValueMap[Function[{socketId, metadata},
         ]
     ]
 ], $CSockets];
-
-
-CSocketHandler::length =
-"Accumulator returned invalid expected length `1`.";
 
 
 $Accepted = Function[event,
@@ -594,7 +578,6 @@ value;
 nativeReceivedEvent[event_Association] :=
 Module[{source = Lookup[event, "SourceSocket"], bytes = Lookup[event, "DataByteArray"], data},
     If[!MatchQ[source, _SocketObject] || source["Protocol"] =!= "TCP",
-        Message[CSocketHandler::packet, "SourceSocket"];
         Throw[Failure["CSocketHandler", <|"Field" -> "SourceSocket", "Value" -> source|>]]
     ];
 
@@ -604,7 +587,6 @@ Module[{source = Lookup[event, "SourceSocket"], bytes = Lookup[event, "DataByteA
             {___Integer}, ByteArray[data],
             _String, StringToByteArray[data],
             _,
-                Message[CSocketHandler::packet, "DataByteArray"];
                 Throw[Failure["CSocketHandler", <|"Field" -> "DataByteArray", "Value" -> data|>]]
         ]
     ];
@@ -665,10 +647,6 @@ $socketObjectIcon := $socketObjectIcon =
 Import[FileNameJoin[{$directory, "Images", "SocketIcon.png"}]];
 
 
-socketRoleCode::role =
-"Unsupported protocol and role for socket `1`: `2`.";
-
-
 socketRoleCode[socketId_Integer] :=
 With[{role = {$CSockets[socketId, "Protocol"], $CSockets[socketId, "Role"]}},
     Switch[role,
@@ -680,14 +658,9 @@ With[{role = {$CSockets[socketId, "Protocol"], $CSockets[socketId, "Role"]}},
         {"UDP", "Bound"}, $SOCKETROLEUDPBOUND,
         {"UDP", "Connected"}, $SOCKETROLEUDPCONNECTED,
         _,
-            Message[socketRoleCode::role, socketId, role];
             Throw[Failure["socketRoleCode", <|"SocketID" -> socketId, "Role" -> role|>]]
     ]
 ];
-
-
-CSocketOpen::open =
-"Could not create a `2` socket for `1`.";
 
 
 createSocket[addressFamily: "IPv4" | "IPv6", protocol: "TCP" | "UDP": "TCP"] :=
@@ -698,17 +671,12 @@ With[{
     socketId = Check[socketCreate[af, proto], $Failed]
 },
     If[!IntegerQ[socketId],
-        Message[CSocketOpen::open, addressFamily, protocol];
         Throw[Failure["socketCreate", <|"AddressFamily" -> addressFamily, "Protocol" -> protocol|>]]
     ];
 
     registerSocket[socketId, protocol, "Unspecified", "Blocking"];
     socketId
 ];
-
-
-bind::fail =
-"Bind failed on socket `1` at `2`:`3`.";
 
 
 bind[socketId_Integer, host_String, port_Integer] :=
@@ -721,7 +689,6 @@ Module[{addresses, role, bound = False},
     ];
 
     If[!MatchQ[addresses, {_String, ___String}],
-        Message[bind::fail, socketId, host, port];
         close[socketId];
         Throw[If[bound,
             Failure["socketGetAddresses", <|"SocketID" -> socketId, "Role" -> role|>],
@@ -736,14 +703,9 @@ Module[{addresses, role, bound = False},
 ];
 
 
-listen::fail =
-"Listen failed on socket `1` at `2`.";
-
-
 listen[socketId_Integer] :=
 (
     Check[socketListen[socketId, $SOMAXCONN],
-        Message[listen::fail, socketId, $CSockets[socketId, "LocalAddress"]];
         close[socketId];
         Throw[Failure["socketListen", <|"SocketID" -> socketId, "Backlog" -> $SOMAXCONN|>]]
     ];
@@ -751,10 +713,6 @@ listen[socketId_Integer] :=
     $CSockets[socketId, "Role"] = "Bound";
     $CSockets[socketId, "DirectionType"] = "Server";
 );
-
-
-connect::fail =
-"Connect failed on socket `1` to `2`:`3`.";
 
 
 connect[socketId_Integer, host_String, port_Integer] :=
@@ -767,7 +725,6 @@ Module[{addresses, role, connected = False},
     ];
 
     If[!MatchQ[addresses, {_String, _String}],
-        Message[connect::fail, socketId, host, port];
         close[socketId];
         Throw[If[connected,
             Failure["socketGetAddresses", <|"SocketID" -> socketId, "Role" -> role|>],
@@ -783,19 +740,13 @@ Module[{addresses, role, connected = False},
 ];
 
 
-poll::fail =
-"Poll failed on sockets `1`.";
-
-
 poll[socketIds: {___Integer}, timeout: (_Integer | _Real): 0, mode: "Events" | "Readiness": "Events"] :=
 With[{events = Check[socketsPoll[socketIds, Round[timeout * 10 ^ 6], $POLLIN], $Failed]},
     If[!MatchQ[events, {{_Integer, _Integer}...}],
-        Message[poll::fail, socketIds];
         Throw[Failure["socketsPoll", <|"SocketIDs" -> socketIds, "Timeout" -> timeout|>]]
     ];
 
     If[mode === "Readiness" && AnyTrue[events, BitAnd[Last[#], BitOr[$POLLERR, $POLLNVAL]] != 0&],
-        Message[poll::fail, socketIds];
         Throw[Failure["socketsPoll", <|"SocketIDs" -> socketIds, "Events" -> events|>]]
     ];
 
@@ -803,18 +754,9 @@ With[{events = Check[socketsPoll[socketIds, Round[timeout * 10 ^ 6], $POLLIN], $
 ];
 
 
-waitForSockets::timeout =
-"Timed out waiting for sockets `1`.";
-
-
-waitForSockets::opts =
-"Timeout must be between 0 and 60 seconds. Received `1`.";
-
-
 waitForSockets[socketIds: {__Integer}, timeout_, all: True | False] :=
 Module[{pending = DeleteDuplicates[socketIds], deadline, events, readySockets},
     If[!MatchQ[timeout, _Integer | _Real] || !TrueQ[0 <= timeout <= 60],
-        Message[waitForSockets::opts, timeout];
         Throw[Failure["InvalidTimeout", <|"SocketIDs" -> socketIds, "Timeout" -> timeout|>]]
     ];
 
@@ -829,7 +771,6 @@ Module[{pending = DeleteDuplicates[socketIds], deadline, events, readySockets},
         pending = Complement[pending, readySockets];
 
         If[pending =!= {} && SessionTime[] >= deadline,
-            Message[waitForSockets::timeout, pending];
             Throw[Failure["SocketWaitTimeout", <|"SocketIDs" -> pending, "Timeout" -> timeout|>]]
         ];
     ];
@@ -838,14 +779,9 @@ Module[{pending = DeleteDuplicates[socketIds], deadline, events, readySockets},
 ];
 
 
-accept::fail =
-"Accept failed on socket `1`.";
-
-
 accept[listenSocketId_Integer] :=
 With[{acceptedSocketId = Check[socketAccept[listenSocketId], $Failed]},
     If[!IntegerQ[acceptedSocketId],
-        Message[accept::fail, listenSocketId];
         Throw[Failure["socketAccept", <|"SocketID" -> listenSocketId|>]]
     ];
 
@@ -853,14 +789,9 @@ With[{acceptedSocketId = Check[socketAccept[listenSocketId], $Failed]},
 ];
 
 
-read::fail =
-"Read failed on socket `1`.";
-
-
 readDatagram[socketId_Integer] :=
 With[{received = Check[Apply[List] @ socketRecvFrom[socketId, $CSockets[socketId, "Buffer"]], $Failed]},
     If[!MatchQ[received, {_String} | {_String, _NumericArray | _ByteArray}],
-        Message[read::fail, socketId];
         Throw[Failure["socketRecvFrom", <|"SocketID" -> socketId|>]]
     ];
 
@@ -876,7 +807,6 @@ If[$CSockets[socketId, "Protocol"] === "UDP" && $CSockets[socketId, "Role"] === 
     With[{received = Check[socketRecv[socketId, $CSockets[socketId, "Buffer"]], $Failed]},
         If[!ByteArrayQ[received] ||
             (!allowEOF && received === ByteArray[{}] && $CSockets[socketId, "Protocol"] === "TCP"),
-            Message[read::fail, socketId];
             Throw[Failure["socketRecv", <|"SocketID" -> socketId|>]]
         ];
 
@@ -885,16 +815,11 @@ If[$CSockets[socketId, "Protocol"] === "UDP" && $CSockets[socketId, "Role"] === 
 ];
 
 
-write::fail =
-"Write failed on socket `1`.";
-
-
 write[socketId_Integer, bytes_ByteArray, host_String: "", port_Integer: 0] :=
 Module[{bytesRequested = Length[bytes], sent, result, sendFunction,
     boundUDP = $CSockets[socketId, "Protocol"] === "UDP" && $CSockets[socketId, "Role"] === "Bound"
 },
     If[boundUDP === (host === ""),
-        Message[write::fail, socketId];
         Throw[Failure["write", <|"SocketID" -> socketId, "Host" -> host, "Port" -> port|>]]
     ];
 
@@ -908,7 +833,6 @@ Module[{bytesRequested = Length[bytes], sent, result, sendFunction,
 
     If[result =!= bytesRequested,
         sendFunction = If[boundUDP, "socketSendTo", "socketSend"];
-        Message[write::fail, socketId];
         Throw[Failure[sendFunction, <|
             "SocketID" -> socketId,
             "Host" -> host,
@@ -922,13 +846,8 @@ Module[{bytesRequested = Length[bytes], sent, result, sendFunction,
 ];
 
 
-close::fail =
-"Close failed on socket `1`.";
-
-
 closeDescriptor[socketId_Integer] :=
 Check[socketClose[socketId],
-    Message[close::fail, socketId];
     Throw[Failure["socketClose", <|"SocketID" -> socketId|>]]
 ];
 
@@ -943,16 +862,11 @@ If[KeyExistsQ[$CSockets, socketId],
 ];
 
 
-toBlocking::fail =
-"Failed to set socket `1` to blocking mode.";
-
-
 toBlocking[socketId_Integer] :=
 (
     Check[
         socketSetBlockingMode[socketId],
 
-        Message[toBlocking::fail, socketId];
         Throw[Failure["socketSetBlockingMode", <|"SocketID" -> socketId|>]]
     ];
 
@@ -960,16 +874,11 @@ toBlocking[socketId_Integer] :=
 );
 
 
-toNonBlocking::fail =
-"Failed to set socket `1` to non-blocking mode.";
-
-
 toNonBlocking[socketId_Integer] :=
 (
     Check[
         socketSetNonBlockingMode[socketId],
 
-        Message[toNonBlocking::fail, socketId];
         Throw[Failure["socketSetNonBlockingMode", <|"SocketID" -> socketId|>]]
     ];
 
@@ -998,7 +907,6 @@ getEvent[role_Integer, socketId_Integer] /; MemberQ[{$SOCKETROLEUDPBOUND, $SOCKE
 With[{buffer = $CSockets[socketId, "Buffer"]},
     With[{received = Check[List @@ socketRecvFromInto[socketId, buffer], $Failed]},
         If[!MatchQ[received, {_Integer, _String}] || !TrueQ[0 <= First[received] <= Length[buffer]],
-            Message[read::fail, socketId];
             Throw[Failure["socketRecvFrom", <|"SocketID" -> socketId|>]]
         ];
 
@@ -1011,7 +919,6 @@ getEvent[role_Integer, socketId_Integer] /; MemberQ[{$SOCKETROLETCPCONNECTED, $S
 With[{buffer = $CSockets[socketId, "Buffer"]},
     With[{bytesRead = Check[socketRecvInto[socketId, buffer], $Failed]},
         If[!IntegerQ[bytesRead] || !TrueQ[0 <= bytesRead <= Length[buffer]],
-            Message[read::fail, socketId];
             Throw[Failure["socketRecv", <|"SocketID" -> socketId|>]]
         ];
 
@@ -1109,10 +1016,6 @@ With[{byteArray = ByteArray[bytes], source = CSocketObject[socketId]},
 ];
 
 
-registerAcceptedSocket::addresses =
-"Failed to obtain addresses for accepted socket `1`.";
-
-
 registerAcceptedSocket[listenSocketId_Integer, acceptedSocketId_Integer, task: (_AsynchronousTaskObject | Null): Null] :=
 With[{addresses = Check[
         List @@ socketGetAddresses[acceptedSocketId, $SOCKETROLETCPACCEPTED],
@@ -1123,7 +1026,6 @@ With[{addresses = Check[
 },
 
     If[!MatchQ[addresses, {_String, _String}],
-        Message[registerAcceptedSocket::addresses, acceptedSocketId];
         closeDescriptor[acceptedSocketId];
         Throw[Failure["socketGetAddresses", <|"SocketID" -> acceptedSocketId, "ListenSocketID" -> listenSocketId|>]]
     ];
@@ -1235,7 +1137,6 @@ With[{handler = packet["Handler"], key = packetBufferKey[packet]},
         ];
 
         If[!IntegerQ[expectedLength] || expectedLength < 0 || (expectedLength === 0 && dataLength > 0),
-            Message[CSocketHandler::length, expectedLength];
             Throw[Failure["CSocketHandler", <|"Option" -> "Accumulator", "Value" -> expectedLength|>]]
         ];
 
@@ -1267,27 +1168,17 @@ Module[{processedPacket = packet, handler = packet["Handler"]},
 ];
 
 
-CSocketHandler::cntsnd =
-"Can't send result to the client\n `1`";
-
-
-CSocketHandler::packet =
-"Cannot send response: invalid or missing `1` in packet.";
-
-
 sendResponse[packet_Association] :=
 Module[{result = Lookup[packet, "Result", Null], source, bytes, address},
     If[result === Null, Return[Null]];
 
     If[!MatchQ[result, _String | _ByteArray],
-        Message[CSocketHandler::cntsnd, result];
         Throw[Failure["CSocketHandler", <|"Field" -> "Result", "Value" -> result|>]]
     ];
 
     source = Lookup[packet, "SourceSocket"];
 
     If[!MatchQ[source, CSocketObject[_Integer] | _SocketObject],
-        Message[CSocketHandler::packet, "SourceSocket"];
         Throw[Failure["CSocketHandler", <|"Field" -> "SourceSocket", "Value" -> source|>]]
     ];
 
@@ -1302,7 +1193,6 @@ Module[{result = Lookup[packet, "Result", Null], source, bytes, address},
         address = packet["Address"];
 
         If[!StringQ[address] || !protohostportQ[address],
-            Message[CSocketHandler::packet, "Address"];
             Throw[Failure["CSocketHandler", <|"Field" -> "Address", "Value" -> address|>]]
         ];
 
@@ -1356,13 +1246,8 @@ Function[
 ];
 
 
-optionValidQ::invalid =
-"Invalid value `2` for option `1`.";
-
-
 optionValidQ[optName_String, optValue_, validator_] :=
 If[!TrueQ[validator[optValue]],
-    Message[optionValidQ::invalid, optName, optValue];
     Throw[Failure["InvalidOption", <|"Option" -> optName, "Value" -> optValue|>]]
 ];
 

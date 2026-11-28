@@ -7,10 +7,6 @@ CSocketTCPConfigure::usage =
 "CSocketTCPConfigure[socket, profile] configures a TCP socket and returns it. Profiles are \"Latency\", \"BulkSend\", and \"BulkReceive\". Use CSocketTCPConfigure[socket, \"BulkReceive\", \"Asynchronous\"] for a SocketListen receiver.";
 
 
-CSocketTCPConfigure::socket =
-"Socket `1` must be a registered TCP socket.";
-
-
 Begin["`Private`"];
 
 
@@ -48,7 +44,6 @@ configureTCPSocket[
 ] :=
 With[{metadata = Lookup[$CSockets, socketId, <||>]},
     If[Lookup[metadata, "Protocol"] =!= "TCP",
-        Message[CSocketTCPConfigure::socket, socket];
         Throw[Failure["CSocketTCPConfigure", <|"SocketID" -> socketId, "Profile" -> profile|>]]
     ];
 

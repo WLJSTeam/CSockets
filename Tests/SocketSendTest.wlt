@@ -131,7 +131,7 @@ Block[{
                 Failure["socketSend", <|
                     "SocketID" -> 42, "Host" -> "", "Port" -> 0, "BytesSent" -> 1, "BytesRequested" -> 3
                 |>],
-                {SocketSendTest::native, WLJS`CSockets`Private`write::fail},
+                {SocketSendTest::native},
                 TestID -> "native-send-message-retains-partial-byte-count"
             ],
             VerificationTest[
@@ -167,7 +167,6 @@ Block[{
                     |>],
                     {{"127.0.0.1:9000", {1, 2, 3}}}
                 },
-                {WLJS`CSockets`Private`write::fail},
                 TestID -> "short-udp-write-keeps-datagram-in-one-native-call"
             ],
             VerificationTest[

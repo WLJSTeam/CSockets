@@ -14,28 +14,35 @@ Get["WLJS`CSockets`"]
 ### Open a TCP server
 
 ```wl
-server = CSocketOpen["127.0.0.1", 8080]
+server = CSocketOpen["tcp://localhost:8080"];
+listener = SocketListen[server, CSocketHandler[
+  "Accepted" -> Function[event, peer = event["AcceptedSocket"]],
+  "Received" -> (#["DataByteArray"] &)
+]];
 ```
 
-This creates a listening socket and stores it in the internal socket registry.
+The server listens on the local machine and echoes the bytes it receives.
 
 ### Connect a TCP client
 
 ```wl
-client = CSocketConnect["127.0.0.1", 8080]
+client = CSocketConnect["tcp://localhost:8080"];
 ```
 
 ### Send and receive data
 
 ```wl
-listener = SocketListen[server, CSocketHandler[
-  "Received" -> (#["DataByteArray"] &)
-]];
 WriteString[client, "hello"]
+```
+
+After the server callback has run, read the echoed bytes. In a notebook,
+evaluate the write and the read in separate cells so the callback can run between them.
+
+```wl
 message = SocketReadMessage[client]
 ```
 
-For binary data, use `BinaryWrite`:
+For a binary request, use `BinaryWrite` in place of `WriteString`.
 
 ```wl
 BinaryWrite[client, ByteArray[{104, 101, 108, 108, 111}]]
@@ -45,6 +52,7 @@ BinaryWrite[client, ByteArray[{104, 101, 108, 108, 111}]]
 
 ```wl
 RemoveAsynchronousTask[listener];
+Close[peer]
 Close[client]
 Close[server]
 ```
@@ -54,44 +62,47 @@ Close[server]
 ### `CSocketOpen`
 
 ```wl
-CSocketOpen[host, port, protocol]
+CSocketOpen[address]
 ```
 
-Creates a server socket bound to `host` and `port`.
-The default host is `"127.0.0.1"`, the default port is `0`, and the default protocol is `"TCP"`.
+Binds a socket to the endpoint in the address string. Use `tcp://host:port`
+to listen for connections or `udp://host:port` to receive datagrams.
+A port is required. Use port `0` to let the OS choose an available port,
+then read `server["LocalAddress"]` for the assigned endpoint.
 
 #### Examples
 
 ```wl
-CSocketOpen[8080]
-CSocketOpen["127.0.0.1", 8080]
-CSocketOpen["127.0.0.1", 8080, "UDP"]
+CSocketOpen["tcp://localhost:8080"]
+CSocketOpen["udp://localhost:8080"]
+CSocketOpen["tcp://[::1]:0"]
 ```
 
 ### `CSocketConnect`
 
 ```wl
-CSocketConnect[host, port, protocol, opts]
+CSocketConnect[address, opts]
 ```
 
-Creates a client socket connected to the remote endpoint.
-Pass a numeric IP address; resolve hostnames beforehand with `HostLookup`.
-The protocol can be `"TCP"` or `"UDP"`.
+Creates a client socket for the remote endpoint. Both `CSocketConnect` and
+`CSocketOpen` accept hostnames, IPv4 addresses, and bracketed IPv6 addresses
+in address strings. The package resolves hostnames with `HostLookup`.
+An address without a scheme, such as `"localhost:8080"`, defaults to TCP.
+Both functions also accept separate host, port, and optional protocol arguments.
+Passing just a port selects TCP on `localhost`.
 
 #### Options
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `"Wait"` | `False` | If `True`, keep the call in waiting mode instead of temporarily switching the socket to nonblocking mode. |
-| `"Blocking"` | `True` | Controls whether the socket is set to blocking mode before the connection attempt. |
+| `"Wait"` | `True` | Connect in blocking mode. With `False`, attempt the connection in nonblocking mode and restore blocking mode before returning the socket. |
 
 #### Examples
 
 ```wl
-CSocketConnect["127.0.0.1", 8080]
-CSocketConnect["127.0.0.1", 8080, "TCP", "Wait" -> True]
-CSocketConnect["127.0.0.1", 8080, "TCP", "Blocking" -> False]
-CSocketConnect["127.0.0.1", 8080, "UDP"]
+CSocketConnect["tcp://localhost:8080"]
+CSocketConnect["tcp://localhost:8080", "Wait" -> False]
+CSocketConnect["udp://localhost:8080"]
 ```
 
 ### `CSocketObject`
@@ -108,17 +119,17 @@ Common properties:
 | `"Protocol"` | `"TCP"` or `"UDP"`. |
 | `"Scheme"` | `"tcp"` or `"udp"`. |
 | `"UUID"` | Socket identifier. |
-| `"Role"` | `"Undefined"`, `"Binded"`, `"Connected"` or `"Accepted"`. |
-| `"State"` | `"Alive"` or `"Closed"`. |
+| `"Role"` | `"Unspecified"`, `"Bound"`, `"Connected"` or `"Accepted"`. |
+| `"State"` | `"Alive"` while registered. Closing the socket removes its metadata. |
 | `"BlockingMode"` | `"Blocking"` or `"NonBlocking"`. |
 | `"LocalAddress"`, `"RemoteAddress"` | Stored local and remote endpoints. |
-| `"Addresses"` | `{localEndpoint, remoteEndpoint}`; missing endpoints are `""`. |
+| `"Addresses"` | `{localEndpoint, remoteEndpoint}`. An unavailable endpoint is `"-"`. |
 | `"InprocQ"` | Always `False` in this implementation. |
 
 #### Example
 
 ```wl
-socket = CSocketOpen["127.0.0.1", 8080];
+socket = CSocketOpen["tcp://localhost:8080"];
 {
   socket["Addresses"],
   socket["DirectionType"],
@@ -137,8 +148,9 @@ WriteString[socket, text]
 WriteString[socket, address, text]
 ```
 
-The address argument is a string such as `"127.0.0.1:8080"` or `"[::1]:8080"`. It selects
-the destination of a UDP datagram. Strings are converted to UTF-8 bytes before
+On a bound UDP socket, pass the destination of each datagram as an address
+string such as `"udp://localhost:8080"` or `"udp://[::1]:8080"`. On a connected
+socket, omit the address to send to its peer. Strings are converted to UTF-8 bytes before
 sending. TCP writes send any remainder in the native retry loop and return the
 total number sent. Each UDP write sends one datagram. A send error returns a
 `Failure` with the native function name, socket ID, and byte counts.
@@ -212,6 +224,7 @@ a list of `{socket, handler}` pairs.
 
 ```wl
 handler = CSocketHandler[
+  "Deserializer" -> ByteArrayToString,
   "Received" -> (Print[#["Data"]] &)
 ];
 
@@ -238,8 +251,8 @@ Set the handlers on the sockets before calling it. Put the loop in the
 caller when running a server continuously.
 
 ```wl
-tcpServer = CSocketOpen["127.0.0.1", 8080];
-udpServer = CSocketOpen["127.0.0.1", 8080, "UDP"];
+tcpServer = CSocketOpen["tcp://localhost:8080"];
+udpServer = CSocketOpen["udp://localhost:8080"];
 tcpHandler = CSocketHandler[
   "Deserializer" -> ByteArrayToString,
   "Received" -> (ToUpperCase[#Data] &)
@@ -303,8 +316,9 @@ Once complete, `"DataByteArray"` and `"DataBytes"` hold the assembled message an
 `"Data"` is the result of `"Deserializer"` applied to those bytes. Its default
 is the identity function, so use `"Deserializer" -> ByteArrayToString` for text.
 The callback result is passed through
-`"Serializer"`, stored in `"Result"`, and sent to `"SourceSocket"`. If the packet
-has `"Address"`, that address is passed to `BinaryWrite` or `WriteString`.
+`"Serializer"`, stored in `"Result"`, and sent to `"SourceSocket"`.
+A bound UDP socket replies to the sender in `"Address"`. A connected socket
+replies to its peer.
 A callback may return a string, `ByteArray`, or `Null`; `Null` means no reply.
 
 `"Logger"` receives the complete packet after sending. All incoming fields,
@@ -329,7 +343,7 @@ sets the logger, and `handler["Logger", packet]` invokes it.
 | `"Accumulator"` | `Function[Length[#DataByteArray]]` | Computes expected message length from the first fragment. |
 | `"Received"` | Process and log received messages. | Callback for received data. |
 | `"ReceivedFrom"` | Process and log received datagrams. | Callback for UDP data, including the sender's `"Address"`. |
-| `"NativeReceived"` | `Automatic` | Uses `"Received"` for native TCP sockets. Set a function to supply a separate callback. |
+| `"ReceivedByteArray"` | `Automatic` | Uses `"Received"` for built-in TCP sockets. Set a function for a separate callback. `"NativeReceived"` is an alias. |
 | `"Accepted"` | Register the accepted socket. | Callback for accepted connections. |
 | `"Closed"` | Remove the socket and its buffered data. | Callback for socket close events. |
 | `"Error"` | Remove the socket and its buffered data if the socket is invalid. | Callback for error events. |
@@ -347,7 +361,7 @@ handler = CSocketHandler["Received" -> (#DataByteArray&)];
 listener = SocketListen[SocketOpen[8082], handler];
 ```
 
-An association without `"Event"` enters through `"NativeReceived"` and is
+An association without `"Event"` enters through `"ReceivedByteArray"` and is
 normalized to a `"Received"` packet. Native TCP replies use `BinaryWrite` on
 the built-in `"SourceSocket"`. For exact binary data, the listener must
 provide `"DataByteArray"` or `"DataBytes"`. Built-in TCP listeners deliver
@@ -375,10 +389,11 @@ wolframscript -f Build.wls
 
 ## Tests
 
-Run the Wolfram tests with:
+Run all suites sequentially, or pass a filename to run a single suite.
 
 ```shell
-wolframscript -file Tests/AddressTest.wlt
+python Tests/run_tests.py
+python Tests/run_tests.py AddressStringTest.wlt
 ```
 
 The `Tests/` directory covers socket I/O, UDP addresses and replies, asynchronous

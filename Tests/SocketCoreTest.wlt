@@ -191,13 +191,11 @@ coreReport = TestReport[
                 {SocketReadyQ[CSocketObject[42]], SocketWaitNext[{CSocketObject[42]}]}
             ],
             ConstantArray[Failure["socketsPoll", <|"SocketIDs" -> {42}, "Events" -> {{42, $POLLNVAL}}|>], 2],
-            {poll::fail, poll::fail},
             TestID -> "poll-rejects-invalid-descriptors-for-readiness-probes"
         ],
         VerificationTest[
             CSocketConnect["localhost", 80, "TCP", "Wait" -> "invalid"],
             Failure["InvalidOption", <|"Option" -> "Wait", "Value" -> "invalid"|>],
-            {optionValidQ::invalid},
             TestID -> "invalid-wait-option-is-rejected"
         ]
     }

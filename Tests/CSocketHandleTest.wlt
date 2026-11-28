@@ -315,7 +315,7 @@ handleReport = TestReport[{
             result
         ],
         True,
-        {CSocketHandleTest::native, poll::fail},
+        {CSocketHandleTest::native},
         TestID -> "synchronous-poll-message-reaches-public-catch"
     ],
     VerificationTest[
@@ -331,7 +331,6 @@ handleReport = TestReport[{
             result
         ],
         True,
-        {read::fail},
         TestID -> "synchronous-read-error-reaches-public-catch"
     ],
     VerificationTest[
@@ -346,7 +345,6 @@ handleReport = TestReport[{
             MatchQ[result, Failure["socketSendTo", KeyValuePattern["BytesSent" -> 0]]]
         ],
         True,
-        {write::fail},
         TestID -> "synchronous-reply-error-reaches-public-catch"
     ],
     VerificationTest[
@@ -535,7 +533,7 @@ handleReport = TestReport[{
     ],
     VerificationTest[
         Module[{registry = {1}},
-            Quiet[CSocketHandle[registry], CSocketHandle::registry]
+            CSocketHandle[registry]
         ],
         Failure["CSocketHandle", <|"Reason" -> "InvalidRegistry"|>],
         TestID -> "synchronous-step-rejects-invalid-registry"
