@@ -336,42 +336,33 @@ With[{socketIds = synchronousSocketIds[registry]},
 ];
 
 
-synchronousSocketIds[registry_] :=
-If[!AssociationQ[registry] || !MatchQ[Keys[registry], {___Integer}] || !AllTrue[Values[registry], AssociationQ],
-    Throw[Failure["CSocketHandle", <|"Reason" -> "InvalidRegistry"|>]],
-    Keys @ Select[registry, !MatchQ[Lookup[#, "Listener", Null], _AsynchronousTaskObject]&]
+synchronousSocketIds[registry_Association] :=
+With[{ids = Keys[registry], metadata = Values[registry]},
+    If[!MatchQ[ids, {___Integer}] || !MatchQ[metadata, {___Association}],
+        Throw[Failure["CSocketHandle", <|"Reason" -> "InvalidRegistry"|>]]
+    ];
+    Delete[ids, Position[Lookup[metadata, "Listener", Null], _AsynchronousTaskObject, {1}, Heads -> False]]
 ];
 
 
-validateManagedSocket[socketId_Integer] :=
-With[{role = {$CSockets[socketId, "Protocol"], $CSockets[socketId, "Role"]}},
-    If[!MatchQ[role, {"TCP", "Bound" | "Connected" | "Accepted"} | {"UDP", "Bound" | "Connected"}],
-        Throw[Failure["CSocketHandle", <|"SocketID" -> socketId, "Role" -> role|>]]
-    ]
-];
+synchronousSocketIds[_] :=
+Throw[Failure["CSocketHandle", <|"Reason" -> "InvalidRegistry"|>]];
 
 
 waitEvents[socketIds: {___Integer}, timeout: (_Integer | _Real)?NonNegative] :=
-Module[{registered, ready, socketId, event, events = {}},
-    registered = Select[socketIds, KeyExistsQ[$CSockets, #]&];
-    If[registered === {}, Return[{}]];
+If[socketIds === {}, {}, dispatchReadySocket /@ poll[socketIds, timeout]];
 
-    ready = poll[registered, timeout];
 
-    Do[
-        socketId = First[row];
-        If[!KeyExistsQ[$CSockets, socketId], Continue[]];
-
-        validateManagedSocket[socketId];
-        event = getEvent[row];
-        If[event === None, Continue[]];
-
-        If[MemberQ[{"Closed", "Error"}, event["Event"]], close[socketId, False]];
-        AppendTo[events, deliverSocketEvent[socketId, event]],
-        {row, ready}
-    ];
-
-    events
+dispatchReadySocket[row: {socketId_Integer, _Integer}] :=
+If[KeyExistsQ[$CSockets, socketId],
+    With[{event = getEvent[row]},
+        If[event === None,
+            Nothing,
+            If[MemberQ[{"Closed", "Error"}, event["Event"]], close[socketId, False]];
+            deliverSocketEvent[socketId, event]
+        ]
+    ],
+    Nothing
 ];
 
 
@@ -609,27 +600,50 @@ Module[{source = Lookup[event, "SourceSocket"], bytes = Lookup[event, "DataByteA
 
 
 handleReceivedEvent[packet_Association, callback_] :=
-Module[{processedPacket = packet, handler = packet["Handler"], bytes, remaining},
+With[{handler = packet["Handler"], bytes = packet["DataByteArray"]},
+    If[handler["Accumulator"] === Function[Length[#DataByteArray]] && handler["Buffer"]["Length"] === 0,
+        With[{length = Length[bytes]},
+            completeReceivedPacket[Join[packet, <|
+                "Completed" -> True,
+                "ExpectedLength" -> length,
+                "StoredLength" -> length,
+                "DataLength" -> length,
+                "BufferKey" -> packetBufferKey[packet]
+            |>], handler, ByteArray[bytes], callback]
+        ],
+        handleBufferedPacket[packet, callback]
+    ]
+];
+
+
+handleBufferedPacket[packet_Association, callback_] :=
+Module[{processedPacket = packet, handler = packet["Handler"], key = packetBufferKey[packet],
+    buffer, fragments, bytes, expected, message, remaining},
     While[True,
-        processedPacket = getExtendedPacket[processedPacket];
+        buffer = handler["Buffer"];
+        fragments = buffer["Lookup", key];
+        processedPacket = getExtendedPacket[processedPacket, key, fragments];
 
         If[!TrueQ[processedPacket["Completed"]],
-            savePacketToBuffer[processedPacket];
+            If[MissingQ[fragments],
+                buffer["Insert", key -> CreateDataStructure["DynamicArray", {processedPacket}]],
+                fragments["Append", processedPacket]
+            ];
             handler["Logger"][processedPacket];
             Return[processedPacket]
         ];
 
-        bytes = getMessage[processedPacket];
-        remaining = bytes[[processedPacket["ExpectedLength"] + 1 ;;]];
-        processedPacket["DataByteArray"] = ByteArray[bytes[[1 ;; processedPacket["ExpectedLength"]]]];
-        processedPacket["DataBytes"] = Normal[processedPacket["DataByteArray"]];
-        clearBuffer[processedPacket];
-        processedPacket["Data"] = handler["Deserializer"][processedPacket["DataByteArray"]];
-        processedPacket = invokeHandler[processedPacket, callback];
-        sendResponse[processedPacket];
-        handler["Logger"][processedPacket];
+        bytes = processedPacket["DataByteArray"];
+        If[!MissingQ[fragments],
+            bytes = Apply[Join, Append[fragments["Elements"][[All, "DataByteArray"]], bytes]];
+            buffer["KeyDrop", key]
+        ];
+        expected = processedPacket["ExpectedLength"];
+        message = ByteArray[If[Length[bytes] === expected, bytes, Take[bytes, expected]]];
+        processedPacket = completeReceivedPacket[processedPacket, handler, message, callback];
 
-        If[Length[remaining] === 0, Return[processedPacket]];
+        If[Length[bytes] === expected, Return[processedPacket]];
+        remaining = Drop[bytes, expected];
         processedPacket = Join[KeyDrop[packet, "Result"], <|
             "DataByteArray" -> remaining,
             "DataBytes" -> Normal[remaining],
@@ -816,33 +830,31 @@ If[$CSockets[socketId, "Protocol"] === "UDP" && $CSockets[socketId, "Role"] === 
 
 
 write[socketId_Integer, bytes_ByteArray, host_String: "", port_Integer: 0] :=
-Module[{bytesRequested = Length[bytes], sent, result, sendFunction,
+With[{bytesRequested = Length[bytes],
     boundUDP = $CSockets[socketId, "Protocol"] === "UDP" && $CSockets[socketId, "Role"] === "Bound"
 },
     If[boundUDP === (host === ""),
         Throw[Failure["write", <|"SocketID" -> socketId, "Host" -> host, "Port" -> port|>]]
     ];
 
-    result = Check[
-        sent = If[boundUDP,
-            socketSendToRange[socketId, host, ToString[port], bytes, 0, bytesRequested],
-            socketSendRange[socketId, bytes, 0, bytesRequested]
-        ],
-        $Failed
-    ];
-
-    If[result =!= bytesRequested,
-        sendFunction = If[boundUDP, "socketSendTo", "socketSend"];
-        Throw[Failure[sendFunction, <|
-            "SocketID" -> socketId,
-            "Host" -> host,
-            "Port" -> port,
-            "BytesSent" -> If[IntegerQ[sent] && 0 <= sent <= bytesRequested, sent, Missing["Unknown"]],
-            "BytesRequested" -> bytesRequested
-        |>]]
-    ];
-
-    sent
+    Module[{sent},
+        If[Check[
+            sent = If[boundUDP,
+                socketSendToRange[socketId, host, ToString[port], bytes, 0, bytesRequested],
+                socketSendRange[socketId, bytes, 0, bytesRequested]
+            ],
+            $Failed
+        ] =!= bytesRequested,
+            Throw[Failure[If[boundUDP, "socketSendTo", "socketSend"], <|
+                "SocketID" -> socketId,
+                "Host" -> host,
+                "Port" -> port,
+                "BytesSent" -> If[IntegerQ[sent] && 0 <= sent <= bytesRequested, sent, Missing["Unknown"]],
+                "BytesRequested" -> bytesRequested
+            |>]]
+        ];
+        sent
+    ]
 ];
 
 
@@ -891,19 +903,28 @@ getEvent[task, name, data];
 
 
 getEvent[{socketId_Integer, flags_Integer}] :=
-Which[
-    BitAnd[flags, $POLLIN] != 0, getEvent[socketRoleCode[socketId], socketId],
-    BitAnd[flags, BitOr[$POLLERR, $POLLNVAL]] != 0, getEvent[Null, "Error", {socketId, flags}],
-    BitAnd[flags, $POLLHUP] != 0, getEvent[Null, "Closed", {socketId}],
-    True, None
+With[{role = Lookup[$CSockets[socketId], {"Protocol", "Role"}]}, {
+    readEvent = Switch[role,
+        {"TCP", "Connected" | "Accepted"}, readTCPEvent,
+        {"TCP", "Bound"}, acceptTCPEvent,
+        {"UDP", "Bound" | "Connected"}, readUDPEvent,
+        _, Throw[Failure["CSocketHandle", <|"SocketID" -> socketId, "Role" -> role|>]]
+    ]
+},
+    Which[
+        BitAnd[flags, $POLLIN] != 0, readEvent[socketId],
+        BitAnd[flags, BitOr[$POLLERR, $POLLNVAL]] != 0, getEvent[Null, "Error", {socketId, flags}],
+        BitAnd[flags, $POLLHUP] != 0, getEvent[Null, "Closed", {socketId}],
+        True, None
+    ]
 ];
 
 
-getEvent[role_Integer, listenSocketId_Integer] /; role === $SOCKETROLETCPBOUND :=
+acceptTCPEvent[listenSocketId_Integer] :=
 getEvent[Null, "Accepted", {listenSocketId, accept[listenSocketId]}];
 
 
-getEvent[role_Integer, socketId_Integer] /; MemberQ[{$SOCKETROLEUDPBOUND, $SOCKETROLEUDPCONNECTED}, role] :=
+readUDPEvent[socketId_Integer] :=
 With[{buffer = $CSockets[socketId, "Buffer"]},
     With[{received = Check[List @@ socketRecvFromInto[socketId, buffer], $Failed]},
         If[!MatchQ[received, {_Integer, _String}] || !TrueQ[0 <= First[received] <= Length[buffer]],
@@ -915,17 +936,11 @@ With[{buffer = $CSockets[socketId, "Buffer"]},
 ];
 
 
-getEvent[role_Integer, socketId_Integer] /; MemberQ[{$SOCKETROLETCPCONNECTED, $SOCKETROLETCPACCEPTED}, role] :=
-With[{buffer = $CSockets[socketId, "Buffer"]},
-    With[{bytesRead = Check[socketRecvInto[socketId, buffer], $Failed]},
-        If[!IntegerQ[bytesRead] || !TrueQ[0 <= bytesRead <= Length[buffer]],
-            Throw[Failure["socketRecv", <|"SocketID" -> socketId|>]]
-        ];
-
-        If[bytesRead === 0,
-            getEvent[Null, "Closed", {socketId}],
-            getEvent[Null, "Received", {socketId, Take[buffer, bytesRead]}]
-        ]
+readTCPEvent[socketId_Integer] :=
+With[{bytes = read[socketId, True]},
+    If[Length[bytes] === 0,
+        getEvent[Null, "Closed", {socketId}],
+        getEvent[Null, "Received", {socketId, bytes}]
     ]
 ];
 
@@ -1121,11 +1136,10 @@ With[{source = packet["SourceSocket"]},
 ];
 
 
-getExtendedPacket[packet_Association] :=
-With[{handler = packet["Handler"], key = packetBufferKey[packet]},
-    Module[{dataLength, last, expectedLength, storedLength = 0, buffer, accumulator},
+getExtendedPacket[packet_Association, key_, buffer_] :=
+With[{handler = packet["Handler"]},
+    Module[{dataLength, last, expectedLength, storedLength = 0, accumulator},
         dataLength = Length[packet["DataByteArray"]];
-        buffer = handler["Buffer"]["Lookup", key];
 
         If[!MissingQ[buffer] && buffer["Length"] > 0,
             last = buffer["Part", -1];
@@ -1151,54 +1165,45 @@ With[{handler = packet["Handler"], key = packetBufferKey[packet]},
 ];
 
 
-getMessage[packet_Association] :=
-With[{buffer = packet["Handler"]["Buffer"]["Lookup", packet["BufferKey"]]},
-    If[!MissingQ[buffer] && buffer["Length"] > 0,
-        Apply[Join, Append[buffer["Elements"][[All, "DataByteArray"]], packet["DataByteArray"]]],
-        packet["DataByteArray"]
-    ]
-];
-
-
-invokeHandler[packet_Association, callback_] :=
-Module[{processedPacket = packet, handler = packet["Handler"]},
-    processedPacket["Result"] = If[AssociationQ[callback], conditionApply[callback][packet], callback[packet]];
-    processedPacket["Result"] = handler["Serializer"][processedPacket["Result"]];
-    processedPacket
+completeReceivedPacket[packet_Association, handler_CSocketHandler, bytes_ByteArray, callback_] :=
+With[{message = Join[packet, <|
+    "DataByteArray" -> bytes,
+    "DataBytes" -> Normal[bytes],
+    "Data" -> handler["Deserializer"][bytes]
+|>]}, {
+    result = If[AssociationQ[callback], conditionApply[callback][message], callback[message]]
+}, {
+    response = Append[message, "Result" -> handler["Serializer"][result]]
+},
+    sendResponse[response];
+    handler["Logger"][response];
+    response
 ];
 
 
 sendResponse[packet_Association] :=
-Module[{result = Lookup[packet, "Result", Null], source, bytes, address},
+With[{result = Lookup[packet, "Result", Null]},
     If[result === Null, Return[Null]];
 
     If[!MatchQ[result, _String | _ByteArray],
         Throw[Failure["CSocketHandler", <|"Field" -> "Result", "Value" -> result|>]]
     ];
 
-    source = Lookup[packet, "SourceSocket"];
-
-    If[!MatchQ[source, CSocketObject[_Integer] | _SocketObject],
-        Throw[Failure["CSocketHandler", <|"Field" -> "SourceSocket", "Value" -> source|>]]
-    ];
-
-    bytes = If[StringQ[result], StringToByteArray[result], result];
-
-    If[MatchQ[source, _SocketObject],
-        Return[writeNativeSocket[source, bytes]]
-    ];
-
-    If[KeyExistsQ[packet, "Address"] &&
-        {source["Protocol"], source["Role"]} =!= {"UDP", "Connected"},
-        address = packet["Address"];
-
-        If[!StringQ[address] || !protohostportQ[address],
-            Throw[Failure["CSocketHandler", <|"Field" -> "Address", "Value" -> address|>]]
-        ];
-
-        address = splitAddress[address];
-        writeToAddress[First[source], bytes, address],
-        write[First[source], bytes]
+    With[{source = Lookup[packet, "SourceSocket"], bytes = If[StringQ[result], StringToByteArray[result], result]},
+        Switch[source,
+            CSocketObject[_Integer],
+                If[KeyExistsQ[packet, "Address"] && Lookup[$CSockets[First[source]], {"Protocol", "Role"}] =!= {"UDP", "Connected"},
+                    With[{address = packet["Address"]},
+                        If[!StringQ[address],
+                            Throw[Failure["CSocketHandler", <|"Field" -> "Address", "Value" -> address|>]]
+                        ];
+                        writeToAddress[First[source], bytes, replyDestination[address]]
+                    ],
+                    write[First[source], bytes]
+                ],
+            _SocketObject, writeNativeSocket[source, bytes],
+            _, Throw[Failure["CSocketHandler", <|"Field" -> "SourceSocket", "Value" -> source|>]]
+        ]
     ]
 ];
 
@@ -1213,19 +1218,22 @@ With[{sent = Check[BinaryWrite[source, bytes], $Failed]},
 ];
 
 
-savePacketToBuffer[packet_Association] :=
-With[{handler = packet["Handler"], key = packet["BufferKey"]},
-    With[{buffer = handler["Buffer"]["Lookup", key]},
-        If[!MissingQ[buffer],
-            buffer["Append", packet],
-            handler["Buffer"]["Insert", key -> CreateDataStructure["DynamicArray", {packet}]]
+$lastNumericReply = {None, None};
+
+
+replyDestination[address_String] :=
+If[address === First[$lastNumericReply],
+    Last[$lastNumericReply],
+    With[{parts = parseAddress[address]},
+        If[parts === {},
+            Throw[Failure["CSocketHandler", <|"Field" -> "Address", "Value" -> address|>]]
+        ];
+        With[{destination = splitAddress[parts[[2]], parts[[3]], parts[[1]]]},
+            If[destination["Host"] === parts[[2]], $lastNumericReply = {address, destination}];
+            destination
         ]
     ]
 ];
-
-
-clearBuffer[packet_Association] :=
-packet["Handler"]["Buffer"]["KeyDrop", packet["BufferKey"]];
 
 
 removeSocketBuffer[handler_CSocketHandler, socketId_Integer] :=

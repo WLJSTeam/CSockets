@@ -117,6 +117,21 @@ TestReport[
             TestID -> "coalesced-messages-and-trailing-fragment-are-preserved"
         ],
         VerificationTest[
+            Module[{handler, accumulator, packet, received = {}},
+                handler = CSocketHandler["Received" -> Function[event, AppendTo[received, event["DataBytes"]]; Null]];
+                accumulator = handler["Accumulator"];
+                packet = <|"Event" -> "Received", "SourceSocket" -> CSocketObject[42]|>;
+                handler["Accumulator"] = Function[2];
+                handler[Append[packet, "DataByteArray" -> ByteArray[{1}]]];
+                handler["Accumulator"] = accumulator;
+                handler[Append[packet, "DataByteArray" -> ByteArray[{2}]]];
+                handler[Append[packet, "DataByteArray" -> ByteArray[{3}]]];
+                received
+            ],
+            {{1, 2}, {3}},
+            TestID -> "restoring-default-accumulator-finishes-buffered-message-first"
+        ],
+        VerificationTest[
             Module[{
                 handler,
                 packet,
